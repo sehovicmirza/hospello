@@ -3,12 +3,7 @@ source "https://rubygems.org"
 gem "rails", "~> 8.0.5", ">= 8.0.5.1"
 gem "propshaft"
 gem "pg", "~> 1.1"
-# Pinned to the 6.x line: solid_queue 1.6's Puma plugin predates Puma 8 and
-# crashes on boot there (it starts a monitor thread before Rails has loaded, then
-# forks before the SolidQueue constant exists). Running jobs inside Puma is what
-# lets a pilot deploy on a single free service, so the plugin has to work.
-# Revisit when solid_queue ships Puma 8 support.
-gem "puma", "~> 6.6"
+gem "puma", ">= 6.6"
 
 # Hotwire — no Node build chain
 gem "importmap-rails"
