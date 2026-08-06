@@ -7,6 +7,16 @@ class UserTest < ActiveSupport::TestCase
     assert_equal "nedim@stari-grad.example", user.email_address
   end
 
+  test "email address is unique platform-wide, case-insensitively" do
+    duplicate = User.new(
+      email_address: users(:stari_admin).email_address.upcase,
+      name: "Someone Else", role: :staff, hotel: hotels(:vrelo), password: "password123"
+    )
+
+    assert_not duplicate.valid?
+    assert_includes duplicate.errors[:email_address], "has already been taken"
+  end
+
   test "platform admins must not belong to a hotel" do
     user = users(:platform)
     user.hotel = hotels(:stari_grad)

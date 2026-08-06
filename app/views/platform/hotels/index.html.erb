@@ -1,0 +1,64 @@
+<% content_for :title, "Hotels — Hospello" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-2xl font-semibold text-gray-900">Hotels</h1>
+  <%= link_to "New hotel", new_platform_hotel_path,
+        class: "rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500" %>
+</div>
+
+<% if @hotels.empty? %>
+  <div class="rounded-lg border border-dashed border-gray-300 p-12 text-center">
+    <p class="text-gray-600">No hotels yet — create the first one.</p>
+  </div>
+<% else %>
+  <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+    <table class="min-w-full divide-y divide-gray-200 text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Hotel</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Staff</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">First admin</th>
+          <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% @hotels.each do |hotel| %>
+          <tr id="<%= dom_id(hotel) %>">
+            <td class="px-4 py-3">
+              <%= link_to hotel.name, platform_hotel_path(hotel), class: "font-medium text-gray-900 hover:text-blue-600" %>
+              <div class="text-gray-500">/h/<%= hotel.slug %></div>
+            </td>
+            <td class="px-4 py-3">
+              <% if hotel.active? %>
+                <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+              <% else %>
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Suspended</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-3 text-gray-700"><%= @staff_counts.fetch(hotel.id, 0) %></td>
+            <td class="px-4 py-3">
+              <% if @hotel_ids_with_admin.include?(hotel.id) %>
+                <span class="font-medium text-green-700">Yes</span>
+              <% else %>
+                <span class="font-medium text-amber-700">Not yet</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex justify-end gap-3">
+                <%= link_to "Edit", edit_platform_hotel_path(hotel), class: "font-medium text-blue-600 hover:text-blue-500" %>
+                <% if hotel.active? %>
+                  <%= button_to "Suspend", suspend_platform_hotel_path(hotel), method: :patch,
+                        class: "font-medium text-amber-700 hover:text-amber-600 cursor-pointer" %>
+                <% else %>
+                  <%= button_to "Reactivate", activate_platform_hotel_path(hotel), method: :patch,
+                        class: "font-medium text-green-700 hover:text-green-600 cursor-pointer" %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

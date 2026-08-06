@@ -9,6 +9,14 @@ Rails.application.routes.draw do
   # Platform-admin back office. Filled in by later tasks; every controller here
   # inherits Platform::BaseController, which sets no ambient tenant.
   namespace :platform do
+    resources :hotels, only: %i[index new create show edit update] do
+      member do
+        patch :suspend
+        patch :activate
+      end
+
+      resources :hotel_admins, only: %i[new create]
+    end
   end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

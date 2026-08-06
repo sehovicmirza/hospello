@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Hospello — Platform admin" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%# Every page here shows state that changes with the next action (status,
+        staff count, whether a first admin exists yet) — a Turbo-cached preview
+        one click stale would show the platform admin the wrong picture, so
+        this surface always fetches fresh instead of flashing an old snapshot. %>
+    <meta name="turbo-cache-control" content="no-cache">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-gray-50 text-gray-900">
+    <header class="border-b border-gray-200 bg-white">
+      <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-8">
+          <span class="text-lg font-semibold tracking-tight text-gray-900">Hospello</span>
+          <nav class="flex gap-6 text-sm font-medium text-gray-600">
+            <%= link_to "Hotels", platform_hotels_path, class: "hover:text-gray-900" %>
+          </nav>
+        </div>
+
+        <% if authenticated? %>
+          <div class="flex items-center gap-4 text-sm text-gray-600">
+            <span>Signed in as <span class="font-medium text-gray-900"><%= Current.user.name %></span></span>
+            <%= button_to "Sign out", session_path, method: :delete,
+                  class: "rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-100 cursor-pointer" %>
+          </div>
+        <% end %>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <% if notice = flash[:notice] %>
+        <p class="mb-6 rounded-lg bg-green-50 px-3 py-2 font-medium text-green-700" id="notice"><%= notice %></p>
+      <% end %>
+      <% if alert = flash[:alert] %>
+        <p class="mb-6 rounded-lg bg-red-50 px-3 py-2 font-medium text-red-600" id="alert"><%= alert %></p>
+      <% end %>
+
+      <%= yield %>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+<% content_for :title, "Edit #{@hotel.name} — Hospello" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-2xl font-semibold text-gray-900">Edit <%= @hotel.name %></h1>
+  <%= link_to "Back to hotel", platform_hotel_path(@hotel), class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+</div>
+
+<%= render "form", hotel: @hotel, submit_label: "Save changes" %>

@@ -1,0 +1,11 @@
+<% content_for :title, "New hotel — Hospello" %>
+
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold text-gray-900">New hotel</h1>
+  <p class="mt-1 text-sm text-gray-600">
+    Set its identity and platform switches now. Branding — colors, logo, welcome message — is the
+    hotel admin's job once you hand over their credentials.
+  </p>
+</div>
+
+<%= render "form", hotel: @hotel, submit_label: "Create hotel" %>

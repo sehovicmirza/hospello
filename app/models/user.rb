@@ -10,6 +10,12 @@ class User < ApplicationRecord
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
 
+  # DB-unique already (see the users migration); this turns a raw
+  # ActiveRecord::RecordNotUnique into a normal validation error so a
+  # duplicate email re-renders the form with a clear message instead of
+  # raising — mirrors Hotel#slug's uniqueness validation.
+  validates :email_address, uniqueness: true
+
   validate :hotel_membership_matches_role
 
   scope :active, -> { where(active: true) }

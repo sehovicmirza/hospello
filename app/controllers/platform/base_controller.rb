@@ -4,6 +4,8 @@ module Platform
   # the only namespace where ActsAsTenant.without_tenant is permitted
   # (see test/tenancy/without_tenant_grep_test.rb).
   class BaseController < ApplicationController
+    layout "platform"
+
     before_action :require_platform_admin
 
     protected
