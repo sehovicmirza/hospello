@@ -1,0 +1,8 @@
+
+# SDD workspace (git-ignored scratch: ledger, briefs, review packages)
+/.superpowers/
+
+# Local env
+/.env
+/.env.*
+!/.env.example

@@ -1,0 +1,59 @@
+# Hospello runs on a single PostgreSQL database. The primary schema plus the
+# three Solid schemas (cache, queue, cable) all live in it — one Render
+# managed Postgres, no Redis. Each Solid connection has its own
+# migrations_paths and schema file so their tables stay separately managed.
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  primary:
+    <<: *default
+    database: hospello_development
+  cache:
+    <<: *default
+    database: hospello_development
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *default
+    database: hospello_development
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *default
+    database: hospello_development
+    migrations_paths: db/cable_migrate
+
+test:
+  primary:
+    <<: *default
+    database: hospello_test
+  cache:
+    <<: *default
+    database: hospello_test
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *default
+    database: hospello_test
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *default
+    database: hospello_test
+    migrations_paths: db/cable_migrate
+
+production:
+  primary:
+    <<: *default
+    url: <%= ENV["DATABASE_URL"] %>
+  cache:
+    <<: *default
+    url: <%= ENV["DATABASE_URL"] %>
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *default
+    url: <%= ENV["DATABASE_URL"] %>
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *default
+    url: <%= ENV["DATABASE_URL"] %>
+    migrations_paths: db/cable_migrate
