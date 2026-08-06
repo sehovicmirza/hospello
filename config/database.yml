@@ -1,59 +1,27 @@
-# Hospello runs on a single PostgreSQL database. The primary schema plus the
-# three Solid schemas (cache, queue, cable) all live in it — one Render
-# managed Postgres, no Redis. Each Solid connection has its own
-# migrations_paths and schema file so their tables stay separately managed.
+# Hospello runs on exactly one PostgreSQL database — application data plus the
+# Solid Queue, Solid Cache, and Solid Cable tables. That is deliberate: a pilot
+# needs one managed database on Render and no Redis.
+#
+# Rails 8 scaffolds four separate connections for this, each with its own schema
+# file. Pointing all four at the same physical database looks harmless but is
+# not: once the primary schema is loaded the other three see a populated
+# database, consider themselves already prepared, and silently never create
+# their tables — so `db:prepare` on a fresh production database yields an app
+# whose job queue crashes on boot. The Solid tables are therefore an ordinary
+# migration (db/migrate/*_create_solid_tables.rb) in this single connection.
 default: &default
   adapter: postgresql
   encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 
 development:
-  primary:
-    <<: *default
-    database: hospello_development
-  cache:
-    <<: *default
-    database: hospello_development
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *default
-    database: hospello_development
-    migrations_paths: db/queue_migrate
-  cable:
-    <<: *default
-    database: hospello_development
-    migrations_paths: db/cable_migrate
+  <<: *default
+  database: hospello_development
 
 test:
-  primary:
-    <<: *default
-    database: hospello_test
-  cache:
-    <<: *default
-    database: hospello_test
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *default
-    database: hospello_test
-    migrations_paths: db/queue_migrate
-  cable:
-    <<: *default
-    database: hospello_test
-    migrations_paths: db/cable_migrate
+  <<: *default
+  database: hospello_test
 
 production:
-  primary:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-  cache:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-    migrations_paths: db/cache_migrate
-  queue:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-    migrations_paths: db/queue_migrate
-  cable:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-    migrations_paths: db/cable_migrate
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>

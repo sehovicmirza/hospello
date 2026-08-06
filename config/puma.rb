@@ -33,8 +33,37 @@ port ENV.fetch("PORT", 3000)
 # Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart
 
-# Run the Solid Queue supervisor inside of Puma for single-server deployments
-plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
+# Run the Solid Queue supervisor inside Puma, so a single-server deployment needs
+# no separate (paid) worker service. Split it out when the queue starts lagging.
+#
+# `:async` runs the supervisor in threads inside this process instead of forking.
+# It is not just a preference: solid_queue 1.6's plugin predates Puma 8, and its
+# forking path starts a monitor thread before Rails has loaded — which raises
+# NoMethodError on nil.present? (ActiveSupport isn't loaded yet) and then
+# NameError on SolidQueue itself. The async path defers all of that to
+# after_booted, when the application is up.
+#
+# `plugin` comes first: it is what loads puma/plugin/solid_queue, and that file
+# is what defines the solid_queue_mode DSL method.
+# Run the Solid Queue supervisor inside Puma so a single-server deployment needs
+# no separate (paid) worker service. Split it out when the queue starts lagging.
+#
+# preload_app! is load-bearing here, not an optimisation: without it Puma builds
+# the Rack app lazily on the first request, so the plugin's on_booted hook fires
+# before Rails exists and the supervisor dies with `uninitialized constant
+# SolidQueue`. The web service stays up, jobs silently never run.
+# `:async` runs the supervisor in threads in this process rather than forking a
+# child. That costs less memory on a 512MB instance, and it avoids forking a
+# process that already holds a PostgreSQL connection — which segfaults outright
+# on macOS, making the whole arrangement untestable locally.
+#
+# `plugin` must come before `solid_queue_mode`: loading the plugin is what
+# defines that DSL method.
+if ENV["SOLID_QUEUE_IN_PUMA"]
+  preload_app!
+  plugin :solid_queue
+  solid_queue_mode :async
+end
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.
