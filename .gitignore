@@ -1,4 +1,3 @@
-
 # SDD workspace (git-ignored scratch: ledger, briefs, review packages)
 /.superpowers/
 
@@ -6,3 +5,30 @@
 /.env
 /.env.*
 !/.env.example
+
+# Bundler config.
+/.bundle
+
+# Logfiles and tempfiles (keep the directories).
+/log/*
+!/log/.keep
+/tmp/*
+!/tmp/.keep
+/tmp/pids/*
+!/tmp/pids/
+!/tmp/pids/.keep
+
+# Uploaded files in development.
+/storage/*
+!/storage/.keep
+/tmp/storage/*
+!/tmp/storage/
+!/tmp/storage/.keep
+
+# Compiled assets.
+/public/assets
+/app/assets/builds/*
+!/app/assets/builds/.keep
+
+# System-test artefacts.
+/tmp/screenshots
