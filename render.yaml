@@ -1,0 +1,127 @@
+# Render Blueprint for Hospello.
+#
+# Defaults are the cheapest configuration that runs the whole product: one web
+# service and one Postgres database, both on the free tier, both in Frankfurt
+# (Render's European region — guest and hotel data stays in the EU).
+#
+# What the free tier costs you, and when to upgrade:
+#
+#   * The web service sleeps after 15 minutes with no traffic and takes roughly
+#     a minute to wake. A guest scanning a QR code in a hotel room would wait
+#     through that. Fine for demos and development; change `plan: free` to
+#     `plan: starter` ($7/mo) before any real hotel pilot.
+#   * The free database is deleted 30 days after creation. Change
+#     `plan: free` to `plan: basic-256mb` ($6/mo) to keep it, which also
+#     unlocks point-in-time recovery.
+#   * Background jobs (Solid Queue) run inside the web process, so they sleep
+#     with it. On a paid plan they keep running.
+#
+# Upgrade path, in order: web to `starter`, then move `db:migrate` from
+# bin/render-build.sh into `preDeployCommand` below, then database to
+# `basic-256mb`, then a separate `worker` service (commented out at the bottom).
+
+services:
+  - type: web
+    name: hospello
+    runtime: ruby
+    plan: free # -> starter ($7/mo) before a real pilot: no sleeping, jobs keep running
+    region: frankfurt
+    branch: main
+    buildCommand: ./bin/render-build.sh
+    startCommand: bundle exec puma -C config/puma.rb
+    healthCheckPath: /up
+    # preDeployCommand: bundle exec rails db:migrate   # paid instance types only
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hospello-db
+          property: connectionString
+
+      # Paste the contents of config/master.key (run: cat config/master.key).
+      # Rails needs it to decrypt config/credentials.yml.enc.
+      - key: RAILS_MASTER_KEY
+        sync: false
+
+      # The public hostname guests reach. Set it to your Render URL
+      # (e.g. hospello.onrender.com) or your custom domain. Printed QR codes
+      # encode this host, so changing it later means reprinting.
+      - key: APP_HOST
+        sync: false
+
+      # First platform administrator, created idempotently by db:seed on first
+      # boot. Use a real address and a strong password; change the password
+      # after signing in.
+      - key: PLATFORM_ADMIN_EMAIL
+        sync: false
+      - key: PLATFORM_ADMIN_PASSWORD
+        sync: false
+
+      # Anthropic API key — the AI concierge and translation both use it.
+      # Not needed until the concierge ships; the app boots and runs without it.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      - key: RAILS_ENV
+        value: production
+      - key: RACK_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+
+      # Run the Solid Queue supervisor inside Puma — no separate paid worker
+      # service at pilot scale. config/puma.rb reads this.
+      - key: SOLID_QUEUE_IN_PUMA
+        value: "true"
+
+      # One Puma worker: the free and starter plans have 512MB of RAM, and the
+      # in-process job supervisor needs headroom. Raise to 2 on `standard`.
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: RAILS_MAX_THREADS
+        value: "5"
+
+      # Hotel logos and welcome images. `local` writes to the container's
+      # ephemeral disk, so uploads vanish on redeploy — acceptable while
+      # evaluating, not for a pilot. Set to `r2` and fill in the four R2
+      # variables below to keep them (Cloudflare R2: 10GB free, no egress fees).
+      - key: ACTIVE_STORAGE_SERVICE
+        value: local
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+
+      # Optional operations wiring. Every one of these is inert when unset —
+      # the app runs fine without them.
+      - key: SENTRY_DSN
+        sync: false
+      - key: HEARTBEAT_URL
+        sync: false
+
+databases:
+  - name: hospello-db
+    plan: free # -> basic-256mb ($6/mo): free databases are deleted after 30 days
+    region: frankfurt
+    databaseName: hospello
+    user: hospello
+
+# Split background jobs onto their own service when the queue starts lagging
+# (watch Ops::QueueHealthJob's alerts — expected around the fifth hotel).
+# Uncomment this, and remove SOLID_QUEUE_IN_PUMA from the web service above.
+#
+#  - type: worker
+#    name: hospello-jobs
+#    runtime: ruby
+#    plan: starter
+#    region: frankfurt
+#    branch: main
+#    buildCommand: ./bin/render-build.sh
+#    startCommand: bundle exec rails solid_queue:start
+#    envVars:
+#      - fromGroup: hospello-env
