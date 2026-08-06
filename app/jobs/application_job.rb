@@ -13,7 +13,11 @@ class ApplicationJob < ActiveJob::Base
 
   private
     def scope_to_tenant(&block)
-      return yield if is_a?(TenantFree)
+      # acts_as_tenant serializes the enqueue-time tenant into the job and restores
+      # it in deserialize, so a TenantFree job has to be actively cleared rather
+      # than simply left alone: inheriting a tenant would silently narrow every
+      # query it makes to whichever hotel happened to enqueue it.
+      return ActsAsTenant.with_tenant(nil, &block) if is_a?(TenantFree)
 
       hotel = tenant_from_arguments
       if hotel.nil?
@@ -25,10 +29,13 @@ class ApplicationJob < ActiveJob::Base
       ActsAsTenant.with_tenant(hotel, &block)
     end
 
+    # Keyword arguments arrive as a trailing Hash, so its values are candidates too.
     def tenant_from_arguments
-      arguments.each do |argument|
-        return argument if argument.is_a?(Hotel)
-        return argument.hotel if argument.respond_to?(:hotel_id) && argument.hotel_id.present?
+      candidates = arguments.flat_map { |argument| argument.is_a?(Hash) ? argument.values : [ argument ] }
+
+      candidates.each do |candidate|
+        return candidate if candidate.is_a?(Hotel)
+        return candidate.try(:hotel) if candidate.respond_to?(:hotel_id) && candidate.hotel_id.present?
       end
 
       nil

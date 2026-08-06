@@ -53,6 +53,21 @@ class HotelTest < ActiveSupport::TestCase
     assert Hotel.new(name: "Hotel Bistrik", timezone: "Europe/Sarajevo").valid?
   end
 
+  # An audit trail has to outlive what it describes, so deleting a hotel must
+  # nullify the references rather than be blocked by them.
+  test "destroying a hotel leaves its audit trail behind" do
+    hotel = hotels(:vrelo)
+    log = AuditLog.record!(actor: users(:vrelo_admin), hotel: hotel, action: "hotel.suspended")
+
+    hotel.destroy!
+
+    log.reload
+
+    assert_nil log.hotel_id
+    assert_nil log.actor_user_id
+    assert_equal "hotel.suspended", log.action
+  end
+
   test "status predicates report whether the hotel is live" do
     hotel = hotels(:stari_grad)
 

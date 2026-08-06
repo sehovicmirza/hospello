@@ -14,6 +14,11 @@ class User < ApplicationRecord
 
   scope :active, -> { where(active: true) }
 
+  # User is exempt from acts_as_tenant (platform admins belong to no hotel), so a
+  # bare User relation crosses hotels without raising. Inside a hotel context read
+  # users through this scope or through Current.hotel.users.
+  scope :for_hotel, ->(hotel) { where(hotel: hotel) }
+
   # A session may only be started while the account is active and, for hotel
   # users, while their hotel is not suspended.
   def can_sign_in?

@@ -12,8 +12,11 @@ module Platform
       end
 
     private
+      # active? matters as much as the role: sessions are permanent cookies that
+      # nothing revokes, so deactivating an account is the only way to take away
+      # cross-hotel access.
       def require_platform_admin
-        head :forbidden unless Current.user&.platform_admin?
+        head :forbidden unless Current.user&.platform_admin? && Current.user.active?
       end
   end
 end

@@ -83,6 +83,19 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Sessions are permanent cookies with no expiry, and nothing destroys them when
+  # an account is deactivated, so this check is the only revocation there is for
+  # the one role that can read every hotel.
+  test "a deactivated platform admin is refused by the platform namespace" do
+    with_probes do
+      sign_in_as users(:platform)
+      users(:platform).update!(active: false)
+      get "/platform_probe"
+
+      assert_response :forbidden
+    end
+  end
+
   test "a hotel admin is refused by the platform namespace" do
     with_probes do
       sign_in_as users(:stari_admin)
