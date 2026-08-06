@@ -1,0 +1,40 @@
+<% password_digest = BCrypt::Password.create("password123", cost: 4) %>
+
+stari_admin:
+  hotel: stari_grad
+  email_address: admin@stari-grad.example
+  password_digest: <%= password_digest %>
+  name: Amila Hadžić
+  role: hotel_admin
+  locale: bs
+
+stari_staff:
+  hotel: stari_grad
+  email_address: staff@stari-grad.example
+  password_digest: <%= password_digest %>
+  name: Nedim Bašić
+  role: staff
+  locale: bs
+
+vrelo_admin:
+  hotel: vrelo
+  email_address: admin@vrelo-bosne.example
+  password_digest: <%= password_digest %>
+  name: Emir Kovač
+  role: hotel_admin
+  locale: en
+
+vrelo_staff:
+  hotel: vrelo
+  email_address: staff@vrelo-bosne.example
+  password_digest: <%= password_digest %>
+  name: Lejla Softić
+  role: staff
+  locale: en
+
+platform:
+  email_address: platform@hospello.example
+  password_digest: <%= password_digest %>
+  name: Platform Admin
+  role: platform_admin
+  locale: en

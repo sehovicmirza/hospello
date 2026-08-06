@@ -1,0 +1,21 @@
+stari_grad:
+  name: Hotel Stari Grad
+  slug: stari-grad
+  timezone: Europe/Sarajevo
+  staff_locale: bs
+  primary_color: "#1F3A5F"
+  secondary_color: "#C9A227"
+  concierge_name: Amila
+  welcome_message: Dobrodošli u Hotel Stari Grad!
+  contact_phone: "+387 33 000 000"
+
+vrelo:
+  name: Hotel Vrelo Bosne
+  slug: vrelo-bosne
+  timezone: Europe/Sarajevo
+  staff_locale: en
+  primary_color: "#0B6E4F"
+  secondary_color: "#F2C14E"
+  concierge_name: Emir
+  welcome_message: Welcome to Hotel Vrelo Bosne!
+  contact_phone: "+387 33 111 111"

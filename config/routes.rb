@@ -1,5 +1,15 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+  resource :session, only: %i[ new create destroy ]
+
+  # Staff-facing hotel workspace. Filled in by later tasks; every controller
+  # here inherits Staff::BaseController, which sets the tenant.
+  namespace :staff do
+  end
+
+  # Platform-admin back office. Filled in by later tasks; every controller here
+  # inherits Platform::BaseController, which sets no ambient tenant.
+  namespace :platform do
+  end
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
@@ -9,6 +19,5 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  root "sessions#new"
 end
