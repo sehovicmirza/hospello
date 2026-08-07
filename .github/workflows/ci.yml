@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      RAILS_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      # System tests (test/application_system_test_case.rb) drive a real
+      # headless Chrome via Selenium — not a stub, not rack_test. This step
+      # guarantees Chrome is actually on PATH rather than assuming the
+      # runner image happens to ship one; selenium-webdriver 4.46 (Gemfile)
+      # bundles Selenium Manager, which resolves and downloads a matching
+      # chromedriver automatically the first time a driver is requested, so
+      # no separate chromedriver install is needed here.
+      - name: Install Chrome for system tests
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Confirm Chrome is on PATH
+        run: google-chrome --version
+
+      # public/assets is gitignored and Propshaft prefers a precompiled file
+      # there over live compilation — a stale one already produced a false
+      # rendering result in an earlier task (see test/test_helper.rb, which
+      # now clears it unconditionally before every test run). A fresh
+      # checkout never has this directory, so no extra step is needed here
+      # to reproduce that guard — this comment is just confirming the trap
+      # cannot recur in CI, not adding a workaround for it.
+      - name: Prepare the test database
+        run: bin/rails db:prepare
+
+      - name: Run the test suite
+        run: bin/rails test
+
+      # Must genuinely run, not silently no-op: a missing browser or driver
+      # fails this step loudly (Selenium raises), and Capybara.default_driver
+      # is headless Chrome unconditionally in
+      # test/application_system_test_case.rb — nothing here falls back to a
+      # non-JS driver in CI.
+      - name: Run system tests
+        run: bin/rails test:system
+
+      - name: Rubocop
+        run: bundle exec rubocop
+
+      - name: Brakeman
+        run: bundle exec brakeman --no-pager
+
+      - name: bundler-audit
+        run: bundle exec bundler-audit check --update
