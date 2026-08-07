@@ -6,15 +6,12 @@ module BrandingHelper
   ON_PRIMARY_DARK = "#111827"
   ON_PRIMARY_LIGHT = "#FFFFFF"
 
-  # The relative luminance at which black and white text have equal contrast
-  # against a background of that luminance. Solving the WCAG contrast-ratio
-  # formula (L_light + 0.05) / (L_dark + 0.05) for white text (luminance 1)
-  # against black text (luminance 0) — i.e. 1.05 / (L + 0.05) = (L + 0.05) /
-  # 0.05 — yields L ≈ 0.179. Above that luminance dark text has the higher
-  # contrast ratio; at or below it, light text does. Using this derived
-  # crossover (rather than a flat 0.5 split on luminance) is what keeps a
-  # pale — not just white — brand color from producing hard-to-read text.
-  CONTRAST_CROSSOVER_LUMINANCE = 0.179
+  # Hotel's own column defaults (db/schema.rb) — what a blank or malformed
+  # color falls back to, so this helper never has to raise or trust unvalidated
+  # input just because it ran ahead of Hotel's own format validation (see
+  # #normalized_hex below).
+  DEFAULT_PRIMARY_COLOR = "#1F3A5F"
+  DEFAULT_SECONDARY_COLOR = "#C9A227"
 
   # CSS custom properties for a hotel's brand colors, ready to interpolate
   # straight into a style="" attribute, e.g.
@@ -23,23 +20,52 @@ module BrandingHelper
   # picks a pale primary color still gets readable text on it instead of
   # white-on-white.
   #
-  # Returns an HTML-safe string: primary_color/secondary_color are validated
-  # by Hotel::COLOR_FORMAT (six-digit hex) on every save, and the on-primary
-  # value only ever comes from the two hardcoded constants above, so nothing
-  # here is unescaped user input reaching the page.
+  # Returns an HTML-safe string. Hotel validates primary_color/secondary_color
+  # with Hotel::COLOR_FORMAT on every *save*, but this helper also renders on
+  # Staff::HotelSettingsController's :edit template when a save just *failed*
+  # — at that point @hotel carries whatever the admin typed, unsaved and
+  # unvalidated, which is exactly the case a review found this raising
+  # (nil/non-hex) or, worse, marking safe and interpolating verbatim (a value
+  # shaped like six hex digits with a trailing quoted attribute survives the
+  # length/charset check and breaks out of style=""). #normalized_hex is the
+  # actual safety boundary — html_safe only describes its output, it doesn't
+  # create it.
   def hotel_brand_style(hotel)
+    primary = normalized_hex(hotel.primary_color, default: DEFAULT_PRIMARY_COLOR)
+    secondary = normalized_hex(hotel.secondary_color, default: DEFAULT_SECONDARY_COLOR)
+
     properties = {
-      "--brand-primary" => hotel.primary_color,
-      "--brand-secondary" => hotel.secondary_color,
-      "--brand-on-primary" => on_primary_color(hotel.primary_color)
+      "--brand-primary" => primary,
+      "--brand-secondary" => secondary,
+      "--brand-on-primary" => on_primary_color(primary)
     }
 
     properties.map { |property, value| "#{property}:#{value};" }.join.html_safe
   end
 
   private
+    # Hotel::COLOR_FORMAT is anchored (\A...\z), so anything other than
+    # exactly "#" + six hex digits — nil, "", "blue", or a well-formed prefix
+    # with trailing garbage appended — fails the match and never reaches the
+    # html_safe string. This is what makes marking the final string safe
+    # correct rather than merely asserted.
+    def normalized_hex(value, default:)
+      Hotel::COLOR_FORMAT.match?(value.to_s) ? value : default
+    end
+
     def on_primary_color(primary_hex)
-      relative_luminance(primary_hex) > CONTRAST_CROSSOVER_LUMINANCE ? ON_PRIMARY_DARK : ON_PRIMARY_LIGHT
+      primary_luminance = relative_luminance(primary_hex)
+      dark_contrast = contrast_ratio(primary_luminance, relative_luminance(ON_PRIMARY_DARK))
+      light_contrast = contrast_ratio(primary_luminance, relative_luminance(ON_PRIMARY_LIGHT))
+
+      dark_contrast >= light_contrast ? ON_PRIMARY_DARK : ON_PRIMARY_LIGHT
+    end
+
+    # WCAG 2.x contrast ratio between two relative luminances.
+    # https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio
+    def contrast_ratio(luminance_a, luminance_b)
+      lighter, darker = [ luminance_a, luminance_b ].max, [ luminance_a, luminance_b ].min
+      (lighter + 0.05) / (darker + 0.05)
     end
 
     # WCAG 2.x relative luminance of an sRGB color.

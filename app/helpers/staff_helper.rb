@@ -6,6 +6,17 @@ module StaffHelper
     time&.in_time_zone(Current.hotel.timezone)
   end
 
+  # An attachment can be `attached?` while its blob is still an in-memory,
+  # unsaved record: assigning a new file on a failed update (e.g. the record
+  # re-renders :edit because an unrelated field is invalid) stages the
+  # attachment change without persisting it. Generating a URL/signed_id for
+  # that unsaved blob raises "Cannot get a signed_id for a new record" — this
+  # is the guard every view that renders a hotel attachment must use instead
+  # of a bare `attached?` check.
+  def displayable_attachment?(attachment)
+    attachment.attached? && attachment.blob.persisted?
+  end
+
   # The single source of truth for the staff sidebar, shared by every staff
   # layout render. Rooms / Departments & categories / Staff / QR code render
   # as inert (unlinked) placeholders: their controllers arrive in later tasks

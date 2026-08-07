@@ -77,9 +77,9 @@
 
         <div>
           <%= form.label :welcome_image, "Welcome image", class: "block text-sm font-medium text-gray-700" %>
-          <p class="text-sm text-gray-500">Shown above the welcome message on the guest landing page, up to 5 MB.</p>
-          <%= form.file_field :welcome_image, accept: "image/*", class: "mt-1 block w-full text-sm text-gray-700" %>
-          <% if @hotel.welcome_image.attached? %>
+          <p class="text-sm text-gray-500">Shown above the welcome message on the guest landing page. PNG, JPEG or WebP, up to 5 MB.</p>
+          <%= form.file_field :welcome_image, accept: "image/png,image/jpeg,image/webp", class: "mt-1 block w-full text-sm text-gray-700" %>
+          <% if displayable_attachment?(@hotel.welcome_image) %>
             <%= image_tag @hotel.welcome_image, class: "mt-2 h-20 rounded object-cover", alt: "" %>
           <% end %>
         </div>
@@ -149,16 +149,23 @@
            style="<%= hotel_brand_style(@hotel) %>background-color:var(--brand-primary);color:var(--brand-on-primary);">
         <div class="flex items-center gap-3">
           <img data-brand-preview-target="logoPreview"
-               src="<%= @hotel.logo.attached? ? rails_blob_path(@hotel.logo, only_path: true) : "" %>"
-               alt="" class="h-12 w-12 rounded-full bg-white object-contain p-1 <%= "hidden" unless @hotel.logo.attached? %>">
+               src="<%= displayable_attachment?(@hotel.logo) ? rails_blob_path(@hotel.logo, only_path: true) : "" %>"
+               alt="" class="h-12 w-12 rounded-full bg-white object-contain p-1 <%= "hidden" unless displayable_attachment?(@hotel.logo) %>">
           <div>
             <p class="text-xs uppercase tracking-wide opacity-80">Guest landing preview</p>
             <p class="text-lg font-semibold"><%= @hotel.name %></p>
           </div>
         </div>
         <p class="mt-4 text-sm opacity-90"><%= @hotel.welcome_message.presence || "Your welcome message will appear here." %></p>
-        <span class="mt-4 inline-block rounded-full px-3 py-1 text-xs font-medium"
-              style="background-color:var(--brand-secondary);color:var(--brand-on-primary)">
+        <%# An outline, not a filled pill: --brand-on-primary is only ever
+            guaranteed readable against --brand-primary. Filling this with
+            --brand-secondary would need its own contrast-checked "on-secondary"
+            color, which doesn't exist (see the task report's interface note
+            for Slice 2) — the accent color reads as a border instead, and the
+            text stays on the primary background where on-primary is already
+            correct. %>
+        <span class="mt-4 inline-block rounded-full border-2 px-3 py-1 text-xs font-medium"
+              style="border-color:var(--brand-secondary);color:var(--brand-on-primary)">
           Start chat
         </span>
       </div>

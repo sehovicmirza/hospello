@@ -19,7 +19,11 @@
       </div>
       <div class="flex justify-between gap-4">
         <dt class="text-gray-500">Last updated</dt>
-        <dd class="font-medium text-gray-900"><%= staff_time(@hotel.updated_at).strftime("%B %-d, %Y at %H:%M %Z") %></dd>
+        <%# staff_time is nil-safe by design (a hotel's own updated_at is
+            never actually nil, but later tasks extend this layout with
+            genuinely nullable timestamps — chain with &. here, not .strftime
+            directly, so that pattern is modeled correctly from the start). %>
+        <dd class="font-medium text-gray-900"><%= staff_time(@hotel.updated_at)&.strftime("%B %-d, %Y at %H:%M %Z") || "—" %></dd>
       </div>
     </dl>
 

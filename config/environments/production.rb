@@ -21,13 +21,17 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Where hotel logos and welcome images live. The default is deliberately
-  # "local", not "r2": r2 without the R2_* variables set does not degrade, it
-  # aborts boot (aws-sdk raises on a nil bucket name), so an unset variable
-  # would take the whole site down rather than costing durability. Local disk
-  # is ephemeral — uploads are lost on redeploy — so render.yaml sets this to
-  # r2 as soon as the R2_* variables are configured.
-  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "local").to_sym
+  # Where hotel logos and welcome images live. Follows R2_BUCKET rather than
+  # defaulting to either service outright: r2 without the R2_* variables set
+  # does not degrade, it aborts boot (S3Service resolves the bucket eagerly,
+  # so aws-sdk raises on a nil bucket name at initializer time) — but local
+  # disk is ephemeral (uploads are lost on redeploy), so silently defaulting
+  # to it would mean nobody ever gets durable storage just because
+  # ACTIVE_STORAGE_SERVICE was left unset. This is durable the instant R2 is
+  # configured and never boots broken when it isn't; ACTIVE_STORAGE_SERVICE
+  # still overrides either way if that's ever needed.
+  config.active_storage.service =
+    ENV.fetch("ACTIVE_STORAGE_SERVICE") { ENV["R2_BUCKET"].present? ? "r2" : "local" }.to_sym
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true

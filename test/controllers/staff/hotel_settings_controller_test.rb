@@ -110,10 +110,55 @@ class Staff::HotelSettingsControllerTest < ActionDispatch::IntegrationTest
 
     patch staff_hotel_settings_path, params: { hotel: valid_settings_params }
 
+    assert_redirected_to edit_staff_hotel_settings_path
     hotel_b.reload
     assert_equal original_name, hotel_b.name
     assert_equal original_concierge_name, hotel_b.concierge_name
     assert_equal original_primary_color, hotel_b.primary_color
+  end
+
+  # CRITICAL 1 (review round 1): a failed save re-renders :edit with the
+  # just-submitted attachment still staged on @hotel. That staged blob is an
+  # in-memory, unsaved ActiveStorage::Blob — generating a URL/signed_id for it
+  # raises "Cannot get a signed_id for a new record". These three tests cover
+  # the three ways the reviewer reproduced the crash: an oversized logo, an
+  # oversized welcome image, and a validly-attached file alongside an
+  # unrelated invalid field.
+  test "an oversized logo re-renders the form with a validation error, not a 500" do
+    sign_in users(:stari_admin)
+    hotel = hotels(:stari_grad)
+
+    patch staff_hotel_settings_path, params: {
+      hotel: valid_settings_params.merge(logo: oversized_upload(filename: "big.png", content_type: "image/png", size: 3.megabytes))
+    }
+
+    assert_response :unprocessable_content
+    assert_select "li", text: "Logo must be smaller than 2 MB"
+    assert_not hotel.reload.logo.attached?
+  end
+
+  test "an oversized welcome image re-renders the form with a validation error, not a 500" do
+    sign_in users(:stari_admin)
+    hotel = hotels(:stari_grad)
+
+    patch staff_hotel_settings_path, params: {
+      hotel: valid_settings_params.merge(welcome_image: oversized_upload(filename: "big.jpg", content_type: "image/jpeg", size: 6.megabytes))
+    }
+
+    assert_response :unprocessable_content
+    assert_select "li", text: "Welcome image must be smaller than 5 MB"
+    assert_not hotel.reload.welcome_image.attached?
+  end
+
+  test "a valid logo alongside an unrelated invalid field re-renders instead of crashing" do
+    sign_in users(:stari_admin)
+
+    patch staff_hotel_settings_path, params: {
+      hotel: valid_settings_params.merge(name: "", logo: fixture_file_upload("logo.png", "image/png"))
+    }
+
+    assert_response :unprocessable_content
+    assert_select "li", text: "Name can't be blank"
   end
 
   test "a signed-out user is redirected to sign-in for every staff route" do
@@ -161,5 +206,17 @@ class Staff::HotelSettingsControllerTest < ActionDispatch::IntegrationTest
         [ :get, edit_staff_hotel_settings_path ],
         [ :patch, staff_hotel_settings_path ]
       ]
+    end
+
+    # A real fixture file on disk would have to actually be several MB to
+    # exercise the size validations, which is not something to commit to the
+    # repo — write a throwaway file under tmp/ (gitignored) and wrap it the
+    # same way fixture_file_upload wraps a real fixture, then remove it.
+    def oversized_upload(filename:, content_type:, size:)
+      path = Rails.root.join("tmp", "#{SecureRandom.hex(8)}-#{filename}")
+      File.binwrite(path, "x" * size)
+      Rack::Test::UploadedFile.new(path.to_s, content_type)
+    ensure
+      File.delete(path) if path && File.exist?(path)
     end
 end

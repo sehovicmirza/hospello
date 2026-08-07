@@ -42,17 +42,32 @@ export default class extends Controller {
     reader.readAsDataURL(file)
   }
 
-  // WCAG 2.x relative luminance — see BrandingHelper for the derivation of
-  // the 0.179 crossover, kept in sync by hand since this runs in the browser.
+  // WCAG 2.x relative luminance and contrast ratio — kept in sync by hand
+  // with BrandingHelper#hotel_brand_style since this runs in the browser.
+  // Deliberately computes both candidates' actual contrast ratios and takes
+  // the higher one, rather than comparing against a fixed luminance
+  // threshold: a threshold derived for literal black vs white picks the
+  // lower-contrast candidate for real colors in the gap between the dark
+  // candidate's true crossover and black's (e.g. #767676) — see
+  // BrandingHelper for the worked example that review round 1 found.
   #onPrimaryColor(hex) {
     if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return "#111827"
 
-    const channel = (start) => {
-      const value = parseInt(hex.slice(start, start + 2), 16) / 255
-      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    const luminance = (color) => {
+      const channel = (start) => {
+        const value = parseInt(color.slice(start, start + 2), 16) / 255
+        return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
     }
 
-    const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
-    return luminance > 0.179 ? "#111827" : "#FFFFFF"
+    const contrastRatio = (luminanceA, luminanceB) =>
+      (Math.max(luminanceA, luminanceB) + 0.05) / (Math.min(luminanceA, luminanceB) + 0.05)
+
+    const primaryLuminance = luminance(hex)
+    const darkContrast = contrastRatio(primaryLuminance, luminance("#111827"))
+    const lightContrast = contrastRatio(primaryLuminance, luminance("#ffffff"))
+
+    return darkContrast >= lightContrast ? "#111827" : "#FFFFFF"
   }
 }

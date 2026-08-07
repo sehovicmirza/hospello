@@ -99,6 +99,26 @@ class HotelTest < ActiveSupport::TestCase
     assert_includes hotel.errors[:welcome_image], "must be smaller than 5 MB"
   end
 
+  # Review round 1, Important 5: a hotel admin could otherwise attach a PDF
+  # (or anything else) declared as the welcome image; it would persist
+  # cleanly and then render as a broken image on the guest landing page in
+  # Slice 2. No SVG here (unlike the logo) — this is a photographic hero
+  # image, not a vector mark.
+  test "welcome image must be one of the supported image types" do
+    hotel = hotels(:stari_grad)
+    hotel.welcome_image.attach(io: StringIO.new("bogus"), filename: "evil.pdf", content_type: "application/pdf")
+
+    assert_not hotel.valid?
+    assert_includes hotel.errors[:welcome_image], "must be a PNG, JPEG or WebP image"
+  end
+
+  test "a welcome image within the type and size limits attaches cleanly" do
+    hotel = hotels(:stari_grad)
+    hotel.welcome_image.attach(io: StringIO.new("small-fake-image"), filename: "welcome.jpg", content_type: "image/jpeg")
+
+    assert hotel.valid?, hotel.errors.full_messages.to_sentence
+  end
+
   test "status predicates report whether the hotel is live" do
     hotel = hotels(:stari_grad)
 

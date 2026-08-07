@@ -82,12 +82,15 @@ services:
       - key: RAILS_MAX_THREADS
         value: "5"
 
-      # Hotel logos and welcome images. `local` writes to the container's
-      # ephemeral disk, so uploads vanish on redeploy — acceptable while
-      # evaluating, not for a pilot. Set to `r2` and fill in the four R2
-      # variables below to keep them (Cloudflare R2: 10GB free, no egress fees).
-      - key: ACTIVE_STORAGE_SERVICE
-        value: local
+      # Hotel logos and welcome images. config/environments/production.rb
+      # resolves this automatically: r2 the instant R2_BUCKET (below) is set,
+      # local disk otherwise (its ephemeral container disk means uploads
+      # vanish on redeploy — acceptable while evaluating, not for a pilot).
+      # Fill in the four R2 variables below to keep uploads (Cloudflare R2:
+      # 10GB free, no egress fees). Uncomment only to force one or the other
+      # regardless of whether R2_BUCKET is configured.
+      # - key: ACTIVE_STORAGE_SERVICE
+      #   value: local
       - key: R2_ACCESS_KEY_ID
         sync: false
       - key: R2_SECRET_ACCESS_KEY

@@ -3,11 +3,13 @@ class Hotel < ApplicationRecord
   COLOR_FORMAT = /\A#\h{6}\z/
   STAFF_LOCALES = %w[bs en].freeze
 
-  # Content type is checked only for the logo — the brief's own allowed-type
-  # list is scoped to it ("for the logo"), so a welcome image of any type is
-  # accepted as long as it is under its size cap. Flagged in the task report.
   LOGO_CONTENT_TYPES = %w[image/png image/jpeg image/webp image/svg+xml].freeze
   LOGO_MAX_SIZE = 2.megabytes
+
+  # No SVG here (unlike the logo): this is a photographic hero image for the
+  # guest landing page, not a vector mark, so there is no legitimate use for
+  # it and one fewer reason to worry about an SVG's embedded-script risk.
+  WELCOME_IMAGE_CONTENT_TYPES = %w[image/png image/jpeg image/webp].freeze
   WELCOME_IMAGE_MAX_SIZE = 5.megabytes
 
   enum :status, { active: 0, suspended: 1 }
@@ -26,7 +28,7 @@ class Hotel < ApplicationRecord
     format: { with: COLOR_FORMAT, message: "must be a six-digit hex colour such as #1F3A5F" }
   validate :timezone_must_be_recognized
   validate :logo_must_be_a_supported_type_and_size
-  validate :welcome_image_must_be_under_its_size_limit
+  validate :welcome_image_must_be_a_supported_type_and_size
 
   private
     # A blank slug is derived from the name; a supplied slug is tidied into the
@@ -57,9 +59,12 @@ class Hotel < ApplicationRecord
       errors.add(:logo, "must be smaller than 2 MB") if logo.blob.byte_size > LOGO_MAX_SIZE
     end
 
-    def welcome_image_must_be_under_its_size_limit
+    def welcome_image_must_be_a_supported_type_and_size
       return unless welcome_image.attached?
 
+      unless welcome_image.content_type.in?(WELCOME_IMAGE_CONTENT_TYPES)
+        errors.add(:welcome_image, "must be a PNG, JPEG or WebP image")
+      end
       errors.add(:welcome_image, "must be smaller than 5 MB") if welcome_image.blob.byte_size > WELCOME_IMAGE_MAX_SIZE
     end
 end
