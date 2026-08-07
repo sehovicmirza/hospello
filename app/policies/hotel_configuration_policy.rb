@@ -4,7 +4,10 @@
 # delete. Not used directly — subclassed per resource (RoomPolicy,
 # DepartmentPolicy, RequestCategoryPolicy) so Pundit's default class-name
 # inference (`RoomPolicy` for a `Room` record) keeps working, and so each
-# can diverge later if a resource ever needs its own rule.
+# can diverge later if a resource ever needs its own rule. QrCodePolicy
+# (Task 6) also subclasses this for the same "any active staff member may
+# read" half — the QR code has no create/update/destroy at all, so it only
+# ever uses #show? and adds its own #print?.
 #
 # Cross-tenant access is never reached here at all: every staff controller
 # looks records up through `Current.hotel.<association>.find`, which 404s on

@@ -1,0 +1,55 @@
+<% content_for :title, "Print QR code — #{@hotel.name}" %>
+
+<% content_for :head do %>
+  <style>
+    /* Renders this page as a card, not a web page with navigation: hides
+       every piece of app chrome the staff layout wraps around it, and sizes
+       the sheet for an A5 card rather than a full A4/Letter page. */
+    @media print {
+      @page { size: A5; margin: 10mm; }
+
+      nav, header, #notice, #alert { display: none !important; }
+      body { background: #fff !important; }
+      main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+    }
+  </style>
+<% end %>
+
+<div class="mx-auto max-w-sm rounded-2xl border border-gray-200 bg-white p-8 text-center print:border-0 print:p-0">
+  <% if displayable_attachment?(@hotel.logo) %>
+    <%= image_tag @hotel.logo, class: "mx-auto mb-4 h-16 object-contain", alt: @hotel.name %>
+  <% end %>
+
+  <h1 class="text-xl font-semibold text-gray-900"><%= @hotel.name %></h1>
+
+  <div class="my-6 flex justify-center">
+    <%= raw @qr_code.svg(size: 300) %>
+  </div>
+
+  <div class="space-y-4 text-left text-sm text-gray-800">
+    <div lang="bs">
+      <p class="font-semibold">Trebate nešto? Samo pitajte.</p>
+      <p>Skenirajte kod i pišite recepciji u bilo koje doba.</p>
+    </div>
+    <div lang="en">
+      <p class="font-semibold">Need anything? Just ask.</p>
+      <p>Scan the code to chat with our front desk anytime.</p>
+    </div>
+    <div lang="de">
+      <p class="font-semibold">Brauchen Sie etwas? Fragen Sie einfach.</p>
+      <p>Scannen Sie den Code, um jederzeit mit der Rezeption zu chatten.</p>
+    </div>
+    <div lang="ar" dir="rtl">
+      <p class="font-semibold">هل تحتاج إلى شيء؟ فقط اسأل.</p>
+      <p>امسح الرمز للتواصل مع الاستقبال في أي وقت.</p>
+    </div>
+  </div>
+
+  <% if @hotel.contact_phone.present? %>
+    <p id="reception-phone" class="mt-6 text-sm text-gray-600">Reception: <%= @hotel.contact_phone %></p>
+  <% end %>
+
+  <% if @hotel.powered_by_visible? %>
+    <p id="powered-by" class="mt-4 text-xs text-gray-400">Powered by Hospello</p>
+  <% end %>
+</div>

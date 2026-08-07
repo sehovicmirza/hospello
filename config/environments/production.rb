@@ -65,8 +65,14 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Set host to be used by links generated in mailer templates. Reads the
+  # same ENV["APP_HOST"] the QR code service uses (Staff::QrCodesController,
+  # render.yaml) rather than a hardcoded placeholder — one source of truth
+  # for "what host is this deployment" no matter which part of the app is
+  # generating a link. "example.com" only survives as the boot-time default
+  # for a deploy that hasn't set APP_HOST yet; nothing here sends mail in
+  # this slice, so it is inert until Action Mailer is actually used.
+  config.action_mailer.default_url_options = { host: ENV.fetch("APP_HOST", "example.com") }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {

@@ -1,0 +1,34 @@
+<% content_for :title, "QR code — #{@hotel.name}" %>
+
+<h1 class="mb-2 text-2xl font-semibold text-gray-900">QR code</h1>
+<p class="mb-6 max-w-2xl text-sm text-gray-600">
+  One code for the whole hotel — print it for every room and every common area. There is no
+  per-room code: guests scan the same card everywhere and land in the chat for their room.
+</p>
+
+<div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
+  <div class="lg:col-span-1">
+    <div class="flex items-center justify-center rounded-xl border border-gray-200 bg-white p-6">
+      <%= raw @qr_code.svg(size: 220) %>
+    </div>
+  </div>
+
+  <div class="space-y-5 lg:col-span-2">
+    <div>
+      <p class="text-sm font-medium text-gray-700">Guest landing URL</p>
+      <p id="qr-url" class="mt-1 break-all rounded-md bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800"><%= @qr_code.url %></p>
+    </div>
+
+    <%= link_to "Test it yourself", @qr_code.url, target: "_blank", rel: "noopener",
+          class: "inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
+
+    <div class="flex flex-wrap gap-3 border-t border-gray-200 pt-5">
+      <%= link_to "Download SVG", staff_qr_code_path(format: :svg),
+            class: "rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500" %>
+      <%= link_to "Download PNG", staff_qr_code_path(format: :png),
+            class: "rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500" %>
+      <%= link_to "Print sheet", print_staff_qr_code_path, target: "_blank", rel: "noopener",
+            class: "rounded-md border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
+    </div>
+  </div>
+</div>

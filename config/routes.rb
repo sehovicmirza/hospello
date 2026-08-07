@@ -18,6 +18,14 @@ Rails.application.routes.draw do
     # No destroy: staff accounts are deactivated (update), never deleted —
     # see Staff::UsersController.
     resources :users, only: %i[index new create edit update]
+
+    # One QR code per hotel, never one per room — see HotelQrCode. #show is
+    # the on-screen page and also answers .svg/.png for downloads; #print is
+    # the separate printable A5 sheet, linked to open in its own tab so
+    # printing it doesn't navigate away from the on-screen page.
+    resource :qr_code, only: %i[show] do
+      get :print
+    end
   end
 
   # Platform-admin back office. Filled in by later tasks; every controller here
