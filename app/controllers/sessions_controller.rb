@@ -3,6 +3,10 @@ class SessionsController < ApplicationController
   rate_limit to: 10, within: 3.minutes, only: :create, with: -> { redirect_to new_session_url, alert: "Try again later." }
 
   def new
+    # Visiting the sign-in page (or the application root, which renders it)
+    # while already signed in used to show the page's empty shell. Send them
+    # to their own namespace instead.
+    redirect_to home_url_for(Current.user) if authenticated?
   end
 
   def create

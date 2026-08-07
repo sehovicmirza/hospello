@@ -48,7 +48,24 @@ module Authentication
     end
 
     def after_authentication_url
-      session.delete(:return_to_after_authenticating) || root_url
+      session.delete(:return_to_after_authenticating) || home_url_for(Current.user)
+    end
+
+    # Where a signed-in user's work actually starts. Without this everyone
+    # landed on the application root, which renders the sign-in page's shell —
+    # a header saying "Signed in as …" above an empty page with no links at
+    # all. Signing in appeared to do nothing.
+    #
+    # Platform admins and hotel staff have no screens in common, so there is no
+    # single home page to send them to; each namespace has its own root.
+    def home_url_for(user)
+      if user&.platform_admin?
+        platform_hotels_url
+      elsif user
+        staff_root_url
+      else
+        new_session_url
+      end
     end
 
     # DELIBERATELY DEFERRED, not fixed here: this cookie is permanent
