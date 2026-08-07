@@ -13,3 +13,20 @@ production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
+
+  # Ops::HeartbeatJob runs from the queue, not from a web request, precisely
+  # so a dead job pipeline behind a healthy web process stops pinging and the
+  # external monitor pages someone — see the job for why.
+  ops_heartbeat:
+    class: Ops::HeartbeatJob
+    queue: low
+    schedule: every 5 minutes
+
+  ops_queue_health:
+    class: Ops::QueueHealthJob
+    queue: low
+    schedule: every 10 minutes
+
+  # Later slices add more recurring entries here: conversation-timeout
+  # sweeps and escalation reminders (Slice 2+), and data-retention purges
+  # (Slice 7).

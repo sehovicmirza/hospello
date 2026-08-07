@@ -41,6 +41,10 @@ Rails.application.routes.draw do
     end
   end
 
+  # Solid Queue's dashboard. Gated by Platform::BaseController, not the
+  # gem's own HTTP Basic Auth — see config/initializers/mission_control_jobs.rb.
+  mount MissionControl::Jobs::Engine, at: "/platform/jobs"
+
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check

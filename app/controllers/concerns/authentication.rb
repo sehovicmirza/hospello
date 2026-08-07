@@ -31,7 +31,20 @@ module Authentication
 
     def request_authentication
       session[:return_to_after_authenticating] = request.url
-      redirect_to new_session_path
+      # Not the bare `new_session_path` helper: called as an instance method
+      # it merges in whatever the *current* controller's own
+      # default_url_options happens to return, and Mission Control – Jobs'
+      # ApplicationController (mounted at /platform/jobs, gated by this same
+      # concern via Platform::BaseController) unconditionally returns
+      # { server_id: ... } from that method for its own routes. Since
+      # default_url_options merging isn't scoped by which route it's being
+      # applied to, an unauthenticated hit on the jobs dashboard picked up a
+      # stray server_id param that /session/new doesn't accept and 500'd
+      # instead of redirecting to sign-in. Calling the routes module's own
+      # helper bypasses any controller instance's default_url_options
+      # entirely — identical output for every other controller, immune to
+      # this one's.
+      redirect_to Rails.application.routes.url_helpers.new_session_path
     end
 
     def after_authentication_url

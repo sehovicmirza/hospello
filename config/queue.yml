@@ -3,10 +3,27 @@ default: &default
     - polling_interval: 1
       batch_size: 500
   workers:
-    - queues: "*"
+    # Critical: guest-visible request handling (Slice 2+) that must never
+    # queue behind anything else.
+    - queues: critical
       threads: 3
-      processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    # AI: the concierge and translation calls (Slice 2+). Capped at 2 threads
+    # deliberately — this is backpressure, not an oversight. If the Anthropic
+    # API slows to 30s per call, at most two calls are in flight at once, so
+    # a slow upstream degrades AI response time only, and never starves the
+    # critical or default/low queues of worker capacity.
+    - queues: ai
+      threads: 2
+      processes: 1
       polling_interval: 1
+    # Default/low: everything else, including this task's Ops::HeartbeatJob
+    # and Ops::QueueHealthJob (both queue: low).
+    - queues: [ default, low ]
+      threads: 2
+      processes: 1
+      polling_interval: 2
 
 development:
   <<: *default
