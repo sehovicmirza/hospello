@@ -51,12 +51,22 @@ class Staff::HotelSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal original_concierge_name, hotel.reload.concierge_name
   end
 
-  test "plain staff can still reach the dashboard" do
+  test "plain staff can still reach the dashboard, but the nav offers no link to hotel settings" do
     sign_in users(:stari_staff)
 
     get staff_root_path
 
     assert_response :success
+    assert_select "nav a", text: "Hotel settings", count: 0
+  end
+
+  test "a hotel admin sees a hotel settings link in the nav" do
+    sign_in users(:stari_admin)
+
+    get staff_root_path
+
+    assert_response :success
+    assert_select "nav a", text: "Hotel settings", count: 1
   end
 
   test "posting platform-only attributes from the staff form leaves them unchanged" do

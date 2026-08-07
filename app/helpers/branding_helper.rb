@@ -22,6 +22,11 @@ module BrandingHelper
   # is chosen by relative luminance (WCAG), not hardcoded, so a hotel that
   # picks a pale primary color still gets readable text on it instead of
   # white-on-white.
+  #
+  # Returns an HTML-safe string: primary_color/secondary_color are validated
+  # by Hotel::COLOR_FORMAT (six-digit hex) on every save, and the on-primary
+  # value only ever comes from the two hardcoded constants above, so nothing
+  # here is unescaped user input reaching the page.
   def hotel_brand_style(hotel)
     properties = {
       "--brand-primary" => hotel.primary_color,
@@ -29,7 +34,7 @@ module BrandingHelper
       "--brand-on-primary" => on_primary_color(hotel.primary_color)
     }
 
-    properties.map { |property, value| "#{property}:#{value};" }.join
+    properties.map { |property, value| "#{property}:#{value};" }.join.html_safe
   end
 
   private

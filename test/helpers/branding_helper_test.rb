@@ -20,4 +20,11 @@ class BrandingHelperTest < ActionView::TestCase
     hotel.primary_color = "#000000"
     assert_includes hotel_brand_style(hotel), "--brand-on-primary:#FFFFFF"
   end
+
+  # Guest views in Slice 2 interpolate this directly into a style=""
+  # attribute; the produced-interface contract calls for an HTML-safe
+  # string specifically so that works with no further wrapping.
+  test "returns an HTML-safe string" do
+    assert_predicate hotel_brand_style(hotels(:stari_grad)), :html_safe?
+  end
 end

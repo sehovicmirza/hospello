@@ -1,8 +1,9 @@
-# Every Hotel action in this slice is platform-admin-only — the base
-# controller already enforces that for the whole namespace, so this policy is
-# a second, explicit layer rather than the only gate. It also gives Task 3 a
-# named `update?` to extend (or replace) once a hotel_admin may edit their own
-# hotel from the staff side.
+# Most Hotel actions are platform-admin-only — Platform::BaseController
+# already enforces that for the whole platform namespace, so on those this
+# policy is a second, explicit layer rather than the only gate. #update? is
+# the one exception: a hotel_admin may also update their OWN hotel from the
+# staff side (Staff::HotelSettingsController), where this policy is the only
+# gate, since that controller has no role check of its own beyond `authorize`.
 class HotelPolicy < ApplicationPolicy
   def index?
     platform_admin?
