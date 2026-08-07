@@ -68,6 +68,37 @@ class HotelTest < ActiveSupport::TestCase
     assert_equal "hotel.suspended", log.action
   end
 
+  test "logo must be one of the supported image types" do
+    hotel = hotels(:stari_grad)
+    hotel.logo.attach(io: StringIO.new("bogus"), filename: "evil.pdf", content_type: "application/pdf")
+
+    assert_not hotel.valid?
+    assert_includes hotel.errors[:logo], "must be a PNG, JPEG, WebP or SVG image"
+  end
+
+  test "logo must be 2 MB or smaller" do
+    hotel = hotels(:stari_grad)
+    hotel.logo.attach(io: StringIO.new("x" * 3.megabytes), filename: "big.png", content_type: "image/png")
+
+    assert_not hotel.valid?
+    assert_includes hotel.errors[:logo], "must be smaller than 2 MB"
+  end
+
+  test "a logo within the type and size limits attaches cleanly" do
+    hotel = hotels(:stari_grad)
+    hotel.logo.attach(io: StringIO.new("small-fake-logo"), filename: "logo.png", content_type: "image/png")
+
+    assert hotel.valid?, hotel.errors.full_messages.to_sentence
+  end
+
+  test "welcome image must be 5 MB or smaller" do
+    hotel = hotels(:stari_grad)
+    hotel.welcome_image.attach(io: StringIO.new("x" * 6.megabytes), filename: "big.jpg", content_type: "image/jpeg")
+
+    assert_not hotel.valid?
+    assert_includes hotel.errors[:welcome_image], "must be smaller than 5 MB"
+  end
+
   test "status predicates report whether the hotel is live" do
     hotel = hotels(:stari_grad)
 

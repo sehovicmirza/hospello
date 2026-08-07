@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Hospello — #{Current.hotel&.name}" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%# This workspace shows state that changes with the next action (branding
+        just saved, a nav item just became available) — a Turbo-cached preview
+        one click stale would show a receptionist the wrong picture, so this
+        surface always fetches fresh instead of flashing an old snapshot. %>
+    <meta name="turbo-cache-control" content="no-cache">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-gray-50 text-gray-900">
+    <div class="lg:flex lg:min-h-screen">
+      <nav class="border-b border-gray-200 bg-white px-4 py-4 lg:w-56 lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:px-6 lg:py-8">
+        <span class="text-lg font-semibold tracking-tight text-gray-900">Hospello</span>
+
+        <ul class="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium lg:mt-8 lg:flex-col lg:gap-1">
+          <% staff_nav_items.each do |item| %>
+            <li>
+              <% if item[:path] %>
+                <%= link_to item[:label], item[:path],
+                      class: [ "block rounded-md px-2 py-1.5 hover:bg-gray-100 hover:text-gray-900",
+                                current_page?(item[:path]) ? "bg-blue-50 text-blue-700" : "text-gray-600" ] %>
+              <% else %>
+                <span class="block cursor-not-allowed rounded-md px-2 py-1.5 text-gray-400" title="Coming soon">
+                  <%= item[:label] %>
+                </span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </nav>
+
+      <div class="flex-1">
+        <header class="border-b border-gray-200 bg-white">
+          <div class="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+            <span class="font-medium text-gray-900"><%= Current.hotel&.name %></span>
+
+            <% if authenticated? %>
+              <div class="flex items-center gap-4 text-sm text-gray-600">
+                <span>Signed in as <span class="font-medium text-gray-900"><%= Current.user.name %></span></span>
+                <%= button_to "Sign out", session_path, method: :delete,
+                      class: "rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-100 cursor-pointer" %>
+              </div>
+            <% end %>
+          </div>
+        </header>
+
+        <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+          <% if notice = flash[:notice] %>
+            <p class="mb-6 rounded-lg bg-green-50 px-3 py-2 font-medium text-green-700" id="notice"><%= notice %></p>
+          <% end %>
+          <% if alert = flash[:alert] %>
+            <p class="mb-6 rounded-lg bg-red-50 px-3 py-2 font-medium text-red-600" id="alert"><%= alert %></p>
+          <% end %>
+
+          <%= yield %>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

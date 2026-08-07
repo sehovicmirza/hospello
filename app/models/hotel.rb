@@ -3,9 +3,18 @@ class Hotel < ApplicationRecord
   COLOR_FORMAT = /\A#\h{6}\z/
   STAFF_LOCALES = %w[bs en].freeze
 
+  # Content type is checked only for the logo — the brief's own allowed-type
+  # list is scoped to it ("for the logo"), so a welcome image of any type is
+  # accepted as long as it is under its size cap. Flagged in the task report.
+  LOGO_CONTENT_TYPES = %w[image/png image/jpeg image/webp image/svg+xml].freeze
+  LOGO_MAX_SIZE = 2.megabytes
+  WELCOME_IMAGE_MAX_SIZE = 5.megabytes
+
   enum :status, { active: 0, suspended: 1 }
 
   has_many :users, dependent: :destroy
+  has_one_attached :logo
+  has_one_attached :welcome_image
 
   before_validation :normalize_slug
 
@@ -16,6 +25,8 @@ class Hotel < ApplicationRecord
   validates :primary_color, :secondary_color,
     format: { with: COLOR_FORMAT, message: "must be a six-digit hex colour such as #1F3A5F" }
   validate :timezone_must_be_recognized
+  validate :logo_must_be_a_supported_type_and_size
+  validate :welcome_image_must_be_under_its_size_limit
 
   private
     # A blank slug is derived from the name; a supplied slug is tidied into the
@@ -34,5 +45,21 @@ class Hotel < ApplicationRecord
       ActiveSupport::TimeZone.find_tzinfo(timezone.to_s)
     rescue TZInfo::InvalidTimezoneIdentifier
       errors.add(:timezone, "is not a recognized time zone")
+    end
+
+    # Plain custom validation — no validation gem. content_type and byte_size
+    # are set synchronously at attach time, so this needs no analyzer/variant
+    # round trip.
+    def logo_must_be_a_supported_type_and_size
+      return unless logo.attached?
+
+      errors.add(:logo, "must be a PNG, JPEG, WebP or SVG image") unless logo.content_type.in?(LOGO_CONTENT_TYPES)
+      errors.add(:logo, "must be smaller than 2 MB") if logo.blob.byte_size > LOGO_MAX_SIZE
+    end
+
+    def welcome_image_must_be_under_its_size_limit
+      return unless welcome_image.attached?
+
+      errors.add(:welcome_image, "must be smaller than 5 MB") if welcome_image.blob.byte_size > WELCOME_IMAGE_MAX_SIZE
     end
 end

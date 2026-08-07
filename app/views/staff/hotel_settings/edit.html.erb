@@ -1,0 +1,167 @@
+<% content_for :title, "Hotel settings — #{@hotel.name}" %>
+<% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+
+<h1 class="mb-6 text-2xl font-semibold text-gray-900">Hotel settings</h1>
+
+<div class="grid grid-cols-1 gap-8 lg:grid-cols-3" data-controller="brand-preview">
+  <div class="lg:col-span-2">
+    <%= form_with model: @hotel, url: staff_hotel_settings_path, method: :patch, multipart: true, class: "space-y-6" do |form| %>
+      <% if @hotel.errors.any? %>
+        <div class="rounded-lg bg-red-50 p-4">
+          <p class="font-medium text-red-700"><%= pluralize(@hotel.errors.count, "error") %> prevented these settings from being saved:</p>
+          <ul class="mt-2 list-inside list-disc text-sm text-red-700">
+            <% @hotel.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+        <legend class="px-1 text-sm font-medium text-gray-700">Identity</legend>
+
+        <div>
+          <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
+          <%= form.text_field :name, required: true, class: field_classes %>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <%= form.label :timezone, "Time zone", class: "block text-sm font-medium text-gray-700" %>
+            <p class="text-sm text-gray-500">An IANA identifier, e.g. Europe/Sarajevo.</p>
+            <%= form.text_field :timezone, required: true, class: field_classes %>
+          </div>
+
+          <div>
+            <%= form.label :staff_locale, "Staff language", class: "block text-sm font-medium text-gray-700" %>
+            <%= form.select :staff_locale, options_for_select([ [ "English", "en" ], [ "Bosnian", "bs" ] ], @hotel.staff_locale), {}, class: field_classes %>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+        <legend class="px-1 text-sm font-medium text-gray-700">Branding</legend>
+        <p class="text-sm text-gray-500">This is what guests see on the chat — the hotel's brand, not Hospello's.</p>
+
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <%= form.label :primary_color, "Primary color", class: "block text-sm font-medium text-gray-700" %>
+            <div class="mt-1 flex items-center gap-2">
+              <span class="h-8 w-8 flex-shrink-0 rounded border border-gray-300"
+                    data-brand-preview-target="primarySwatch" style="background-color:<%= @hotel.primary_color %>"></span>
+              <%= form.text_field :primary_color, required: true, pattern: "#[0-9A-Fa-f]{6}",
+                    data: { brand_preview_target: "primaryInput", action: "input->brand-preview#update" },
+                    class: field_classes %>
+            </div>
+          </div>
+
+          <div>
+            <%= form.label :secondary_color, "Secondary color", class: "block text-sm font-medium text-gray-700" %>
+            <div class="mt-1 flex items-center gap-2">
+              <span class="h-8 w-8 flex-shrink-0 rounded border border-gray-300"
+                    data-brand-preview-target="secondarySwatch" style="background-color:<%= @hotel.secondary_color %>"></span>
+              <%= form.text_field :secondary_color, required: true, pattern: "#[0-9A-Fa-f]{6}",
+                    data: { brand_preview_target: "secondaryInput", action: "input->brand-preview#update" },
+                    class: field_classes %>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <%= form.label :logo, class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">PNG, JPEG, WebP or SVG, up to 2 MB.</p>
+          <%= form.file_field :logo, accept: "image/png,image/jpeg,image/webp,image/svg+xml",
+                data: { brand_preview_target: "logoInput", action: "change->brand-preview#updateLogo" },
+                class: "mt-1 block w-full text-sm text-gray-700" %>
+        </div>
+
+        <div>
+          <%= form.label :welcome_image, "Welcome image", class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">Shown above the welcome message on the guest landing page, up to 5 MB.</p>
+          <%= form.file_field :welcome_image, accept: "image/*", class: "mt-1 block w-full text-sm text-gray-700" %>
+          <% if @hotel.welcome_image.attached? %>
+            <%= image_tag @hotel.welcome_image, class: "mt-2 h-20 rounded object-cover", alt: "" %>
+          <% end %>
+        </div>
+      </fieldset>
+
+      <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+        <legend class="px-1 text-sm font-medium text-gray-700">Guest-facing information</legend>
+
+        <div>
+          <%= form.label :concierge_name, "Concierge name", class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">The name the AI concierge introduces itself with.</p>
+          <%= form.text_field :concierge_name, class: field_classes %>
+        </div>
+
+        <div>
+          <%= form.label :welcome_message, "Welcome message", class: "block text-sm font-medium text-gray-700" %>
+          <%= form.text_area :welcome_message, rows: 3, class: field_classes %>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <%= form.label :contact_phone, "Reception phone", class: "block text-sm font-medium text-gray-700" %>
+            <%= form.telephone_field :contact_phone, class: field_classes %>
+          </div>
+
+          <div>
+            <%= form.label :checkout_time, "Checkout time", class: "block text-sm font-medium text-gray-700" %>
+            <p class="text-sm text-gray-500">e.g. 11:00 — shown to guests as text, not validated as a time.</p>
+            <%= form.text_field :checkout_time, class: field_classes %>
+          </div>
+        </div>
+
+        <div>
+          <%= form.label :contact_notes, "Contact notes", class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">Internal notes about reception hours or how guests can reach you — not shown to guests.</p>
+          <%= form.text_area :contact_notes, rows: 2, class: field_classes %>
+        </div>
+      </fieldset>
+
+      <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+        <legend class="px-1 text-sm font-medium text-gray-700">Escalation</legend>
+
+        <div>
+          <%= form.label :escalation_email, "Escalation email", class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">Where overdue guest requests get escalated.</p>
+          <%= form.email_field :escalation_email, class: field_classes %>
+        </div>
+
+        <div>
+          <%= form.label :overdue_after_minutes, "Overdue after (minutes)", class: "block text-sm font-medium text-gray-700" %>
+          <%= form.number_field :overdue_after_minutes, min: 1, class: field_classes %>
+        </div>
+      </fieldset>
+
+      <div>
+        <%= form.submit "Save changes", class: "rounded-md bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="lg:col-span-1">
+    <div class="sticky top-8">
+      <h2 class="mb-2 text-sm font-medium text-gray-600">Live preview</h2>
+      <p class="mb-3 text-xs text-gray-500">A mock of what a guest sees at the top of the chat, updated as you edit the colors and logo.</p>
+
+      <div class="rounded-xl p-6" data-brand-preview-target="preview"
+           style="<%= hotel_brand_style(@hotel) %>background-color:var(--brand-primary);color:var(--brand-on-primary);">
+        <div class="flex items-center gap-3">
+          <img data-brand-preview-target="logoPreview"
+               src="<%= @hotel.logo.attached? ? rails_blob_path(@hotel.logo, only_path: true) : "" %>"
+               alt="" class="h-12 w-12 rounded-full bg-white object-contain p-1 <%= "hidden" unless @hotel.logo.attached? %>">
+          <div>
+            <p class="text-xs uppercase tracking-wide opacity-80">Guest landing preview</p>
+            <p class="text-lg font-semibold"><%= @hotel.name %></p>
+          </div>
+        </div>
+        <p class="mt-4 text-sm opacity-90"><%= @hotel.welcome_message.presence || "Your welcome message will appear here." %></p>
+        <span class="mt-4 inline-block rounded-full px-3 py-1 text-xs font-medium"
+              style="background-color:var(--brand-secondary);color:var(--brand-on-primary)">
+          Start chat
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

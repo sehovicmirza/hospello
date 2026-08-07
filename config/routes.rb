@@ -1,9 +1,12 @@
 Rails.application.routes.draw do
   resource :session, only: %i[ new create destroy ]
 
-  # Staff-facing hotel workspace. Filled in by later tasks; every controller
-  # here inherits Staff::BaseController, which sets the tenant.
+  # Staff-facing hotel workspace. Every controller here inherits
+  # Staff::BaseController, which sets the tenant from Current.user.hotel —
+  # nothing in this namespace takes a hotel id from the URL.
   namespace :staff do
+    root "dashboard#show"
+    resource :hotel_settings, only: %i[edit update]
   end
 
   # Platform-admin back office. Filled in by later tasks; every controller here

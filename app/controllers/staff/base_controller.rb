@@ -1,5 +1,7 @@
 module Staff
   class BaseController < ApplicationController
+    layout "staff"
+
     before_action :require_staff_user
     around_action :scope_to_current_hotel
 

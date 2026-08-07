@@ -1,0 +1,27 @@
+module StaffHelper
+  # Every timestamp rendered anywhere in the staff workspace goes through
+  # this — a receptionist in Sarajevo must see Sarajevo time regardless of
+  # where the server happens to run or what locale the browser is set to.
+  def staff_time(time)
+    time&.in_time_zone(Current.hotel.timezone)
+  end
+
+  # The single source of truth for the staff sidebar, shared by every staff
+  # layout render. Rooms / Departments & categories / Staff / QR code render
+  # as inert (unlinked) placeholders: their controllers arrive in later tasks
+  # of this slice, and swapping `path: nil` for a real path helper is the
+  # whole integration step once each exists — nothing else about the nav
+  # changes. "Hotel settings" only appears for a user who can actually reach
+  # it, so plain staff never see a link that would just 403.
+  def staff_nav_items
+    items = [ { label: "Dashboard", path: staff_root_path } ]
+    items << { label: "Hotel settings", path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
+
+    items + [
+      { label: "Rooms", path: nil },
+      { label: "Departments & categories", path: nil },
+      { label: "Staff", path: nil },
+      { label: "QR code", path: nil }
+    ]
+  end
+end

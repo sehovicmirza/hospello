@@ -16,8 +16,12 @@ class HotelPolicy < ApplicationPolicy
     platform_admin?
   end
 
+  # A hotel_admin may update their OWN hotel's profile/branding from the
+  # staff side (Staff::HotelSettingsController) — the one place this policy
+  # is not platform-admin-only. Every other write (identity, platform
+  # switches, suspend/activate) stays platform-admin-only.
   def update?
-    platform_admin?
+    platform_admin? || hotel_admin_for_own_hotel?
   end
 
   def suspend?
@@ -31,5 +35,13 @@ class HotelPolicy < ApplicationPolicy
   private
     def platform_admin?
       user&.platform_admin? && user.active?
+    end
+
+    # Checked even though Staff::HotelSettingsController only ever authorizes
+    # Current.hotel (never a hotel id from params) — this is the second,
+    # independent layer that keeps the guarantee true even if the controller
+    # ever changed, not the only thing enforcing it.
+    def hotel_admin_for_own_hotel?
+      user&.hotel_admin? && user.active? && user.hotel_id == record.id
     end
 end

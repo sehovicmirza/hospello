@@ -21,11 +21,12 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Where hotel logos and welcome images live. `local` writes to the container's
-  # ephemeral disk, so uploads are lost on redeploy — fine while evaluating, not
-  # for a pilot. Set ACTIVE_STORAGE_SERVICE=r2 (and the R2_* variables in
-  # config/storage.yml) to keep them.
-  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "local").to_sym
+  # Where hotel logos and welcome images live. Defaults to r2 (durable) so a
+  # pilot deploy never silently loses uploads to the container's ephemeral
+  # disk just because ACTIVE_STORAGE_SERVICE was left unset; set it to
+  # "local" explicitly to opt out (e.g. while evaluating, before the R2_*
+  # variables in config/storage.yml are configured).
+  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "r2").to_sym
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
