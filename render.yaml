@@ -42,9 +42,16 @@ services:
       - key: RAILS_MASTER_KEY
         sync: false
 
-      # The public hostname guests reach. Set it to your Render URL
-      # (e.g. hospello.onrender.com) or your custom domain. Printed QR codes
-      # encode this host, so changing it later means reprinting.
+      # The public hostname guests reach — the BARE host only: no
+      # "https://" scheme and no trailing slash. Set it to your Render URL
+      # (e.g. hospello.onrender.com) or your custom domain — NOT
+      # https://hospello.onrender.com/, even though that scheme-prefixed
+      # form is what Render's own dashboard displays for your service, so
+      # copy-pasting it is the easy mistake to make here. AppHost strips a
+      # stray scheme/trailing slash/whitespace defensively and the app
+      # refuses to boot without this set at all, but don't rely on either —
+      # get the bare host right here. Printed QR codes encode this host, so
+      # changing it later means reprinting.
       - key: APP_HOST
         sync: false
 

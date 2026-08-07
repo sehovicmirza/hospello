@@ -20,6 +20,46 @@ class QrDownloadTest < ApplicationSystemTestCase
     assert_selector "a[href='#{staff_qr_code_path(format: :png)}']", text: "Download PNG"
   end
 
+  # Review round 1, IMPORTANT 3: dir="rtl" alone reorders characters/bidi,
+  # not alignment — a controller test can only see the markup (the
+  # text-start class, the dir attribute), not what actually renders. Chrome
+  # reports `getComputedStyle().textAlign` for a logical value as the
+  # literal string "start" (it does not resolve to "left"/"right" at the
+  # computed-value stage), so that alone can't distinguish "correctly
+  # direction-aware" from "coincidentally never resolved" — this instead
+  # measures where the text actually lands: for right-aligned content the
+  # paragraph's right edge should sit almost flush with its container's
+  # right edge, with the gap on the left, which is the literal geometric
+  # meaning of "hugs the left edge" the review called out.
+  test "the Arabic line on the print sheet is actually right-aligned, not just right-to-left ordered" do
+    sign_in_as users(:stari_admin), password: "password123"
+
+    visit print_staff_qr_code_path
+
+    gaps = page.evaluate_script(<<~JS)
+      (() => {
+        // The <p> itself is a block box that spans the full container width
+        // regardless of text-align — only the glyphs inside it move. A
+        // Range over the text node gives the actual rendered text's
+        // bounding box, which is what needs to sit near the right edge.
+        const p = document.querySelector('[lang="ar"] p');
+        const container = document.querySelector('#language-lines');
+        const range = document.createRange();
+        range.selectNodeContents(p.firstChild);
+        const textRect = range.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        return {
+          left: textRect.left - containerRect.left,
+          right: containerRect.right - textRect.right
+        };
+      })()
+    JS
+
+    assert_operator gaps["right"], :<, gaps["left"],
+      "expected the Arabic paragraph to sit flush with the right edge (right gap #{gaps["right"]} < left gap #{gaps["left"]}), " \
+      "but it measured closer to the left edge — it is rendering left-aligned"
+  end
+
   private
     # `click_on` returns when the click is dispatched, not when the resulting
     # page has loaded — asserting on the destination makes the click and its

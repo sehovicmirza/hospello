@@ -9,7 +9,7 @@
 <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
   <div class="lg:col-span-1">
     <div class="flex items-center justify-center rounded-xl border border-gray-200 bg-white p-6">
-      <%= raw @qr_code.svg(size: 220) %>
+      <%= raw @qr_code.svg(size: 220, standalone: false) %>
     </div>
   </div>
 
@@ -19,7 +19,16 @@
       <p id="qr-url" class="mt-1 break-all rounded-md bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800"><%= @qr_code.url %></p>
     </div>
 
-    <%= link_to "Test it yourself", @qr_code.url, target: "_blank", rel: "noopener",
+    <%# Deliberately not @qr_code.url: that string is always "https://" —
+        exactly what gets encoded into the image and printed, and it must
+        stay that way regardless of environment. This link is a pure
+        on-screen convenience with no such contract, so it's built against
+        the scheme this request actually arrived over (request.protocol),
+        which is what makes it clickable against a plain-HTTP local dev
+        server instead of silently 404ing/refusing to connect. Reuses
+        @qr_code.path (the one place "/h/<slug>" is written) rather than
+        rebuilding that shape here. %>
+    <%= link_to "Test it yourself", "#{request.protocol}#{request.host_with_port}#{@qr_code.path}", target: "_blank", rel: "noopener",
           class: "inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
 
     <div class="flex flex-wrap gap-3 border-t border-gray-200 pt-5">

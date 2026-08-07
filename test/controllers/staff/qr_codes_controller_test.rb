@@ -63,16 +63,37 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "\x89PNG\r\n\x1a\n".b, response.body.byteslice(0, 8)
   end
 
+  # Review round 1, minor: asserting only that "[lang='de']" exists is
+  # hollow — it passes for an empty div just as well as for real copy. Each
+  # block is pinned to its actual headline and instruction text, so
+  # replacing the copy with a placeholder (or losing a language's
+  # instruction line while leaving its headline) fails here.
   test "the print view contains a short headline and instruction in all four guest languages" do
     sign_in users(:stari_admin)
 
     get print_staff_qr_code_path
 
     assert_response :success
-    assert_select "[lang='bs']", count: 1
-    assert_select "[lang='en']", count: 1
-    assert_select "[lang='de']", count: 1
-    assert_select "[lang='ar']", count: 1
+
+    assert_select "[lang='bs']" do
+      assert_select "p", text: "Trebate nešto? Samo pitajte.", count: 1
+      assert_select "p", text: "Skenirajte kod i pišite recepciji u bilo koje doba.", count: 1
+    end
+
+    assert_select "[lang='en']" do
+      assert_select "p", text: "Need anything? Just ask.", count: 1
+      assert_select "p", text: "Scan the code to chat with our front desk anytime.", count: 1
+    end
+
+    assert_select "[lang='de']" do
+      assert_select "p", text: "Brauchen Sie etwas? Fragen Sie einfach.", count: 1
+      assert_select "p", text: "Scannen Sie den Code, um jederzeit mit der Rezeption zu chatten.", count: 1
+    end
+
+    assert_select "[lang='ar']" do
+      assert_select "p", text: "هل تحتاج إلى شيء؟ فقط اسأل.", count: 1
+      assert_select "p", text: "امسح الرمز للتواصل مع الاستقبال في أي وقت.", count: 1
+    end
   end
 
   test "the Arabic line renders right-to-left" do
@@ -82,6 +103,26 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "[lang='ar'][dir='rtl']", count: 1
+  end
+
+  # Review round 1, IMPORTANT 3: dir="rtl" alone fixes character/bidi
+  # ordering but not alignment — text-align inherits, and a physical
+  # "text-left" on the container left the Arabic paragraph hugging the left
+  # edge of the card, visibly wrong to an Arabic reader even though the
+  # attribute-level test above passed. This pins the actual fix (a logical,
+  # direction-aware alignment utility on the container, not a physical
+  # left/right one) at the markup level; the system test below additionally
+  # checks the real computed style in a browser, which is the only way to
+  # catch a regression that swaps text-start for some other-looking-plausible
+  # class that isn't actually direction-aware.
+  test "the language lines use a direction-aware alignment, not a hardcoded left alignment" do
+    sign_in users(:stari_admin)
+
+    get print_staff_qr_code_path
+
+    assert_response :success
+    assert_select "#language-lines.text-start", count: 1
+    assert_select "#language-lines.text-left", count: 0
   end
 
   test "the print view shows the hotel's reception phone number" do
@@ -150,9 +191,16 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  test "outside production the host comes from the request, not ENV[\"APP_HOST\"]" do
-    original_app_host = ENV["APP_HOST"]
-    ENV["APP_HOST"] = "wrong-host.example"
+  # config/environments/production.rb resolves ENV["APP_HOST"] into
+  # config.x.app_host exactly once, at boot (see AppHost) — that boot never
+  # runs under RAILS_ENV=test, so these two tests simulate its result
+  # directly (setting config.x.app_host) rather than ENV, and prove the
+  # controller picks the right one of "config.x.app_host" vs "the request"
+  # based on environment, not that AppHost's own normalization works (that's
+  # test/services/app_host_test.rb's job, tested with no Rails boot at all).
+  test "outside production the host comes from the request, even if config.x.app_host is set" do
+    original_app_host = Rails.application.config.x.app_host
+    Rails.application.config.x.app_host = "wrong-host.example"
     sign_in users(:stari_admin)
 
     get staff_qr_code_path
@@ -160,13 +208,13 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#qr-url", text: "https://www.example.com/h/stari-grad"
   ensure
-    ENV["APP_HOST"] = original_app_host
+    Rails.application.config.x.app_host = original_app_host
   end
 
-  test "in production the host comes from ENV[\"APP_HOST\"], never the request host" do
-    original_app_host = ENV["APP_HOST"]
+  test "in production the host comes from config.x.app_host (resolved once at boot), never the request host" do
+    original_app_host = Rails.application.config.x.app_host
     original_rails_env = Rails.env
-    ENV["APP_HOST"] = "hospello.app"
+    Rails.application.config.x.app_host = "hospello.app"
     Rails.env = "production"
     sign_in users(:stari_admin)
 
@@ -175,7 +223,7 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#qr-url", text: "https://hospello.app/h/stari-grad"
   ensure
-    ENV["APP_HOST"] = original_app_host
+    Rails.application.config.x.app_host = original_app_host
     Rails.env = original_rails_env
   end
 end

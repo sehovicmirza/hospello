@@ -23,10 +23,18 @@
   <h1 class="text-xl font-semibold text-gray-900"><%= @hotel.name %></h1>
 
   <div class="my-6 flex justify-center">
-    <%= raw @qr_code.svg(size: 300) %>
+    <%= raw @qr_code.svg(size: 300, standalone: false) %>
   </div>
 
-  <div class="space-y-4 text-left text-sm text-gray-800">
+  <%# text-start, not text-left: a logical (direction-aware) alignment
+      property, so it inherits as "align to the start of reading order" —
+      left for the bs/en/de blocks below, right for the Arabic block, which
+      also carries dir="rtl". A physical text-left here would have left the
+      Arabic paragraph's dir="rtl" fixing bidi *character* order while the
+      whole block still hugged the left edge — correct ordering, wrong
+      alignment, visibly wrong to an Arabic reader on a printed card
+      (review round 1 finding). %>
+  <div id="language-lines" class="space-y-4 text-start text-sm text-gray-800">
     <div lang="bs">
       <p class="font-semibold">Trebate nešto? Samo pitajte.</p>
       <p>Skenirajte kod i pišite recepciji u bilo koje doba.</p>

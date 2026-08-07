@@ -65,14 +65,29 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates. Reads the
-  # same ENV["APP_HOST"] the QR code service uses (Staff::QrCodesController,
-  # render.yaml) rather than a hardcoded placeholder — one source of truth
-  # for "what host is this deployment" no matter which part of the app is
-  # generating a link. "example.com" only survives as the boot-time default
-  # for a deploy that hasn't set APP_HOST yet; nothing here sends mail in
-  # this slice, so it is inert until Action Mailer is actually used.
-  config.action_mailer.default_url_options = { host: ENV.fetch("APP_HOST", "example.com") }
+  # The public hostname guests reach — resolved, validated, and normalized
+  # in exactly one place (AppHost) and exactly once, here at boot, so a
+  # misconfigured or missing APP_HOST fails the deploy immediately instead
+  # of two different ways: silently linking mail to a placeholder host, and
+  # separately 500ing a printed QR code's page only when a receptionist
+  # happens to click it (review round 1's "split failure policy" finding —
+  # this replaced two independent ENV["APP_HOST"] reads with different
+  # fallbacks). Staff::QrCodesController reads the same resolved value back
+  # via config.x.app_host — see its #app_host.
+  #
+  # Deferred to config.after_initialize rather than called directly here:
+  # AppHost is an app/services class, and Zeitwerk's main autoloader for
+  # app/* isn't set up yet at the point this file loads (config/environments
+  # config runs very early in Rails' boot sequence — see
+  # Rails::Engine's :load_environment_config initializer — well before the
+  # Finisher stage that sets up autoloading and eager loading).
+  # after_initialize is the last step of boot, after both are done, so
+  # AppHost is guaranteed to already be a loaded constant here.
+  config.after_initialize do
+    resolved_app_host = AppHost.resolve!
+    config.x.app_host = resolved_app_host
+    config.action_mailer.default_url_options = { host: resolved_app_host }
+  end
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {

@@ -21,26 +21,50 @@ class HotelQrCode
     @host = host
   end
 
-  def url
-    "https://#{@host}/h/#{@hotel.slug}"
+  # The route path alone (no scheme/host) — the one place "/h/<slug>" is
+  # written; #url below reuses it rather than duplicating the shape.
+  def path
+    "/h/#{@hotel.slug}"
   end
 
-  # `size:` is the target overall pixel dimension (a square). rqrcode's SVG
-  # renderer only accepts a per-module pixel size, not a total, so this
-  # divides it out the same way `#as_png`'s built-in "Google" sizing does
-  # (module_count + 2 * border modules), which is what keeps the SVG and PNG
-  # visually matched at the same requested size.
-  def svg(size: 320)
-    module_size = pixels_per_module(size)
+  def url
+    "https://#{@host}#{path}"
+  end
 
-    qr_code.as_svg(
-      module_size: module_size,
-      offset: module_size * BORDER_MODULES,
+  # `size:` is the exact overall pixel dimension the returned SVG renders
+  # at (a square) — module_size is fixed at 1 "user unit" per module and a
+  # `viewBox` maps that unit grid onto explicit `width`/`height` attributes
+  # set to `size`, so unlike a module_size-times-module_count approximation
+  # (which floors and drifts off the requested size as module_count grows)
+  # this is exact for every requested size, and the emitted `viewBox` means
+  # the image also scales cleanly if a caller resizes it with CSS.
+  #
+  # `standalone:` controls whether the leading `<?xml version="1.0" ...?>`
+  # prolog is included ahead of the `<svg>` element. The `.svg` download
+  # needs it (`true`, the default) — it has to be a valid, freestanding SVG
+  # file. A view embedding this inline in an HTML page needs it stripped
+  # (`standalone: false`): an XML prolog partway through an HTML document is
+  # invalid markup, even though browsers tolerate it silently. Either way
+  # the `<svg>...</svg>` element itself is always present — rqrcode's own
+  # `standalone` option controls both the prolog *and* the `<svg>` wrapper
+  # together (`false` drops both, leaving bare `<rect>`/`<path>` elements
+  # with no enclosing `<svg>` at all, which is for embedding inside a
+  # caller-supplied `<svg>` and would render as nothing here) — so this
+  # always asks rqrcode for the full document and strips only the prolog
+  # itself when the embeddable form is requested.
+  def svg(size: 320, standalone: true)
+    full_document = qr_code.as_svg(
+      module_size: 1,
+      offset: BORDER_MODULES,
       color: "000",
       fill: "fff",
       standalone: true,
-      use_path: true
+      use_path: true,
+      viewbox: true,
+      svg_attributes: { width: size, height: size }
     )
+
+    standalone ? full_document : full_document.sub(/\A<\?xml[^>]*\?>/, "")
   end
 
   def png(size: 320)
@@ -50,9 +74,5 @@ class HotelQrCode
   private
     def qr_code
       @qr_code ||= RQRCode::QRCode.new(url)
-    end
-
-    def pixels_per_module(size)
-      [ (size.to_f / (qr_code.modules.length + 2 * BORDER_MODULES)).floor, 1 ].max
     end
 end
