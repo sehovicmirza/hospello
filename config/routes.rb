@@ -14,6 +14,10 @@ Rails.application.routes.draw do
 
     resources :departments, only: %i[index create edit update destroy]
     resources :request_categories, only: %i[index create edit update destroy]
+
+    # No destroy: staff accounts are deactivated (update), never deleted —
+    # see Staff::UsersController.
+    resources :users, only: %i[index new create edit update]
   end
 
   # Platform-admin back office. Filled in by later tasks; every controller here

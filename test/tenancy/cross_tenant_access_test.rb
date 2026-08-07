@@ -55,4 +55,20 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert_equal "Vrelo Only Category", vrelo_category.reload.name
   end
+
+  # Staff::UsersController scopes through Current.hotel.users.find, exactly
+  # like the resources above — User isn't TenantScoped (it's exempt from
+  # acts_as_tenant so platform admins can have no hotel), so this 404 comes
+  # entirely from the association scoping, not from acts_as_tenant at all.
+  test "hotel A staff cannot read or mutate hotel B's users" do
+    vrelo_user = users(:vrelo_staff)
+    sign_in users(:stari_admin)
+
+    get edit_staff_user_path(vrelo_user)
+    assert_response :not_found
+
+    patch staff_user_path(vrelo_user), params: { user: { active: false } }
+    assert_response :not_found
+    assert vrelo_user.reload.active?
+  end
 end

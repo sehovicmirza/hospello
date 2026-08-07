@@ -1,0 +1,51 @@
+<% content_for :title, "Staff — #{Current.hotel.name}" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-2xl font-semibold text-gray-900">Staff</h1>
+  <% if policy(User).new? %>
+    <%= link_to "Add staff", new_staff_user_path, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+  <% end %>
+</div>
+
+<% if @users.any? %>
+  <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+    <table class="min-w-full divide-y divide-gray-200 text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Name</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Email</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Role</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+          <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% @users.each do |user| %>
+          <tr id="<%= dom_id(user) %>">
+            <td class="px-4 py-3 font-medium text-gray-900"><%= user.name %></td>
+            <td class="px-4 py-3 text-gray-700"><%= user.email_address %></td>
+            <td class="px-4 py-3 text-gray-700"><%= user.role.humanize %></td>
+            <td class="px-4 py-3">
+              <% if user.active? %>
+                <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+              <% else %>
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Inactive</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex justify-end gap-3">
+                <% if policy(user).edit? %>
+                  <%= link_to "Edit", edit_staff_user_path(user), class: "font-medium text-blue-600 hover:text-blue-500" %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="rounded-lg border border-dashed border-gray-300 p-12 text-center">
+    <p class="text-gray-600">No staff accounts yet — add the first one.</p>
+  </div>
+<% end %>

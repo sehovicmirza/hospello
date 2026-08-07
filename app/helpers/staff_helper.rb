@@ -18,22 +18,24 @@ module StaffHelper
   end
 
   # The single source of truth for the staff sidebar, shared by every staff
-  # layout render. Staff / QR code still render as inert (unlinked)
-  # placeholders: their controllers arrive in later tasks of this slice, and
-  # swapping `path: nil` for a real path helper is the whole integration step
-  # once each exists — nothing else about the nav changes. "Hotel settings"
-  # only appears for a user who can actually reach it, so plain staff never
+  # layout render. QR code still renders as an inert (unlinked) placeholder:
+  # its controller arrives in a later task of this slice, and swapping
+  # `path: nil` for a real path helper is the whole integration step once it
+  # exists — nothing else about the nav changes. "Hotel settings" and "Staff"
+  # only appear for a user who can actually reach them, so plain staff never
   # see a link that would just 403; Rooms and Departments & categories are
   # read-only for plain staff (RoomPolicy/DepartmentPolicy#index? allows it)
-  # so both appear for every active staff user, not just hotel_admin.
+  # so both appear for every active staff user, not just hotel_admin. Staff
+  # accounts, unlike those two, have no read access for plain staff at all
+  # (UserPolicy#index? is hotel_admin-only), so the link is hotel_admin-only too.
   def staff_nav_items
     items = [ { label: "Dashboard", path: staff_root_path } ]
     items << { label: "Hotel settings", path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
     items << { label: "Rooms", path: staff_rooms_path } if policy(Room).index?
     items << { label: "Departments & categories", path: staff_departments_path } if policy(Department).index?
+    items << { label: "Staff", path: staff_users_path } if policy(User).index?
 
     items + [
-      { label: "Staff", path: nil },
       { label: "QR code", path: nil }
     ]
   end
