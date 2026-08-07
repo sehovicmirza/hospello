@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_07_094659) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_07_120003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -54,6 +54,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_094659) do
     t.index ["hotel_id", "created_at"], name: "index_audit_logs_on_hotel_id_and_created_at"
   end
 
+  create_table "departments", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.string "name", null: false
+    t.boolean "active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "name"], name: "index_departments_on_hotel_id_and_name", unique: true
+    t.index ["hotel_id"], name: "index_departments_on_hotel_id"
+  end
+
   create_table "hotels", force: :cascade do |t|
     t.string "name", null: false
     t.string "slug", null: false
@@ -76,6 +87,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_094659) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_hotels_on_slug", unique: true
+  end
+
+  create_table "request_categories", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "department_id"
+    t.string "key", null: false
+    t.string "name", null: false
+    t.string "icon"
+    t.boolean "active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.jsonb "detail_fields", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["department_id"], name: "index_request_categories_on_department_id"
+    t.index ["hotel_id", "key"], name: "index_request_categories_on_hotel_id_and_key", unique: true
+    t.index ["hotel_id"], name: "index_request_categories_on_hotel_id"
+  end
+
+  create_table "rooms", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.string "number", null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "active"], name: "index_rooms_on_hotel_id_and_active"
+    t.index ["hotel_id", "number"], name: "index_rooms_on_hotel_id_and_number", unique: true
+    t.index ["hotel_id"], name: "index_rooms_on_hotel_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -249,6 +287,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_094659) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "audit_logs", "hotels", on_delete: :nullify
   add_foreign_key "audit_logs", "users", column: "actor_user_id", on_delete: :nullify
+  add_foreign_key "departments", "hotels", on_delete: :cascade
+  add_foreign_key "request_categories", "departments", on_delete: :nullify
+  add_foreign_key "request_categories", "hotels", on_delete: :cascade
+  add_foreign_key "rooms", "hotels", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

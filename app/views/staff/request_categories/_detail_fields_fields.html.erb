@@ -1,0 +1,17 @@
+<%# Shared by the new-category form (index) and the edit form. A hidden
+    blank fallback ships before the checkboxes so unchecking every box still
+    submits request_category[detail_fields][] as [""] rather than omitting
+    the key entirely — RequestCategory#compact_detail_fields strips it. %>
+<div>
+  <span class="block text-sm font-medium text-gray-700">Details the concierge must collect</span>
+  <%= hidden_field_tag "#{param_key}[detail_fields][]", "" %>
+  <div class="mt-1 space-y-1">
+    <% RequestCategory::ALLOWED_DETAIL_FIELDS.each do |field| %>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="<%= param_key %>[detail_fields][]" value="<%= field %>"
+               <%= "checked" if Array(selected).include?(field) %> class="rounded border-gray-400">
+        <%= field.humanize %>
+      </label>
+    <% end %>
+  </div>
+</div>

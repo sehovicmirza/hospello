@@ -7,6 +7,13 @@ Rails.application.routes.draw do
   namespace :staff do
     root "dashboard#show"
     resource :hotel_settings, only: %i[edit update]
+
+    resources :rooms, only: %i[index create edit update destroy] do
+      collection { post :bulk_create }
+    end
+
+    resources :departments, only: %i[index create edit update destroy]
+    resources :request_categories, only: %i[index create edit update destroy]
   end
 
   # Platform-admin back office. Filled in by later tasks; every controller here

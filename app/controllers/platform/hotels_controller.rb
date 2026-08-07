@@ -19,6 +19,14 @@ module Platform
       # deactivated must read "Not yet", not a stale "Yes".
       @staff_counts = User.staff.where(hotel_id: @hotels.map(&:id)).group(:hotel_id).count
       @hotel_ids_with_admin = User.hotel_admin.active.where(hotel_id: @hotels.map(&:id)).distinct.pluck(:hotel_id).to_set
+
+      # Unlike @staff_counts above, this cannot be one grouped cross-hotel
+      # query: Room is tenant-scoped (unlike User), so
+      # Room.where(hotel_id: ids).group(:hotel_id).count would raise
+      # ActsAsTenant::Errors::NoTenantSet under require_tenant = true — see
+      # Task 4's brief. Each hotel's count is wrapped in its own with_tenant
+      # instead; the resulting N+1 is fine at pilot scale (a handful of hotels).
+      @room_counts = @hotels.to_h { |hotel| [ hotel.id, ActsAsTenant.with_tenant(hotel) { hotel.rooms.count } ] }
     end
 
     def new
@@ -31,6 +39,11 @@ module Platform
       authorize @hotel
 
       if @hotel.save
+        # Room/Department/RequestCategory are all tenant-scoped, so seeding
+        # them requires an explicit tenant here — there is no ambient one in
+        # this platform-namespace request (Platform::BaseController sets
+        # none on purpose).
+        ActsAsTenant.with_tenant(@hotel) { HotelDefaults.apply!(@hotel) }
         audit!("hotel.create", target: @hotel, hotel: @hotel)
         redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} created."
       else

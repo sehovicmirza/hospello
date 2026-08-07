@@ -1,0 +1,26 @@
+stari_towels:
+  hotel: stari_grad
+  department: stari_housekeeping
+  key: room_items
+  name: "Extra towels, bedding or toiletries"
+  active: true
+  position: 0
+  detail_fields: ["quantity", "description"]
+
+stari_wakeup:
+  hotel: stari_grad
+  department: stari_reception
+  key: wake_up_call
+  name: "Wake-up call"
+  active: true
+  position: 1
+  detail_fields: ["time"]
+
+vrelo_wakeup:
+  hotel: vrelo
+  department: vrelo_reception
+  key: wake_up_call
+  name: "Wake-up call"
+  active: true
+  position: 0
+  detail_fields: ["time"]

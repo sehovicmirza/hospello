@@ -17,6 +17,7 @@
         <tr>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Hotel</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Rooms</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Staff</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">First admin</th>
           <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
@@ -36,6 +37,7 @@
                 <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Suspended</span>
               <% end %>
             </td>
+            <td class="px-4 py-3 text-gray-700"><%= @room_counts.fetch(hotel.id, 0) %></td>
             <td class="px-4 py-3 text-gray-700"><%= @staff_counts.fetch(hotel.id, 0) %></td>
             <td class="px-4 py-3">
               <% if @hotel_ids_with_admin.include?(hotel.id) %>

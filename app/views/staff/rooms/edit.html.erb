@@ -1,0 +1,33 @@
+<% content_for :title, "Edit room #{@room.number} — #{Current.hotel.name}" %>
+<% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-2xl font-semibold text-gray-900">Edit room <%= @room.number %></h1>
+  <%= link_to "Back to rooms", staff_rooms_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+</div>
+
+<div class="max-w-md">
+  <% if @room.errors.any? %>
+    <div class="mb-4 rounded-lg bg-red-50 p-4">
+      <ul class="list-inside list-disc text-sm text-red-700">
+        <% @room.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form_with model: @room, url: staff_room_path(@room), method: :patch, class: "space-y-4" do |form| %>
+    <div>
+      <%= form.label :number, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.text_field :number, required: true, class: field_classes %>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <%= form.check_box :active, class: "rounded border-gray-400" %>
+      <%= form.label :active, "Active — guests may enter this room number", class: "text-sm text-gray-700" %>
+    </div>
+
+    <%= form.submit "Save changes", class: "rounded-md bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+  <% end %>
+</div>

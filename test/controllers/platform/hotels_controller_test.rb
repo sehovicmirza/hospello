@@ -45,6 +45,30 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "index reflects each hotel's room count, computed per-hotel under its own tenant" do
+    # stari_grad (3 rooms) and vrelo (2 rooms) deliberately differ in
+    # test/fixtures/rooms.yml so this cannot pass with both sides
+    # coincidentally equal (e.g. both reading 0 because the count silently
+    # never ran). This also exercises the one trap Task 4's brief calls out:
+    # Room is tenant-scoped, so a naive Room.where(hotel_id: ids)
+    # .group(:hotel_id).count here would raise ActsAsTenant::Errors::NoTenantSet
+    # under require_tenant = true — reaching :success at all is part of what
+    # this test is pinning.
+    sign_in users(:platform)
+
+    get platform_hotels_path
+
+    assert_response :success
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:stari_grad))}" do
+      assert_select "td", text: "3", count: 1
+    end
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:vrelo))}" do
+      assert_select "td", text: "2", count: 1
+    end
+  end
+
   test "index shows whether each hotel already has an active first admin" do
     # Deactivating (not destroying) vrelo's admin exercises the same query
     # this pins from both directions: a hotel with an active admin reads
@@ -99,6 +123,19 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     # deterministic, one-request regression guard.
     follow_redirect!
     assert_match "#{hotel.name} created.", response.body
+  end
+
+  test "creating a hotel seeds its default departments and request categories" do
+    sign_in users(:platform)
+
+    post platform_hotels_path, params: { hotel: valid_hotel_params }
+
+    hotel = Hotel.find_by!(slug: valid_hotel_params[:slug])
+    ActsAsTenant.with_tenant(hotel) do
+      assert_equal 4, hotel.departments.count
+      assert_equal 8, hotel.request_categories.count
+      assert_equal "Housekeeping", hotel.request_categories.find_by!(key: "room_items").department.name
+    end
   end
 
   test "creating a hotel writes an audit log with action hotel.create" do

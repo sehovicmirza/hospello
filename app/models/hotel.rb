@@ -15,6 +15,20 @@ class Hotel < ApplicationRecord
   enum :status, { active: 0, suspended: 1 }
 
   has_many :users, dependent: :destroy
+
+  # Deliberately no `dependent:` here (unlike `users` above): Room,
+  # Department and RequestCategory are all tenant-scoped (TenantScoped /
+  # acts_as_tenant), so a Ruby-level cascade (`dependent: :destroy` or
+  # `:delete_all`) would run those models' queries outside any
+  # ActsAsTenant.with_tenant block during a bare `hotel.destroy` and raise
+  # ActsAsTenant::Errors::NoTenantSet under require_tenant = true. The
+  # hotel_id foreign keys on all three tables cascade at the database level
+  # instead (see db/migrate/*_create_rooms.rb and friends), so Postgres
+  # removes the dependent rows without Rails ever having to query them.
+  has_many :rooms
+  has_many :departments
+  has_many :request_categories
+
   has_one_attached :logo
   has_one_attached :welcome_image
 
@@ -29,6 +43,16 @@ class Hotel < ApplicationRecord
   validate :timezone_must_be_recognized
   validate :logo_must_be_a_supported_type_and_size
   validate :welcome_image_must_be_a_supported_type_and_size
+
+  # The single lookup Slice 2's guest entry form and Slice 6's WhatsApp
+  # set_guest_room tool call both use: normalizes the input the same way
+  # Room itself normalizes `number` on save (strip, upcase, collapse
+  # whitespace — see Room.normalize_number), so a guest typing " ph1 " finds
+  # a room saved as "PH1". Inactive rooms never match, so a decommissioned
+  # room number quietly refuses a guest instead of seating them nowhere.
+  def find_active_room(number)
+    rooms.active.find_by(number: Room.normalize_number(number))
+  end
 
   private
     # A blank slug is derived from the name; a supplied slug is tidied into the

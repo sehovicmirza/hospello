@@ -1,0 +1,31 @@
+# Deliberately different counts per hotel (stari_grad: 3, vrelo: 2) so a
+# platform-index room-count test can't pass by both sides coincidentally
+# matching. One inactive room (stari_309) so active-vs-total counting bugs
+# have fixture data to catch them on. Numbers are deliberately distinctive
+# (3xx / 4xx) so they can never collide with a hand-picked number like "101"
+# or "PH1" that a test (e.g. the brief's own find_active_room example)
+# creates fresh inside its own with_tenant block.
+stari_301:
+  hotel: stari_grad
+  number: "301"
+  active: true
+
+stari_302:
+  hotel: stari_grad
+  number: "302"
+  active: true
+
+stari_309:
+  hotel: stari_grad
+  number: "309"
+  active: false
+
+vrelo_401:
+  hotel: vrelo
+  number: "401"
+  active: true
+
+vrelo_402:
+  hotel: vrelo
+  number: "402"
+  active: true

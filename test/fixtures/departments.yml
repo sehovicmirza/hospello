@@ -1,0 +1,17 @@
+stari_reception:
+  hotel: stari_grad
+  name: Reception
+  position: 0
+  active: true
+
+stari_housekeeping:
+  hotel: stari_grad
+  name: Housekeeping
+  position: 1
+  active: true
+
+vrelo_reception:
+  hotel: vrelo
+  name: Reception
+  position: 0
+  active: true

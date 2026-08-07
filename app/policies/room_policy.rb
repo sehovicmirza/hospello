@@ -1,0 +1,2 @@
+class RoomPolicy < HotelConfigurationPolicy
+end

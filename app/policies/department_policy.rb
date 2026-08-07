@@ -1,0 +1,2 @@
+class DepartmentPolicy < HotelConfigurationPolicy
+end
