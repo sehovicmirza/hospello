@@ -34,6 +34,19 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", staff_departments_path, count: 0
   end
 
+  # See rooms_controller_test.rb's "sees the add-room and bulk-add forms"
+  # test for why this positive counterpart matters — the "count: 0 for
+  # staff" test above can't fail on its own if the form were broken for
+  # everyone, admins included.
+  test "a hotel admin sees the add-department form" do
+    sign_in users(:stari_admin)
+
+    get staff_departments_path
+
+    assert_response :success
+    assert_select "form[action=?]", staff_departments_path, count: 1
+  end
+
   test "a hotel admin can add a department" do
     sign_in users(:stari_admin)
 

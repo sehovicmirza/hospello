@@ -20,21 +20,40 @@ class HotelDefaultsTest < ActiveSupport::TestCase
     end
   end
 
-  test "links each category to its named department and stores its detail_fields" do
+  # Review round 1: the previous version of this test checked 3 of the 8
+  # tuples (room_items, wake_up_call, dining_reservation) — a typo in, say,
+  # spa_reservation's department or detail_fields could ship green. This
+  # pins every key/name/department/detail_fields tuple exactly, in the
+  # brief's own order, character for character.
+  test "pins every default category's key, name, department and detail_fields exactly" do
+    expected = [
+      { key: "room_items", name: "Extra towels, bedding or toiletries",
+        department: "Housekeeping", detail_fields: %w[quantity description] },
+      { key: "cleaning", name: "Room cleaning",
+        department: "Housekeeping", detail_fields: %w[time] },
+      { key: "maintenance", name: "Report a problem",
+        department: "Maintenance", detail_fields: %w[description] },
+      { key: "wake_up_call", name: "Wake-up call",
+        department: "Reception", detail_fields: %w[time] },
+      { key: "dining_reservation", name: "Restaurant or breakfast reservation request",
+        department: "Food & Beverage", detail_fields: %w[date time people] },
+      { key: "spa_reservation", name: "Spa or wellness reservation request",
+        department: "Reception", detail_fields: %w[date time people] },
+      { key: "transport", name: "Taxi, airport transfer or luggage help",
+        department: "Reception", detail_fields: %w[time description] },
+      { key: "reception", name: "Something else for reception",
+        department: "Reception", detail_fields: %w[description] }
+    ]
+
     with_tenant(@hotel) do
       HotelDefaults.apply!(@hotel)
 
-      towels = @hotel.request_categories.find_by!(key: "room_items")
-      assert_equal "Housekeeping", towels.department.name
-      assert_equal %w[quantity description], towels.detail_fields
+      actual = expected.map do |exp|
+        category = @hotel.request_categories.find_by!(key: exp[:key])
+        { key: category.key, name: category.name, department: category.department.name, detail_fields: category.detail_fields }
+      end
 
-      wake_up = @hotel.request_categories.find_by!(key: "wake_up_call")
-      assert_equal "Reception", wake_up.department.name
-      assert_equal %w[time], wake_up.detail_fields
-
-      dining = @hotel.request_categories.find_by!(key: "dining_reservation")
-      assert_equal "Food & Beverage", dining.department.name
-      assert_equal %w[date time people], dining.detail_fields
+      assert_equal expected, actual
     end
   end
 

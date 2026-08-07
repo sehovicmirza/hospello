@@ -22,6 +22,17 @@ class Staff::RequestCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", staff_request_categories_path, count: 0
   end
 
+  # See rooms_controller_test.rb's "sees the add-room and bulk-add forms"
+  # test for why this positive counterpart matters.
+  test "a hotel admin sees the add-category form" do
+    sign_in users(:stari_admin)
+
+    get staff_request_categories_path
+
+    assert_response :success
+    assert_select "form[action=?]", staff_request_categories_path, count: 1
+  end
+
   test "a hotel admin can add a category with a department and detail_fields" do
     sign_in users(:stari_admin)
     department = departments(:stari_reception)

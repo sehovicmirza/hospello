@@ -7,12 +7,21 @@ class RequestCategory < ApplicationRecord
   # whatever the AI tool's parameters actually support.
   ALLOWED_DETAIL_FIELDS = %w[quantity time date people description].freeze
 
+  # `key` is the AI tool's enum vocabulary (Slice 4 reads it as the literal
+  # tool-call value), so it gets the same discipline Room#number and
+  # Hotel#slug already get: a strict format plus normalization on every
+  # write, not just a presence/uniqueness check on whatever was typed.
+  KEY_FORMAT = /\A[a-z][a-z0-9_]*\z/
+
   # Optional: a category is free to belong to no department.
   belongs_to :department, optional: true
 
+  before_validation :normalize_key
   before_validation :compact_detail_fields
 
-  validates :key, presence: true, uniqueness: { scope: :hotel_id }
+  validates :key, presence: true,
+    format: { with: KEY_FORMAT, message: "may only contain lowercase letters, numbers and underscores, and must start with a letter" },
+    uniqueness: { scope: :hotel_id }
   validates :name, presence: true
   validate :detail_fields_are_supported
   validate :department_must_belong_to_the_same_hotel
@@ -21,13 +30,28 @@ class RequestCategory < ApplicationRecord
   scope :ordered, -> { order(:position, :name) }
 
   private
+    # "  Wake Up Call!  " must not save verbatim: this is the one identifier
+    # in this model with no built-in discipline otherwise, and it's the one
+    # a language model reads as a literal tool-call value. Mirrors
+    # Hotel#normalize_slug's shape (strip, downcase, spaces/hyphens ->
+    # underscores) rather than Room#normalize_number's (which upcases,
+    # because a room number is displayed, not used as a code identifier).
+    # Whatever is left that still fails KEY_FORMAT (e.g. the "!" above)
+    # surfaces as a normal validation error instead of saving silently.
+    def normalize_key
+      return if key.blank?
+
+      self.key = key.strip.downcase.gsub(/[\s-]+/, "_")
+    end
+
     # A checkbox form for detail_fields submits a hidden blank fallback
     # alongside real values so an "uncheck everything" save still sends the
     # param at all (see app/views/staff/request_categories/_detail_fields_fields.html.erb) —
     # strip that blank (and any other blanks) before it can ever reach the
-    # allowed-values validation below.
+    # allowed-values validation below. `.uniq` too: detail_fields is read as
+    # an ordered list of distinct things to collect, not a multiset.
     def compact_detail_fields
-      self.detail_fields = Array(detail_fields).reject(&:blank?)
+      self.detail_fields = Array(detail_fields).reject(&:blank?).uniq
     end
 
     def detail_fields_are_supported
@@ -44,14 +68,26 @@ class RequestCategory < ApplicationRecord
     # :department` is declared after `include TenantScoped` in this file, it
     # is invisible to that reflection and gets no automatic check. Rather
     # than depend on declaration order to get free security coverage, this
-    # is explicit: `department` (the association reader) is itself
-    # tenant-scoped, so it silently reads back nil for an id belonging to
-    # another hotel — indistinguishable from a nonexistent id, which is
-    # exactly the property we want (a hotel_admin tampering with a submitted
-    # department_id learns nothing about whether that id exists elsewhere).
+    # is explicit.
+    #
+    # Deliberately re-queries Department by id instead of reading the
+    # `department` association reader: `department` is a cached reader, and
+    # while an *id* assignment (`department_id = x`) makes it re-query under
+    # the tenant scope (correctly returning nil for a foreign id), an
+    # *object* assignment (`department = some_other_hotels_department`)
+    # hands the reader that exact object back with no query at all — the
+    # check would pass for a row that plainly belongs to another hotel
+    # (review round 1 caught this; HotelDefaults.apply! itself assigns by
+    # object, at record.department = ..., so this path is very much live).
+    # `Department.where(id: ...)` is a fresh query, itself tenant-scoped
+    # (Department is TenantScoped too), so it returns empty for a foreign id
+    # regardless of how department_id got set — indistinguishable from a
+    # nonexistent id, which is exactly the property we want (a hotel_admin
+    # tampering with a submitted department_id learns nothing about whether
+    # that id exists elsewhere).
     def department_must_belong_to_the_same_hotel
       return if department_id.blank?
 
-      errors.add(:department, "must belong to the same hotel") if department.nil?
+      errors.add(:department, "must belong to the same hotel") unless Department.where(id: department_id).exists?
     end
 end

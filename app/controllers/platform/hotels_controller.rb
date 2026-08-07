@@ -38,13 +38,27 @@ module Platform
       @hotel = Hotel.new(hotel_params)
       authorize @hotel
 
-      if @hotel.save
+      # save, seed-the-defaults, and audit-log as one all-or-nothing unit:
+      # without the transaction, a failure inside HotelDefaults.apply! or
+      # audit! (a bug, a rare find_or_create_by! race) would leave a
+      # persisted hotel with partial or no defaults and no audit row behind
+      # it — an orphan an operator would have to notice and fix by hand.
+      # Any exception here rolls back the hotel insert too and propagates
+      # (deliberately not rescued): a broken seed is a bug worth a loud
+      # failure, not a hotel silently created without one.
+      created = Hotel.transaction do
+        next false unless @hotel.save
+
         # Room/Department/RequestCategory are all tenant-scoped, so seeding
         # them requires an explicit tenant here — there is no ambient one in
         # this platform-namespace request (Platform::BaseController sets
         # none on purpose).
         ActsAsTenant.with_tenant(@hotel) { HotelDefaults.apply!(@hotel) }
         audit!("hotel.create", target: @hotel, hotel: @hotel)
+        true
+      end
+
+      if created
         redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} created."
       else
         render :new, status: :unprocessable_content

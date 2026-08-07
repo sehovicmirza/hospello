@@ -138,6 +138,37 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Review round 1: save, then HotelDefaults.apply!, then audit! were three
+  # separate steps with no shared transaction — a mid-seed failure left a
+  # persisted hotel with partial defaults and no audit row, an orphan an
+  # operator would have to find and fix by hand. Temporarily replaces
+  # HotelDefaults.apply! with one that blows up mid-seed (minitest/mock's
+  # Object#stub needs a gem not in this Gemfile under Ruby 3.4's bundled-gems
+  # split, so this is a plain define_singleton_method swap, restored in
+  # `ensure` no matter how the assertion below turns out) and asserts
+  # nothing at all persisted: not the hotel, not any department/category it
+  # managed to seed before raising, not an audit row.
+  test "a failure while seeding defaults rolls back the whole hotel creation, not just the defaults" do
+    sign_in users(:platform)
+    hotel_count_before = Hotel.count
+    audit_count_before = AuditLog.count
+    original_apply = HotelDefaults.method(:apply!)
+
+    begin
+      HotelDefaults.define_singleton_method(:apply!) { |*| raise "simulated seeding failure" }
+
+      assert_raises(RuntimeError) do
+        post platform_hotels_path, params: { hotel: valid_hotel_params }
+      end
+    ensure
+      HotelDefaults.define_singleton_method(:apply!, original_apply)
+    end
+
+    assert_equal hotel_count_before, Hotel.count
+    assert_equal audit_count_before, AuditLog.count
+    assert_nil Hotel.find_by(slug: valid_hotel_params[:slug])
+  end
+
   test "creating a hotel writes an audit log with action hotel.create" do
     sign_in users(:platform)
 

@@ -34,7 +34,7 @@ module Staff
       authorize Room, :create?
 
       begin
-        numbers = Room.parse_bulk(params.dig(:bulk, :numbers))
+        numbers = Room.parse_bulk(bulk_numbers_param)
       rescue Room::BulkRangeTooLarge => e
         return redirect_to staff_rooms_path, alert: e.message
       end
@@ -72,6 +72,18 @@ module Staff
 
       def room_params
         params.require(:room).permit(:number, :active)
+      end
+
+      # `params[:bulk]` is ordinarily a nested hash (`bulk[numbers]=...`),
+      # but a crafted request can post a bare scalar for it (`bulk=x`) —
+      # `params.dig(:bulk, :numbers)` would then call `.dig` on that String,
+      # which raises TypeError before Room.parse_bulk ever gets a chance to
+      # handle bad input its own, safe way. Fall back to nil (which
+      # Room.parse_bulk already treats as an empty list) for anything that
+      # isn't the nested-params shape a real form submits.
+      def bulk_numbers_param
+        bulk = params[:bulk]
+        bulk.is_a?(ActionController::Parameters) ? bulk[:numbers] : nil
       end
 
       # Each normalized number either creates a new room or is counted as a

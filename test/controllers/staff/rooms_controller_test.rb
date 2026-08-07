@@ -59,6 +59,21 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", staff_rooms_path, count: 0
   end
 
+  # Review round 1: this "count: 0 for staff" assertion had no positive
+  # counterpart anywhere in the suite — changing `if policy(Room).create?`
+  # to `if false` in the view would leave the whole suite green. Only a
+  # test that the form actually renders for the role that should see it
+  # can catch that.
+  test "a hotel admin sees the add-room and bulk-add forms" do
+    sign_in users(:stari_admin)
+
+    get staff_rooms_path
+
+    assert_response :success
+    assert_select "form[action=?]", staff_rooms_path, count: 1
+    assert_select "form[action=?]", bulk_create_staff_rooms_path, count: 1
+  end
+
   test "a hotel admin can add a single room" do
     sign_in users(:stari_admin)
 
@@ -119,6 +134,37 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to staff_rooms_path
     follow_redirect!
     assert_match "500-room", response.body
+  end
+
+  # Review round 1: measured ~153s and ~200,000 queries against the
+  # unbatched bulk_add loop for this exact shape (200 individually-legal
+  # 500-room ranges) before Room::MAX_BULK_TOTAL existed. Reaching the
+  # redirect at all — fast — is the point; nothing here should touch the
+  # per-row loop.
+  test "bulk-add refuses combined legal ranges that would still create too many rooms" do
+    sign_in users(:stari_admin)
+    text = (1..200).map { |i| "#{(i - 1) * 500 + 1}-#{i * 500}" }.join(",")
+
+    assert_no_difference -> { Room.unscoped.count } do
+      post bulk_create_staff_rooms_path, params: { bulk: { numbers: text } }
+    end
+
+    assert_redirected_to staff_rooms_path
+    follow_redirect!
+    assert_match "2000-room", response.body
+  end
+
+  # Review round 1: `params.dig(:bulk, :numbers)` raised a raw TypeError
+  # (an unhandled 500) for a crafted request where `bulk` isn't a nested
+  # hash at all.
+  test "bulk-add does not crash when bulk is posted as a bare scalar instead of a nested hash" do
+    sign_in users(:stari_admin)
+
+    assert_no_difference -> { Room.unscoped.count } do
+      post bulk_create_staff_rooms_path, params: { bulk: "x" }
+    end
+
+    assert_redirected_to staff_rooms_path
   end
 
   test "plain staff cannot bulk-add rooms" do
