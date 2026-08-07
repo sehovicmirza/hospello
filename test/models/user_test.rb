@@ -80,4 +80,29 @@ class UserTest < ActiveSupport::TestCase
   test "a platform admin can sign in without a hotel" do
     assert users(:platform).can_sign_in?
   end
+
+  test "a password shorter than the minimum is rejected" do
+    user = User.new(
+      email_address: "short@example.test", name: "Short", role: :staff,
+      hotel: hotels(:vrelo), password: "a"
+    )
+
+    assert_not user.valid?
+    assert_includes user.errors[:password], "is too short (minimum is #{User::MINIMUM_PASSWORD_LENGTH} characters)"
+  end
+
+  test "a password exactly at the minimum length is valid" do
+    user = User.new(
+      email_address: "longenough@example.test", name: "Long Enough", role: :staff,
+      hotel: hotels(:vrelo), password: "a" * User::MINIMUM_PASSWORD_LENGTH
+    )
+
+    assert user.valid?
+  end
+
+  test "updating a user without touching the password does not re-validate its length" do
+    user = users(:stari_staff)
+
+    assert user.update(name: "Updated Name")
+  end
 end

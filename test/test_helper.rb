@@ -1,3 +1,20 @@
+require "fileutils"
+
+# Propshaft's compiled-assets manifest under public/assets (gitignored) can
+# outlive the source files that produced it: anyone who has ever run `rails
+# assets:precompile` locally (testing bin/render-build.sh, deploying by
+# hand) leaves one behind. When it's present, ActionDispatch::Static serves
+# those stale digested files straight off disk without ever asking
+# Propshaft to recompile — so a source CSS/JS change has silently zero
+# effect until someone thinks to delete the directory by hand. A stale
+# public/assets/tailwind-*.css already produced exactly this false result
+# once, during an earlier task's fix round: a system test asserting on
+# rendered CSS silently read pre-app CSS and passed anyway. Clearing it
+# before every run makes that failure mode structurally impossible instead
+# of a note nobody rereads — bin/setup clears it the same way for local dev,
+# belt and braces.
+FileUtils.rm_rf(File.expand_path("../public/assets", __dir__))
+
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"

@@ -1,5 +1,6 @@
 class Room < ApplicationRecord
   include TenantScoped
+  include Activatable
 
   # A typo like "1-99999" must not silently generate 99,999 rows on a pilot
   # database — this is a real guard, not a nicety.

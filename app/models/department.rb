@@ -1,5 +1,6 @@
 class Department < ApplicationRecord
   include TenantScoped
+  include Activatable
 
   # Deactivating is the default action the UI offers; deletion is only ever
   # allowed when nothing references the record. request_categories.department_id

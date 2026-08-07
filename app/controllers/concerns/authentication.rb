@@ -51,6 +51,23 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
+    # DELIBERATELY DEFERRED, not fixed here: this cookie is permanent
+    # (~20 years) and `sessions` has no expiry column, so a session lives
+    # until someone signs out or a hotel_admin/platform_admin deactivates
+    # the account (Staff::UsersController#update already destroys every
+    # live session on deactivation — the sharpest edge, an admin actively
+    # revoking access, is covered). The residual risk this leaves open is
+    # narrower: a leaked cookie for an account nobody has deactivated stays
+    # valid indefinitely. Every user of this cookie today is internal
+    # (hotel staff, hotel admins, platform admins, all created by another
+    # admin, never self-service) — Slice 2's guest chat has no persistent
+    # session at all. Doing this properly is more than a one-line fix: a
+    # migration for `sessions.expires_at` (or a sliding `last_active_at`),
+    # a check in #find_session_by_cookie, and a recurring sweep job in the
+    # Ops:: pattern this task already established to purge expired rows —
+    # real scope for a dedicated task, not a rider on an already-large
+    # security-hardening pass. Recommended next slice, not later than the
+    # first pilot renewal.
     def start_new_session_for(user)
       user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
         Current.session = session

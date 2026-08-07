@@ -37,7 +37,8 @@
 
   <div>
     <%= form.label :password, class: "block text-sm font-medium text-gray-700" %>
-    <%= form.password_field :password, required: true, autocomplete: "new-password", maxlength: 72, class: field_classes %>
+    <%= form.password_field :password, required: true, autocomplete: "new-password",
+          minlength: User::MINIMUM_PASSWORD_LENGTH, maxlength: 72, class: field_classes %>
   </div>
 
   <div>

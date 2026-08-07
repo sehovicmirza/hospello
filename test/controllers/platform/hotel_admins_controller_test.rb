@@ -48,6 +48,21 @@ class Platform::HotelAdminsControllerTest < ActionDispatch::IntegrationTest
     assert_equal users(:platform), log.actor_user
   end
 
+  # Probed directly: password: "a" used to be accepted here with no minimum
+  # length at all (has_secure_password only requires presence) — see
+  # User::MINIMUM_PASSWORD_LENGTH.
+  test "a password shorter than the minimum re-renders with an error instead of being accepted" do
+    sign_in users(:platform)
+    hotel = hotels(:vrelo)
+
+    assert_no_difference -> { User.count } do
+      post platform_hotel_hotel_admins_path(hotel), params: { user: valid_user_params(password: "a", password_confirmation: "a") }
+    end
+
+    assert_response :unprocessable_content
+    assert_match "too short", response.body
+  end
+
   test "the email must be unique platform-wide" do
     sign_in users(:platform)
     hotel = hotels(:vrelo)

@@ -93,6 +93,21 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
     assert_not department.active?
   end
 
+  # Probed directly: active: "" casts to nil (ActiveModel::Type::Boolean),
+  # and departments.active is null: false — unguarded, that reached Postgres
+  # as an unrescued NotNullViolation (a 500) instead of a normal re-render.
+  # See Activatable.
+  test "posting active: \"\" re-renders with an error instead of a 500" do
+    sign_in users(:stari_admin)
+    department = departments(:stari_reception)
+
+    patch staff_department_path(department), params: { department: { active: "" } }
+
+    assert_response :unprocessable_content
+    assert_match "is not included in the list", response.body
+    assert department.reload.active?
+  end
+
   test "plain staff cannot update a department" do
     sign_in users(:stari_staff)
     department = departments(:stari_reception)

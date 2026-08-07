@@ -1,6 +1,20 @@
 class User < ApplicationRecord
+  include Activatable
+
+  # has_secure_password only requires a password to be *present* — "a" is
+  # accepted with no minimum length on either screen that creates a user
+  # (Platform::HotelAdminsController, Staff::UsersController). Both inherit
+  # this from the model instead of validating it twice. allow_blank: true
+  # keeps this from firing on every plain `update` of an existing user —
+  # password is a virtual attribute, nil unless a password change was
+  # actually submitted (Staff::UsersController's #update, for instance, only
+  # ever touches `active`).
+  MINIMUM_PASSWORD_LENGTH = 8
+
   has_secure_password
   has_many :sessions, dependent: :destroy
+
+  validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_blank: true
 
   # Deliberately NOT TenantScoped: hotel_id is nullable because platform admins
   # belong to no hotel. See test/tenancy/tenant_declaration_test.rb.

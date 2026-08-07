@@ -50,4 +50,11 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Rack::Attack's throttle counters are shared, global state — left on by
+  # default, an unrelated test hammering /session or /h/... would trip a
+  # throttle and start returning 429s to a test that has nothing to do with
+  # abuse protection. Tests that exercise a specific throttle turn this back
+  # on explicitly and reset it themselves — see test/integration/rack_attack_test.rb.
+  Rack::Attack.enabled = false
 end

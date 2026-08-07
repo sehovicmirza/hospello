@@ -15,6 +15,15 @@ FileUtils.chdir APP_ROOT do
   puts "== Installing dependencies =="
   system("bundle check") || system!("bundle install")
 
+  # Propshaft prefers a precompiled file under public/assets (gitignored)
+  # over live compilation. Anyone who has ever run `rails assets:precompile`
+  # locally — testing bin/render-build.sh, deploying by hand — leaves one
+  # behind, and it silently shadows every later source change until someone
+  # thinks to delete it by hand. test/test_helper.rb clears this on every
+  # test run for the same reason; this covers `bin/dev` too.
+  puts "\n== Clearing any stale precompiled assets =="
+  FileUtils.rm_rf("public/assets")
+
   # puts "\n== Copying sample files =="
   # unless File.exist?("config/database.yml")
   #   FileUtils.cp "config/database.yml.sample", "config/database.yml"

@@ -123,6 +123,37 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_match "already been taken", response.body
   end
 
+  # Probed directly: password: "a" used to be accepted here with no minimum
+  # length at all (has_secure_password only requires presence) — see
+  # User::MINIMUM_PASSWORD_LENGTH.
+  test "a password shorter than the minimum re-renders with an error instead of being accepted" do
+    sign_in users(:stari_admin)
+
+    assert_no_difference -> { User.count } do
+      post staff_users_path, params: { user: valid_user_params(password: "a", password_confirmation: "a") }
+    end
+
+    assert_response :unprocessable_content
+    assert_match "too short", response.body
+  end
+
+  # Probed directly: active: "" casts to nil (ActiveModel::Type::Boolean),
+  # and users.active is null: false — unguarded, that reached Postgres as an
+  # unrescued NotNullViolation (a 500) instead of a normal re-render. See
+  # Activatable. Also proves self_deactivation?'s own boolean cast of the
+  # same param doesn't mistake "" for a deactivation attempt and block on
+  # the wrong error first.
+  test "posting active: \"\" re-renders with an error instead of a 500" do
+    sign_in users(:stari_admin)
+    target = users(:stari_staff)
+
+    patch staff_user_path(target), params: { user: { active: "" } }
+
+    assert_response :unprocessable_content
+    assert_match "is not included in the list", response.body
+    assert target.reload.active?
+  end
+
   test "a hotel_admin can deactivate a user; a deactivated user cannot sign in" do
     sign_in users(:stari_admin)
     target = users(:stari_staff)

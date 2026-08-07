@@ -189,6 +189,21 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     assert_not room.active?
   end
 
+  # Probed directly: active: "" casts to nil (ActiveModel::Type::Boolean),
+  # and rooms.active is null: false — unguarded, that reached Postgres as an
+  # unrescued NotNullViolation (a 500) instead of a normal re-render. See
+  # Activatable.
+  test "posting active: \"\" re-renders with an error instead of a 500" do
+    sign_in users(:stari_admin)
+    room = rooms(:stari_301)
+
+    patch staff_room_path(room), params: { room: { active: "" } }
+
+    assert_response :unprocessable_content
+    assert_match "is not included in the list", response.body
+    assert room.reload.active?
+  end
+
   test "plain staff cannot update a room" do
     sign_in users(:stari_staff)
     room = rooms(:stari_301)
