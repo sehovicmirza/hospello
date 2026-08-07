@@ -28,9 +28,43 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     get platform_hotels_path
 
     assert_response :success
-    assert_match "Active", response.body
-    assert_match "Suspended", response.body
-    assert_match hotels(:stari_grad).users.count.to_s, response.body
+
+    # Scoped to each hotel's own row and matched on exact element text, not a
+    # page-wide substring: every digit 0-9 already appears somewhere in the
+    # page's static Tailwind classes (e.g. "px-4 py-3", "max-w-5xl"), so a
+    # bare `assert_match "2", response.body` passes regardless of what the
+    # count actually renders as. staff_locale is "staff" only (not
+    # hotel_admin) — stari_grad's fixtures are one admin, one staff.
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:stari_grad))}" do
+      assert_select "span", text: "Active", count: 1
+      assert_select "td", text: hotels(:stari_grad).users.staff.count.to_s, count: 1
+    end
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:vrelo))}" do
+      assert_select "span", text: "Suspended", count: 1
+    end
+  end
+
+  test "index shows whether each hotel already has an active first admin" do
+    # Deactivating (not destroying) vrelo's admin exercises the same query
+    # this pins from both directions: a hotel with an active admin reads
+    # "Yes", and a hotel whose only admin exists but is deactivated must read
+    # "Not yet", not a stale "Yes" — @hotel_ids_with_admin has to scope by
+    # User.hotel_admin.active, not just User.hotel_admin.
+    users(:vrelo_admin).update!(active: false)
+    sign_in users(:platform)
+
+    get platform_hotels_path
+
+    assert_response :success
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:stari_grad))}" do
+      assert_select "span", text: "Yes", count: 1
+    end
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(hotels(:vrelo))}" do
+      assert_select "span", text: "Not yet", count: 1
+    end
   end
 
   test "a platform admin can view the new hotel form" do
@@ -52,11 +86,19 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to platform_hotel_path(hotel)
     assert_equal valid_hotel_params[:name], hotel.name
     assert_equal "bs", hotel.staff_locale
-    assert_equal "Europe/Sarajevo", hotel.timezone
+    assert_equal "America/New_York", hotel.timezone
     assert_not hotel.powered_by_visible?
     assert_not hotel.ai_enabled?
     assert_equal 250_000, hotel.ai_daily_token_budget
     assert_equal "ops@two-rivers.example", hotel.escalation_email
+
+    # Pins the platform layout being wired up (`layout "platform"` on
+    # Platform::BaseController): layouts/application.html.erb has no flash
+    # block at all, so before that line existed this notice silently never
+    # rendered. Only a system test caught it originally — this makes it a
+    # deterministic, one-request regression guard.
+    follow_redirect!
+    assert_match "#{hotel.name} created.", response.body
   end
 
   test "creating a hotel writes an audit log with action hotel.create" do
@@ -168,6 +210,50 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
     assert_equal users(:platform), log.actor_user
   end
 
+  test "suspending an already-suspended hotel is a no-op, not a second audit row" do
+    sign_in users(:platform)
+    hotel = hotels(:stari_grad)
+    hotel.suspended!
+
+    assert_no_difference -> { AuditLog.count } do
+      patch suspend_platform_hotel_path(hotel)
+    end
+
+    assert_redirected_to platform_hotel_path(hotel)
+    assert hotel.reload.suspended?
+  end
+
+  test "reactivating an already-active hotel is a no-op, not a second audit row" do
+    sign_in users(:platform)
+    hotel = hotels(:stari_grad)
+    assert hotel.active?
+
+    assert_no_difference -> { AuditLog.count } do
+      patch activate_platform_hotel_path(hotel)
+    end
+
+    assert_redirected_to platform_hotel_path(hotel)
+    assert hotel.reload.active?
+  end
+
+  test "suspending a hotel that is invalid for an unrelated reason flashes instead of raising" do
+    sign_in users(:platform)
+    hotel = hotels(:stari_grad)
+    # Bypasses validations to reach an invalid-but-persisted row, the way a
+    # hotel could end up invalid for a reason #suspend has nothing to do
+    # with (e.g. a bad timezone from data cleanup). #suspend must not use a
+    # bang method here — update! /suspended! would raise RecordInvalid and
+    # 500 instead of reporting the problem.
+    hotel.update_column(:staff_locale, "invalid-locale")
+
+    patch suspend_platform_hotel_path(hotel)
+
+    assert_response :redirect
+    follow_redirect!
+    assert_match "could not be suspended", response.body
+    assert_not hotel.reload.suspended?
+  end
+
   test "a platform admin can view a hotel's show page" do
     sign_in users(:platform)
 
@@ -207,7 +293,11 @@ class Platform::HotelsControllerTest < ActionDispatch::IntegrationTest
       {
         name: "Hotel Two Rivers",
         slug: "two-rivers",
-        timezone: "Europe/Sarajevo",
+        # Deliberately not the "timezone" column's own DB default
+        # (Europe/Sarajevo) — assertions that check the saved value against
+        # this default must fail if :timezone were dropped from hotel_params,
+        # not pass by coincidence.
+        timezone: "America/New_York",
         staff_locale: "bs",
         powered_by_visible: "false",
         ai_enabled: "false",

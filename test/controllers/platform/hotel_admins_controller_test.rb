@@ -13,8 +13,14 @@ class Platform::HotelAdminsControllerTest < ActionDispatch::IntegrationTest
     sign_in users(:platform)
     hotel = hotels(:vrelo)
 
+    # active: false is submitted deliberately: `active` isn't a permitted
+    # param at all, so this proves it's actually ignored rather than merely
+    # matching the users.active column default — the same default the
+    # request would produce even if the controller silently honored a
+    # hostile `active` param, which is exactly what made the original
+    # `assert user.active?` unable to fail.
     assert_difference -> { User.count }, 1 do
-      post platform_hotel_hotel_admins_path(hotel), params: { user: valid_user_params }
+      post platform_hotel_hotel_admins_path(hotel), params: { user: valid_user_params(active: false) }
     end
 
     user = User.find_by!(email_address: valid_user_params[:email_address])

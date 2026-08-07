@@ -19,7 +19,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "a staff request runs inside its own hotel's tenant" do
     with_probes do
-      sign_in_as users(:vrelo_staff)
+      sign_in users(:vrelo_staff)
       get "/staff_probe"
 
       assert_response :success
@@ -29,7 +29,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "a platform admin is refused by the staff namespace" do
     with_probes do
-      sign_in_as users(:platform)
+      sign_in users(:platform)
       get "/staff_probe"
 
       assert_response :forbidden
@@ -38,7 +38,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "a staff user of a suspended hotel is refused by the staff namespace" do
     with_probes do
-      sign_in_as users(:stari_staff)
+      sign_in users(:stari_staff)
       hotels(:stari_grad).suspended!
       get "/staff_probe"
 
@@ -48,7 +48,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "a deactivated staff user is refused by the staff namespace" do
     with_probes do
-      sign_in_as users(:stari_staff)
+      sign_in users(:stari_staff)
       users(:stari_staff).update!(active: false)
       get "/staff_probe"
 
@@ -58,7 +58,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "the platform namespace sets no ambient tenant" do
     with_probes do
-      sign_in_as users(:platform)
+      sign_in users(:platform)
       get "/platform_probe", params: { hotel_slug: hotels(:stari_grad).slug }
 
       assert_response :success
@@ -68,7 +68,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "the platform namespace records what an admin did" do
     with_probes do
-      sign_in_as users(:platform)
+      sign_in users(:platform)
 
       assert_difference -> { AuditLog.count }, 1 do
         get "/platform_probe", params: { hotel_slug: hotels(:stari_grad).slug }
@@ -88,7 +88,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
   # the one role that can read every hotel.
   test "a deactivated platform admin is refused by the platform namespace" do
     with_probes do
-      sign_in_as users(:platform)
+      sign_in users(:platform)
       users(:platform).update!(active: false)
       get "/platform_probe"
 
@@ -98,7 +98,7 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
   test "a hotel admin is refused by the platform namespace" do
     with_probes do
-      sign_in_as users(:stari_admin)
+      sign_in users(:stari_admin)
       get "/platform_probe"
 
       assert_response :forbidden
@@ -115,17 +115,5 @@ class ControllerTenantScopingTest < ActionDispatch::IntegrationTest
 
         yield
       end
-    end
-
-    # Signs in without going through SessionsController, so these tests fail only
-    # when the base controllers change.
-    def sign_in_as(user)
-      cookies[:session_token] = signed_cookie(:session_token, user.sessions.create!.token)
-    end
-
-    def signed_cookie(name, value)
-      jar = ActionDispatch::TestRequest.create.cookie_jar
-      jar.signed[name] = value
-      jar[name]
     end
 end

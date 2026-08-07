@@ -13,8 +13,12 @@ module Platform
 
       # One grouped query for every hotel's staff count and one for which
       # hotels already have a first admin, instead of N+1 queries per row.
-      @staff_counts = User.where(hotel_id: @hotels.map(&:id)).group(:hotel_id).count
-      @hotel_ids_with_admin = User.hotel_admin.where(hotel_id: @hotels.map(&:id)).distinct.pluck(:hotel_id).to_set
+      # `.staff` excludes the hotel_admin row itself — a freshly onboarded
+      # hotel with only its admin reads "Staff 0", not a misleading "Staff 1".
+      # `.active` on the admin check matters too: a hotel whose only admin was
+      # deactivated must read "Not yet", not a stale "Yes".
+      @staff_counts = User.staff.where(hotel_id: @hotels.map(&:id)).group(:hotel_id).count
+      @hotel_ids_with_admin = User.hotel_admin.active.where(hotel_id: @hotels.map(&:id)).distinct.pluck(:hotel_id).to_set
     end
 
     def new
@@ -36,7 +40,7 @@ module Platform
 
     def show
       @admins = @hotel.users.hotel_admin.order(:name)
-      @staff_count = @hotel.users.count
+      @staff_count = @hotel.users.staff.count
     end
 
     def edit
@@ -52,15 +56,27 @@ module Platform
     end
 
     def suspend
-      @hotel.suspended!
-      audit!("hotel.suspend", target: @hotel, hotel: @hotel)
-      redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} suspended."
+      if @hotel.suspended?
+        redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} is already suspended."
+      elsif @hotel.update(status: :suspended)
+        audit!("hotel.suspend", target: @hotel, hotel: @hotel)
+        redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} suspended."
+      else
+        redirect_to platform_hotel_path(@hotel),
+          alert: "#{@hotel.name} could not be suspended: #{@hotel.errors.full_messages.to_sentence}"
+      end
     end
 
     def activate
-      @hotel.active!
-      audit!("hotel.activate", target: @hotel, hotel: @hotel)
-      redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} reactivated."
+      if @hotel.active?
+        redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} is already active."
+      elsif @hotel.update(status: :active)
+        audit!("hotel.activate", target: @hotel, hotel: @hotel)
+        redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} reactivated."
+      else
+        redirect_to platform_hotel_path(@hotel),
+          alert: "#{@hotel.name} could not be reactivated: #{@hotel.errors.full_messages.to_sentence}"
+      end
     end
 
     private

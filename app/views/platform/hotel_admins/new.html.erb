@@ -24,9 +24,7 @@
   </div>
 <% end %>
 
-<%# Plain navigation, not a Turbo fetch — see _form.html.erb for the same call
-    on the hotel form and sessions/new.html.erb for the original precedent. %>
-<%= form_with model: @user, url: platform_hotel_hotel_admins_path(@hotel), class: "max-w-lg space-y-6", data: { turbo: false } do |form| %>
+<%= form_with model: @user, url: platform_hotel_hotel_admins_path(@hotel), class: "max-w-lg space-y-6" do |form| %>
   <div>
     <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
     <%= form.text_field :name, required: true, autofocus: true, class: field_classes %>
@@ -34,7 +32,7 @@
 
   <div>
     <%= form.label :email_address, "Email address", class: "block text-sm font-medium text-gray-700" %>
-    <%= form.email_field :email_address, required: true, autocomplete: "off", class: field_classes %>
+    <%= form.email_field :email_address, required: true, class: field_classes %>
   </div>
 
   <div>
