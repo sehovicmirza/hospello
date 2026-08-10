@@ -90,4 +90,23 @@ class HotelQrCodeTest < ActiveSupport::TestCase
     refute_equal stari, vrelo
     assert_equal stari, stari_again
   end
+
+  # Slice 2 pins the other half of the "/h/<slug>" coupling this file's
+  # header describes: #path is the literal string physically printed on
+  # every hotel's QR card, and until this test existed nothing proved the
+  # router actually has a route behind it. Derived from #path itself, not a
+  # re-typed "/h/..." literal — if this route is ever renamed, every
+  # already-printed QR code in every hotel room becomes dead paper (a
+  # reprint is the only fix), so a drift here must fail loudly, not
+  # silently 404 in production.
+  test "the router recognizes HotelQrCode's own #path and routes it to the guest entry point" do
+    hotel = hotels(:stari_grad)
+    path = HotelQrCode.new(hotel, host: "h.example").path
+
+    route = Rails.application.routes.recognize_path(path, method: :get)
+
+    assert_equal "guest/entries", route[:controller]
+    assert_equal "show", route[:action]
+    assert_equal hotel.slug, route[:hotel_slug]
+  end
 end

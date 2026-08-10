@@ -76,6 +76,38 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_not_equal 429, response.status
   end
 
+  # Slice 2 adds real routes behind the "/h/..." and "/guest/..." literals
+  # config/initializers/rack_attack.rb's throttles match on — HotelQrCode#path
+  # (what's physically printed on a hotel's QR card) and the guest chat
+  # route. The two tests above already pin the throttle to a same-shaped
+  # hardcoded literal; these two instead derive the path from the actual
+  # route helpers, so a rename that keeps "/h/..."-shaped URLs working in
+  # general but moves *these specific* routes elsewhere would still be
+  # caught here even though it wouldn't be caught above.
+  test "throttles POSTs to the real hotel landing route, not just a same-shaped literal" do
+    path = Rails.application.routes.url_helpers.hotel_landing_path(hotels(:stari_grad).slug)
+
+    20.times do
+      post path
+      assert_not_equal 429, response.status
+    end
+
+    post path
+    assert_equal 429, response.status
+  end
+
+  test "throttles POSTs under the real guest chat route's namespace, not just a same-shaped literal" do
+    path = Rails.application.routes.url_helpers.guest_chat_path
+
+    60.times do
+      post path
+      assert_not_equal 429, response.status
+    end
+
+    post path
+    assert_equal 429, response.status
+  end
+
   test "is a no-op when disabled, however many requests arrive" do
     Rack::Attack.enabled = false
 
