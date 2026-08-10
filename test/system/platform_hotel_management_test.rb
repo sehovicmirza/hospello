@@ -97,7 +97,11 @@ class PlatformHotelManagementTest < ApplicationSystemTestCase
       return if arrived_at_5s
 
       landed_at_5s = yield
-      arrived_at_35s = page.has_text?(expected_text, wait: 30)
+      # Deliberately short. An earlier version waited 30s per failure and
+      # pushed the CI job past its useful runtime for three failures in a
+      # row; the extra seconds never distinguished anything the first
+      # probe hadn't already settled.
+      arrived_at_35s = page.has_text?(expected_text, wait: 3)
       landed_at_35s = yield
       console = begin
         page.driver.browser.logs.get(:browser).map(&:message).join(" || ")

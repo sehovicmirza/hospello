@@ -77,7 +77,19 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     options.add_preference("autofill.credit_card_enabled", false)
     options.add_preference("credentials_enable_service", false)
     options.add_preference("profile.password_manager_enabled", false)
-    options.add_argument("--disable-features=AutofillServerCommunication,PasswordManagerOnboarding")
+    # EXPERIMENT: every fixture signs in with "password123", which is one of
+    # the most-breached passwords there is. Chrome's password leak check
+    # fires on exactly that, after a successful sign-in submit, as native UI
+    # — which is the one event that happens between the form submit that
+    # works and the next click that does not. It needs a live call to
+    # Google to decide, so it can only fire where the network is open.
+    options.add_preference("profile.password_manager_leak_detection", false)
+    options.add_argument("--password-store=basic")
+    options.add_argument("--use-mock-keychain")
+    options.add_argument(
+      "--disable-features=AutofillServerCommunication,PasswordManagerOnboarding," \
+      "PasswordLeakDetection,PasswordChangeAffiliationInfo,PasswordChange"
+    )
   end
 
   prepend CloseNativeSelectPopup
