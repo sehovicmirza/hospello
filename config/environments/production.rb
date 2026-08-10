@@ -116,4 +116,28 @@ Rails.application.configure do
   #
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # Which upstream hops to trust when resolving a request's real IP from
+  # X-Forwarded-For — read by ActionDispatch::RemoteIp (a default Rails
+  # middleware) for the app generally, and read again, independently, by
+  # Rack::Attack::Request#trusted_proxy? in config/initializers/rack_attack.rb
+  # so every throttle's client-IP resolution follows this same single,
+  # configured answer instead of Rack::Request's own separate, hardcoded one.
+  #
+  # force_ssl = true above confirms there's an SSL-terminating proxy in
+  # front of Puma on Render — so trusting *something* here is necessary, not
+  # optional; a request's REMOTE_ADDR as Puma sees it is that proxy, not the
+  # guest. What's set here is Rails' own default trusted-proxy list
+  # (loopback + the RFC1918 private ranges) — the same set Rails already
+  # uses when this is left unset, made explicit so it's one deliberate,
+  # documented decision instead of an implicit default nobody chose on
+  # purpose. It is the standard assumption for a PaaS proxy that forwards
+  # over an internal/private-range hop (this is how Heroku's routers present
+  # themselves to a dyno, for instance) — stated plainly, *not yet verified*
+  # against a live Render deployment, since doing that requires an actual
+  # deployed instance to inspect. If that assumption is ever found wrong —
+  # Render's edge presents via some other address — this is the one line to
+  # extend (`+= [IPAddr.new("<confirmed address or range>")]`); nothing in
+  # rack_attack.rb needs to change to pick it up.
+  config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXIES
 end

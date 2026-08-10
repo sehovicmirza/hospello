@@ -159,15 +159,16 @@ Once the deploy shows "Live":
 2. Visit `https://<your-app-host>/` — the sign-in page. Sign in with the
    `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` you set in step 4
    above (the build's `db:seed` step created that account idempotently on
-   first boot — safe to redeploy any number of times afterward). You'll
-   land on a bare "Signed in as ..." page — there is no navigation link
-   from there yet, so continue to the next step's URL directly.
+   first boot — safe to redeploy any number of times afterward). Signing in
+   takes a platform admin straight to the hotel list at
+   `/platform/hotels` — that's also where the next step picks up.
 
 ### 4. Create the first hotel
 
-Still signed in as the platform admin, go directly to
-`https://<your-app-host>/platform/hotels` (no link to it exists anywhere
-else in the app yet):
+You should already be looking at the hotel list after signing in above (a
+platform admin lands there directly; it's also the **Hotels** link on every
+platform-admin page after that). If not, it's at
+`https://<your-app-host>/platform/hotels`:
 
 1. Click **New hotel**, fill in its name and settings, and save.
 2. On the hotel's page, click **Create first admin** — this is the account

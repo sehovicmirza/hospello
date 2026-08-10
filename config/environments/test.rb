@@ -57,4 +57,17 @@ Rails.application.configure do
   # abuse protection. Tests that exercise a specific throttle turn this back
   # on explicitly and reset it themselves — see test/integration/rack_attack_test.rb.
   Rack::Attack.enabled = false
+
+  # Mirrors config/environments/production.rb's trusted_proxies, extended
+  # with one CIDR outside Rails' own default list — 203.0.113.0/24, RFC
+  # 5737's block reserved for documentation and testing, never a real
+  # deployed address. ActionDispatch::RemoteIp is instantiated once at boot
+  # with whatever this holds, so a test can't change it per-example the way
+  # it can Rack::Attack.enabled; setting it here, once, for the whole suite,
+  # is what lets test/integration/rack_attack_test.rb prove
+  # Rack::Attack::Request#trusted_proxy? (config/initializers/rack_attack.rb)
+  # actually follows this config rather than computing an independent
+  # answer the way stock Rack::Request#ip does.
+  config.action_dispatch.trusted_proxies =
+    ActionDispatch::RemoteIp::TRUSTED_PROXIES + [ IPAddr.new("203.0.113.0/24") ]
 end

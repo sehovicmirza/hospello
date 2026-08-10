@@ -20,12 +20,26 @@ module Ops
 
     queue_as :low
 
+    # A heartbeat that takes more than a few seconds has already failed —
+    # Net::HTTP's own defaults (60s open + 60s read) would otherwise let one
+    # hung HEARTBEAT_URL occupy one of only two threads shared by the
+    # default/low queues (config/queue.yml) for up to ~2 minutes per run,
+    # every 5 minutes, degrading Ops::QueueHealthJob and the finished-jobs
+    # cleanup alongside it before the rescue below ever gets a chance to log
+    # and move on.
+    HTTP_TIMEOUT = 5 # seconds
+
     def perform
       url = ENV["HEARTBEAT_URL"].presence
       return if url.blank? # No monitor configured — must never break a deploy.
 
       begin
-        Net::HTTP.get_response(URI.parse(url))
+        uri = URI.parse(url)
+        Net::HTTP.start(
+          uri.host, uri.port,
+          use_ssl: uri.scheme == "https",
+          open_timeout: HTTP_TIMEOUT, read_timeout: HTTP_TIMEOUT
+        ) { |http| http.get(uri.request_uri) }
       rescue StandardError => e
         # A failed ping must not raise: that would retry the job and spam
         # Solid Queue's failed_executions table for what is, from the app's
