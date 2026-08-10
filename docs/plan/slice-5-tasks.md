@@ -39,8 +39,10 @@ slice is machinery; this is the thing that decides whether the machinery is safe
 - `Ai::DigitGuard.numbers_in(text)` → normalized decimal digits found in the text, **after**
   folding Eastern-Arabic (`٠١٢٣٤٥٦٧٨٩`), Persian (`۰۱۲۳۴۵۶۷۸۹`) and full-width forms to ASCII.
 - `Ai::Translator.new.call(text:, from:, to:)` → `Ai::Translation` with `#text`, `#usage`,
-  `#fell_back?` and `#reason`. Falls back to the original — never raises — on a timeout, a refusal,
-  an empty reply, or a digit-guard failure.
+  `#fell_back?` and `#reason`. Falls back to the original — never raises — on a timeout, an API
+  error, a refusal, a truncation, an empty reply, or a digit-guard failure. `#reason` is kept rather
+  than collapsed to a boolean: a rising `digit_mismatch` rate is a prompt problem, `timeout` is an
+  infrastructure problem, and a `refusal` on a message about towels is worth someone looking at.
 
 - [ ] **Step 1: The digit-guard corpus, written first**
 
@@ -50,17 +52,25 @@ A table test, not a handful of examples. At minimum:
 # safe
 ["Breakfast is at 07:00",        "Doručak je u 07:00"]
 ["Room 305",                     "الغرفة ٣٠٥"]          # Eastern-Arabic digits fold to 305
-["2 towels",                     "زوجان من المناشف"]    # a number written as a word is not a digit loss
+["Breakfast at 07:00",           "Doručak u 7:00"]      # a dropped leading zero is formatting
+["It costs 12.5 KM",             "Košta 12,5 KM"]       # so is a decimal comma
 # unsafe
 ["Room 305",                     "Room 350"]            # transposition
 ["07:00",                        "17:00"]               # a leading digit invented
-["12 KM",                        "12"]                  # a number dropped
 ["Room 305",                     "Room 305 and 306"]    # a number invented
+["Is breakfast at 07:00 or 08:00?", "Kada je doručak?"] # numbers dropped entirely
+["2 towels",                     "Par peškira"]         # a number spelled as a word
 ```
 
-The "number written as a word" row is the one that decides the guard's shape: it must compare the
-numbers that *are* there, not require a one-to-one mapping, or every fluent translation trips it and
-the whole feature is off by default.
+**The rule is strict equality of the numbers, as a multiset** — not merely "no invented numbers".
+The last two rows are why. Allowing a drop would let a translation quietly turn "is breakfast at
+07:00 or 08:00" into a question a receptionist cannot answer, and a number spelled as a word is the
+same loss wearing better clothes.
+
+That strictness has a real cost, and it is the right way round: a translation that writes a number
+as a word falls back to the original, so the receptionist reads the guest's own language and taps to
+see it. Readability suffers; correctness never does. If a pilot shows this firing often, fix the
+translator's prompt — not the guard.
 
 - [ ] **Step 2: The translator, and its four fallbacks**
 

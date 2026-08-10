@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 4 complete — service requests end to end) |
+| **Last updated** | 2026-08-10 (Slice 4 complete · Slice 5 at 1 of 4 tasks) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 750 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 785 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1–4 complete** · Slice 5 not started |
+| **Progress** | **Slices 1–4 complete** · Slice 5 at 1 of 4 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -310,19 +310,33 @@ browser autoplay policies make it unreliable and a notification that sometimes f
 none — and assignment to a named staff member. The `assigned_to` column, the `assignment` event kind
 and the card's assignee line all exist; what is missing is a way to set it.
 
+**Slice 5 Task 1 — the digit guard and the translator seam.** Complete. Nothing is translated yet;
+this is the part that decides whether translating is safe to switch on at all.
+
+- `Ai::DigitGuard` — **strict equality of the numbers, as a multiset**, after folding Arabic-Indic,
+  Persian and full-width digits to ASCII. Not merely "no invented numbers": allowing a drop would
+  let a translation turn "is breakfast at 07:00 or 08:00" into a question a receptionist cannot
+  answer. Formatting differences are not differences (`07:00` vs `7:00`, `12.5` vs `12,5`), because
+  a guard that fires on correct translations is a guard that gets switched off.
+- The strictness has a cost, stated and tested: a translation that spells a number as a word falls
+  back. Readability suffers, correctness does not. If a pilot shows it firing often, **fix the
+  translator's prompt, not the guard.**
+- `Ai::Translator` + `Ai::Translation` — one call on `TRANSLATION_MODEL`, and it **never raises**.
+  Timeout, API error, refusal, truncation, empty reply and digit mismatch all return the original
+  text marked with a `reason`. It sits on the guest-to-receptionist lifeline; it is allowed to fail
+  and not allowed to break that path. Same language on both sides costs nothing at all — no call, no
+  tokens.
+
 ---
 
 ## What to do next
 
-1. **Slice 5 — translation.** The next slice, and the one that makes a receptionist and a guest who
-   share no language able to talk. **The task breakdown is written**: `docs/plan/slice-5-tasks.md`,
-   four tasks, in the same shape as slices 3 and 4 — start at Task 1, the digit guard, because it is
-   the one part of the slice that can make the product actively harmful ("room 305" delivered as
-   "room 350" is a confident, fluent, wrong sentence a receptionist will act on). Everything else it
-   needs is in place: `TRANSLATION_MODEL` is configured and separate from `AI_MODEL` on purpose, the
-   budget guard already lets translation run to 100% while the concierge stops at 90%, and
-   `messages.translated_body` / `translated_locale` / `translation_status` / `delivered_at` have
-   been sitting unused since Slice 2 waiting for exactly this.
+1. **Slice 5 Task 2 — delivery: the claim column and the 15-second budget.** The race that produces
+   the worst available outcome (the same message delivered twice, once translated and once not) and
+   the one atomic `UPDATE` that closes it. Brief: `docs/plan/slice-5-tasks.md`. `Ai::Translator` is
+   ready to be called; `messages.delivered_at` and `translation_status` are waiting. Then Task 3
+   (both directions plus the original/translation chip) and Task 4 (the staff workspace in Bosnian,
+   and the request-summary overlay).
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
