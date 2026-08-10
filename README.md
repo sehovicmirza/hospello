@@ -12,6 +12,12 @@ This repository is a single Rails 8 monolith (Hotwire/Turbo, Postgres doing
 quadruple duty as the app database plus Solid Queue/Cache/Cable — no Redis,
 no microservices) built for real hotel pilots, one hotel at a time.
 
+> **Picking up development?** Start with **[HANDOVER.md](HANDOVER.md)** — current state, what's in
+> flight, and what to do next. Then [CLAUDE.md](CLAUDE.md) for how to work in this repo, and
+> [docs/plan/](docs/plan/) for the approved implementation plan, the per-slice task breakdowns, the
+> engineering rules, and the known-issues list. This project is built across many sessions on
+> different machines, so those files are the memory that carries between them.
+
 **Current status (Slice 1 of the MVP plan):** the operational foundation —
 multi-tenancy, platform-admin and hotel-admin back offices, staff accounts,
 rooms/departments/categories, hotel branding, the reusable per-hotel QR
