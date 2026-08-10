@@ -109,6 +109,9 @@ class ServiceRequestDraft < ApplicationRecord
       request = build_request
       request.save!
     end
+    # A new request is the one board event that does not come from a
+    # transition, so it broadcasts here.
+    Turbo::StreamsChannel.broadcast_refresh_to(hotel, :requests)
     request
   rescue ActiveRecord::RecordNotUnique
     # The same request already exists — the dedupe_key index caught it. This

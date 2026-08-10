@@ -151,6 +151,40 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert with_tenant(hotels(:vrelo)) { vrelo_question.reload.status_new? }
   end
 
+  # The reception board (Slice 4 Task 3). A request carries a room number and
+  # the guest's own words, and working one changes what a guest at another
+  # hotel is told in their own chat — so every verb is checked, not only the
+  # obvious read.
+  test "hotel A staff cannot see or work hotel B's service requests" do
+    vrelo_request = with_tenant(hotels(:vrelo)) do
+      conversation = conversations(:vrelo_conversation)
+      category = request_categories(:vrelo_wakeup)
+      details = { "time" => "07:00" }
+      ServiceRequest.create!(
+        hotel: hotels(:vrelo), conversation: conversation, guest_session: conversation.guest_session,
+        room: conversation.guest_session.room, request_category: category, department: category.department,
+        summary: "Vrelo Only Request", details: details, channel: :web,
+        dedupe_key: ServiceRequest.dedupe_key_for(conversation: conversation, category: category, details: details)
+      )
+    end
+    sign_in users(:stari_admin)
+
+    get staff_service_requests_path
+    assert_response :success
+    assert_no_match "Vrelo Only Request", response.body
+
+    get staff_service_request_path(vrelo_request)
+    assert_response :not_found
+
+    patch transition_staff_service_request_path(vrelo_request, to: "accepted")
+    assert_response :not_found
+
+    with_tenant(hotels(:vrelo)) do
+      assert vrelo_request.reload.status_new?, "hotel A must not be able to work hotel B's queue"
+      assert_empty vrelo_request.request_events
+    end
+  end
+
   # The reception inbox (Slice 2 Task 3). A conversation carries the guest's
   # name, room, and everything they have said — so hotel B's conversation
   # must be invisible to hotel A's staff on every one of its routes, not

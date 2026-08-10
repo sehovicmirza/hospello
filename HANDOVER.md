@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 3 complete · Slice 4 at 2 of 3 tasks) |
+| **Last updated** | 2026-08-10 (Slice 4 complete — service requests end to end) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 723 unit/integration green · 40 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 750 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1, 2 and 3 complete** · Slice 4 at 2 of 3 tasks |
+| **Progress** | **Slices 1–4 complete** · Slice 5 not started |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -284,17 +284,43 @@ to end against `FakeClaude`: "two extra towels" → one question → "bath towel
   alone leaves the tests green, which is recorded in the test file so nobody deletes one as
   redundant.
 
+**Slice 4 Task 3 — the reception board.** Complete. **Slice 4 is done**: a guest describes what they
+want, the assistant asks what is missing, shows a summary, and waits; the guest agrees; exactly one
+request appears on the reception board; a receptionist accepts and completes it, and the guest sees
+each step — never having been told anything was confirmed before a person confirmed it.
+
+- `/staff/service_requests` — open / all / finished tabs, search across room number, guest name and
+  what was asked for, a category filter, and cards optimised for someone standing at a desk: room
+  first, state in **words** as well as colour, "Waiting 2 hours" spelled out for anything past the
+  hotel's own `overdue_after_minutes`, and one tap to accept or complete.
+- **Every status change goes through `ServiceRequest#transition!`** — the controller never writes
+  `status` itself. That is what keeps the board, the `RequestEvent` history and the guest's own chat
+  from drifting apart, and only the transitions the model says are legal are rendered as buttons.
+- Guest-visible status updates post from `config/locales/requests.*.yml` in the guest's language. A
+  transition's staff note is deliberately **not** passed on, and `RequestEvent.guest_visible` covers
+  status changes only — the same boundary `Message#visibility` draws in the chat.
+- `HotelRequestsChannel` + a morphing refresh to `[hotel, :requests]`, reusing the inbox's
+  resilience layer. The channel re-checks active-staff / unsuspended-hotel / right-stream on
+  subscribe, because a cable connection outlives the request that opened it.
+- `test/system/request_board_test.rb` is the slice's proof: two browsers, guest confirms, the
+  receptionist's board updates itself, and each transition reaches the guest's page unaided.
+
+**Deliberately not built** (flag these if a pilot asks for them): a sound on new-request arrival —
+browser autoplay policies make it unreliable and a notification that sometimes fires is worse than
+none — and assignment to a named staff member. The `assigned_to` column, the `assignment` event kind
+and the card's assignee line all exist; what is missing is a way to set it.
+
 ---
 
 ## What to do next
 
-1. **Slice 4 Task 3 — the reception board.** The last task in the slice.
-   `Staff::ServiceRequestsController` + `ServiceRequestPolicy` + views, filters and search, the
-   transitions (all of which must go through `ServiceRequest#transition!` — it is the only way a
-   status changes and the only thing that writes the `RequestEvent` history), live updates broadcast
-   to `[hotel, :requests]` with the same resilience layer the inbox uses, guest-visible status
-   updates posted from **pre-translated** strings (add them to `config/locales/requests.*.yml`,
-   which already exists), and the end-to-end system test. Brief: `docs/plan/slice-4-tasks.md`.
+1. **Slice 5 — translation.** The next slice, and the one that makes a receptionist and a guest who
+   share no language able to talk. Its task breakdown is **not written yet** — the plan
+   (`docs/plan/implementation-plan.md`) specifies the slice; write `docs/plan/slice-5-tasks.md` the
+   way slices 1–4 have one before starting. Everything it needs is in place: `TRANSLATION_MODEL` is
+   configured and separate from `AI_MODEL` on purpose, the budget guard already lets translation run
+   to 100% while the concierge stops at 90%, and `messages.translated_body` /
+   `translated_locale` / `translation_status` have been sitting unused since Slice 2.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns

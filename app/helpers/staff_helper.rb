@@ -76,6 +76,13 @@ module StaffHelper
     # Directly after Inbox: the knowledge base is the other thing a hotel
     # touches regularly once the concierge is live, and burying it is how a
     # hotel ends up with an assistant that knows nothing about them.
+    # Directly under Inbox: requests are the other thing a receptionist works
+    # a queue of, and the badge counts what nobody has picked up yet rather
+    # than everything open — a number that never reaches zero is a number
+    # nobody reads.
+    if policy(ServiceRequest).index?
+      items << { label: "Requests", path: staff_service_requests_path, badge: staff_new_request_count }
+    end
     items << { label: "Knowledge base", path: staff_kb_entries_path } if policy(KbEntry).index?
     # Immediately under the knowledge base, and badged, because this screen
     # only works if it is seen: the whole point is that a hotel discovers
@@ -150,9 +157,74 @@ module StaffHelper
     end
   end
 
+  def staff_new_request_count
+    count = Current.hotel.service_requests.status_new.count
+    count.positive? ? count : nil
+  end
+
   def staff_knowledge_gap_count
     count = Current.hotel.unanswered_questions.status_new.count
     count.positive? ? count : nil
+  end
+
+  # State in words, never colour alone — a colour-blind receptionist and a
+  # printed screenshot both have to be readable. "New" rather than "pending"
+  # because the board is a work queue, and the word a receptionist uses for
+  # something nobody has picked up is "new".
+  def staff_request_status_label(request)
+    {
+      "new" => "New", "accepted" => "Accepted", "in_progress" => "Under way",
+      "completed" => "Done", "declined" => "Declined", "cancelled" => "Cancelled"
+    }.fetch(request.status, request.status.humanize)
+  end
+
+  def staff_request_status_classes(request)
+    case request.status
+    when "new" then "bg-amber-100 text-amber-900"
+    when "accepted", "in_progress" then "bg-blue-100 text-blue-900"
+    when "completed" then "bg-green-100 text-green-900"
+    else "bg-gray-100 text-gray-700"
+    end
+  end
+
+  # How long it has been sitting there, in the words a receptionist would use
+  # out loud rather than a timestamp they have to subtract from now.
+  def staff_request_waiting_for(request)
+    time_ago_in_words(request.created_at)
+  end
+
+  # Every transition this request can legally make, from the table on the
+  # model. Rendering a button that would be refused is how a receptionist
+  # learns to distrust the screen.
+  def staff_request_transitions(request)
+    labels = {
+      "accepted" => "Accept it", "in_progress" => "Someone is on it", "completed" => "Mark as done",
+      "declined" => "We can't do this", "cancelled" => "Cancel it"
+    }
+
+    ServiceRequest::TRANSITIONS.fetch(request.status, []).index_with { |to| labels.fetch(to) }
+  end
+
+  # The one or two a receptionist does dozens of times a shift, and nothing
+  # else — a card crowded with five buttons is a card nobody reads.
+  def staff_request_quick_transitions(request)
+    quick = case request.status
+    when "new" then %w[accepted]
+    when "accepted", "in_progress" then %w[completed]
+    else []
+    end
+
+    staff_request_transitions(request).slice(*quick)
+  end
+
+  def staff_request_event_sentence(event)
+    who = event.user&.name || "Automatically"
+
+    if event.kind_status_change?
+      "#{who}: #{event.from_status_name&.humanize} → #{event.to_status_name&.humanize}"
+    else
+      "#{who} added a note"
+    end
   end
 
   # "Unverified" is not a detail to be tucked away: the room number was

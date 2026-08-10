@@ -20,6 +20,12 @@ en:
       change: "Change something"
       cancel: "No, cancel"
       change_prefill: "Actually, I'd like to change something: "
+    status:
+      accepted: "Reception has your request and is taking care of it."
+      in_progress: "Someone is on their way with this now."
+      completed: "That's done. Let us know here if you need anything else."
+      declined: "We aren't able to do that one, I'm sorry. Reception can suggest another way — just ask here."
+      cancelled: "That request has been cancelled. Nothing further will happen with it."
     sent_to_reception: "Sent to reception. Someone will take a look and get back to you here."
     cancelled: "No problem — nothing has been sent."
     nothing_pending: "There's nothing waiting to be sent right now."

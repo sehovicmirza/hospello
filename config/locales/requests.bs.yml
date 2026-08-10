@@ -9,6 +9,12 @@ bs:
       change: "Promijeni nešto"
       cancel: "Ne, otkaži"
       change_prefill: "Zapravo, želio bih promijeniti nešto: "
+    status:
+      accepted: "Recepcija je primila vaš zahtjev i brine se o njemu."
+      in_progress: "Neko je već na putu s ovim."
+      completed: "Gotovo je. Javite nam ovdje ako vam treba još nešto."
+      declined: "Nažalost, to ne možemo uraditi. Recepcija može predložiti drugo rješenje — samo pitajte ovdje."
+      cancelled: "Taj zahtjev je otkazan. S njim se dalje ništa neće dešavati."
     sent_to_reception: "Poslano recepciji. Neko će pogledati i javiti vam se ovdje."
     cancelled: "Nema problema — ništa nije poslano."
     nothing_pending: "Trenutno nema ništa što čeka slanje."

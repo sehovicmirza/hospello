@@ -1,0 +1,53 @@
+<%# One request, as a receptionist reads it from across the desk: room first,
+    because that is what they act on, then what was asked for in the guest's
+    own words. State is said in words as well as colour — a colour-blind
+    receptionist and a printed screenshot must both be readable. %>
+<li id="<%= dom_id(request) %>"
+    class="rounded-lg border bg-white p-4 <%= request.status_new? ? "border-amber-400 ring-1 ring-amber-200" : "border-gray-200" %>">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <p class="text-lg font-semibold text-gray-900">
+        <%= request.room&.number || "No room given" %>
+      </p>
+      <p class="mt-0.5 text-xs text-gray-500"><%= request.guest_session&.guest_name %></p>
+    </div>
+
+    <div class="flex shrink-0 flex-col items-end gap-1">
+      <span class="rounded-full px-2 py-0.5 text-xs font-semibold <%= staff_request_status_classes(request) %>">
+        <%= staff_request_status_label(request) %>
+      </span>
+      <% if request.overdue? %>
+        <%# In words, not a red dot: "waiting 2h" is actionable, a colour is
+            a thing to interpret. %>
+        <span id="<%= dom_id(request, :overdue) %>" class="text-xs font-semibold text-red-700">
+          Waiting <%= staff_request_waiting_for(request) %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+
+  <p class="mt-2 text-sm text-gray-800" dir="auto"><%= request.summary %></p>
+
+  <p class="mt-2 text-xs text-gray-500">
+    <%= request.request_category.name %>
+    <% if request.requested_for_at %>
+      · for <%= staff_time(request.requested_for_at).strftime("%H:%M") %>
+    <% end %>
+    · <%= staff_time(request.created_at).strftime("%H:%M") %>
+    <% if request.assigned_to %>
+      · <%= request.assigned_to.name %>
+    <% end %>
+  </p>
+
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <%# One tap to accept, one to complete — the two a receptionist does
+        dozens of times a shift. Everything else is on the request's own page. %>
+    <% staff_request_quick_transitions(request).each do |to, label| %>
+      <%= button_to label, transition_staff_service_request_path(request, to: to), method: :patch,
+            id: "#{dom_id(request)}-#{to}",
+            class: "cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" %>
+    <% end %>
+    <%= link_to "Open", staff_service_request_path(request),
+          class: "rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
+  </div>
+</li>

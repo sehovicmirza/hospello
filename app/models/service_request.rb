@@ -51,7 +51,35 @@ class ServiceRequest < ApplicationRecord
 
   scope :open_requests, -> { where(status: OPEN_STATUSES) }
   scope :settled, -> { where.not(status: OPEN_STATUSES) }
-  scope :board_order, -> { order(created_at: :desc, id: :desc) }
+  # Newest first, with everything still waiting on someone above everything
+  # that is not — a receptionist reads from the top and must not have to scan
+  # for the request that has been sitting there for an hour. Postgres orders
+  # false before true, so descending puts the open ones first. Every column is
+  # table-qualified because this scope is routinely chained onto .matching,
+  # which left-joins guest_sessions and rooms (see Conversation#inbox_order
+  # for the PG::AmbiguousColumn this prevents).
+  scope :board_order, -> {
+    order(
+      Arel::Nodes::Descending.new(Arel::Nodes::Grouping.new(arel_table[:status].in(statuses.values_at(*OPEN_STATUSES)))),
+      arel_table[:created_at].desc,
+      arel_table[:id].desc
+    )
+  }
+
+  # What a receptionist has in hand: a room number, a guest's name, or a word
+  # from what they asked for. Searched together rather than behind a field
+  # picker, and unanchored so "301" finds "A-301" — the same reasoning as
+  # Conversation.matching.
+  scope :matching, ->(query) {
+    query = query.to_s.strip
+    next all if query.blank?
+
+    pattern = "%#{sanitize_sql_like(query)}%"
+    left_joins(:guest_session, :room).where(
+      "guest_sessions.guest_name ILIKE :pattern OR rooms.number ILIKE :pattern OR service_requests.summary ILIKE :pattern",
+      pattern: pattern
+    )
+  }
 
   # The duplicate guarantee. A retried tool call, a guest tapping Confirm
   # twice on a slow phone, and a model that calls confirm twice in one turn
@@ -94,6 +122,8 @@ class ServiceRequest < ApplicationRecord
         to_status: self.class.statuses[to], note: note
       )
     end
+    notify_guest(to)
+    broadcast_board
     self
   end
 
@@ -109,6 +139,35 @@ class ServiceRequest < ApplicationRecord
   end
 
   private
+    # A morphing page refresh to [hotel, :requests], not a targeted replace:
+    # the board's cards and its counts are different DOM shapes reacting to
+    # the same event, and re-rendering from the server is what keeps every
+    # count server-computed rather than nudged in the browser. Same reasoning,
+    # and the same resilience layer, as the inbox.
+    def broadcast_board
+      Turbo::StreamsChannel.broadcast_refresh_to(hotel, :requests)
+    end
+
+    # The guest hears about every status change, in their own language, from
+    # copy that lives on disk. Not a live translation: a status update is the
+    # hotel keeping its word about a request the guest is waiting on, and it
+    # cannot depend on a model being reachable at that moment. The staff note
+    # attached to a transition is deliberately *not* passed on — it is staff
+    # commentary, and Slice 5 handles anything freeform.
+    #
+    # Posted after the transaction, so a failed status change never announces
+    # itself. Best-effort by design: a broken conversation must not roll back
+    # a receptionist's completed request.
+    def notify_guest(to)
+      return if conversation.nil?
+
+      body = I18n.t("requests.status.#{to}", locale: conversation.guest_locale.presence || I18n.default_locale,
+                                             default: nil)
+      return if body.blank?
+
+      conversation.post_system_notice!(body: body)
+    end
+
     def attributes_for_transition(to, by)
       attributes = { status: to }
       attributes[:acknowledged_by] = by if to == "accepted" && acknowledged_by.nil?

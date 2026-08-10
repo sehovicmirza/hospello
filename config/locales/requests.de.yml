@@ -9,6 +9,12 @@ de:
       change: "Etwas ändern"
       cancel: "Nein, abbrechen"
       change_prefill: "Ich möchte doch etwas ändern: "
+    status:
+      accepted: "Die Rezeption hat Ihre Anfrage erhalten und kümmert sich darum."
+      in_progress: "Jemand ist gerade damit unterwegs."
+      completed: "Das ist erledigt. Sagen Sie uns hier Bescheid, wenn Sie noch etwas brauchen."
+      declined: "Das können wir leider nicht machen. Die Rezeption kann einen anderen Weg vorschlagen — fragen Sie einfach hier."
+      cancelled: "Diese Anfrage wurde storniert. Es passiert nichts weiter damit."
     sent_to_reception: "An die Rezeption gesendet. Jemand schaut es sich an und meldet sich hier bei Ihnen."
     cancelled: "Kein Problem — es wurde nichts gesendet."
     nothing_pending: "Im Moment wartet nichts darauf, gesendet zu werden."

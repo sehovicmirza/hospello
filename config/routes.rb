@@ -82,6 +82,19 @@ Rails.application.routes.draw do
       member { patch :publish }
     end
 
+    # The reception board. No create — the only path that makes a request is
+    # a guest confirming a draft — and no destroy: a request is cancelled,
+    # which keeps its history, never deleted. One transition route rather
+    # than accept/start/complete/decline actions, because the legal moves
+    # already live in ServiceRequest::TRANSITIONS and four near-identical
+    # actions would be four places to forget an authorize call.
+    resources :service_requests, only: %i[index show] do
+      member { patch :transition }
+      # Staff commentary on a request, never guest-visible — see
+      # Staff::RequestEventsController.
+      resources :request_events, only: %i[create]
+    end
+
     # What guests asked that this hotel never wrote down. No create — rows
     # are written by the concierge's own log_unanswered_question tool, never
     # by hand — and no destroy: dismissing is a decision worth keeping, and
