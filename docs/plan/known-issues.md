@@ -62,6 +62,12 @@ the confound that invalidated the earlier measurement. Whoever takes this on sho
 and driver to the same build in CI and read the result, rather than adding retry logic to the app's
 test harness.
 
+**The failure is confined to this one file, confirmed on the runner itself.** A `workflow_dispatch`
+run of the Slice 2 Task 3 branch (run 31418453644) executed 28 system tests and failed exactly 3 —
+the same three, again. Every other test in the suite passed on CI, including that branch's new
+two-browser live test, which drives two simultaneous Chrome sessions and is by far the most timing-
+sensitive test in the repo. Whatever this is, it is not general flakiness in the harness.
+
 ---
 
 ## Unverified assumptions that need checking against reality

@@ -16,7 +16,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Branch** | `claude/continue-ai-agent-work-bq59gm` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 475 unit/integration green · 28 system green locally (four consecutive clean runs) · rubocop and brakeman clean |
-| **CI** | ❌ **red, and has been on every run since the repo's first** — pre-existing, not this work. See below. |
+| **CI** | ❌ **red, and has been on every run since the repo's first** — pre-existing, not this work. Verified: see below. |
 | **Progress** | Slices 1 and 2 complete · Slices 3–7 not started |
 
 > ### Read this before trusting "tests green"
@@ -32,7 +32,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > Because the job stops at that step, the `rubocop` and `brakeman` steps had **never once run**. Both
 > had accumulated real findings by the time this session checked; both are clean now.
 >
-> `bin/rails test` passes on CI. This work is covered by it.
+> **This branch was run against real CI to check** (`workflow_dispatch`, run 31418453644): all 475
+> unit/integration tests passed, and of 28 system tests exactly 3 failed — those same three. Every
+> test added by this task passed on the runner, including the two-browser live test. So the red check
+> is entirely the pre-existing flake, and the work under it is covered.
 
 ---
 
