@@ -71,4 +71,53 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert vrelo_user.reload.active?
   end
+
+  # Guest sessions (Slice 2 Task 1) are the other side of this app's tenancy
+  # boundary: there is no id, slug, or any other hotel-identifying value
+  # anywhere in the guest namespace's own routes — Guest::BaseController
+  # resolves Current.hotel from the guest's signed cookie alone (see that
+  # controller's comment for why). A cookie issued by hotel A must never
+  # resolve to hotel B's data, the guest-side analogue of the staff
+  # 404-not-403 tests above.
+  test "a guest cookie issued by hotel A always resolves to hotel A's data, never hotel B's" do
+    sign_in_guest("stari-grad-fixture-guest-token")
+
+    get guest_chat_path
+
+    assert_response :success
+    assert_select "#chat-greeting", text: /#{Regexp.escape(guest_sessions(:stari_guest).guest_name)}/
+    assert_select "#chat-greeting", text: /#{Regexp.escape(guest_sessions(:vrelo_guest).guest_name)}/, count: 0
+    # #hotel-name renders Current.hotel.name specifically (not
+    # @guest_session.hotel.name) — this pins that
+    # Guest::BaseController#scope_to_guest_hotel set the tenant correctly,
+    # not just that the right GuestSession row was found.
+    assert_select "#hotel-name", text: hotels(:stari_grad).name
+  end
+
+  # The other direction, proving the test above isn't passing just because
+  # this controller always happens to resolve hotel A — a different guest's
+  # cookie must resolve to *its own* hotel's data instead.
+  test "a guest cookie issued by hotel B always resolves to hotel B's data, never hotel A's" do
+    sign_in_guest("vrelo-bosne-fixture-guest-token")
+
+    get guest_chat_path
+
+    assert_response :success
+    assert_select "#chat-greeting", text: /#{Regexp.escape(guest_sessions(:vrelo_guest).guest_name)}/
+    assert_select "#chat-greeting", text: /#{Regexp.escape(guest_sessions(:stari_guest).guest_name)}/, count: 0
+    assert_select "#hotel-name", text: hotels(:vrelo).name
+  end
+
+  # Even a request that actively tries to hint at a different hotel (a
+  # crafted query param no legitimate client sends) must be ignored —
+  # Guest::BaseController never reads a hotel from params, only from the
+  # cookie's resolved session.
+  test "a crafted hotel-identifying query param on a guest route is ignored — the hotel always comes from the cookie" do
+    sign_in_guest("stari-grad-fixture-guest-token")
+
+    get guest_chat_path(hotel_slug: hotels(:vrelo).slug, hotel_id: hotels(:vrelo).id)
+
+    assert_response :success
+    assert_select "#chat-greeting", text: /#{Regexp.escape(guest_sessions(:stari_guest).guest_name)}/
+  end
 end
