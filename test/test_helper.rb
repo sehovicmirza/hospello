@@ -75,6 +75,28 @@ module ActiveSupport
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
 
+    # Found investigating an intermittent (roughly 1-in-15-run) failure in
+    # the guest locale tests: I18n::Backend::Simple loads translation files
+    # lazily, on the first lookup, in whichever worker process happens to
+    # hit it first — and that lazy load is not what fully guarantees every
+    # locale is loaded before a request depending on it runs. Diagnostic
+    # evidence from a captured failure showed a forked worker whose backend
+    # had only ever loaded :en (`I18n.backend.send(:translations).keys` was
+    # `[:en]`), even though `I18n.available_locales` was correctly
+    # `[:bs, :en, :de, :ar]` and even a *direct* `I18n.t(key, locale: :bs)`
+    # call — nowhere near this app's own with_locale scoping — returned the
+    # English fallback. That points at I18n's own lazy-load path racing
+    # fork, not at anything guest-controller-specific.
+    # `I18n.backend.eager_load!` forces every locale file in
+    # I18n.load_path to load immediately, once per freshly-forked worker,
+    # before that worker runs any of its assigned tests — turning a rare,
+    # order-independent, unreproducible-with-a-fixed-seed flake (confirmed:
+    # 7/7 clean serial runs, ~1-in-15 parallel runs failing) into something
+    # that can't happen at all.
+    parallelize_setup do |_worker|
+      I18n.backend.eager_load!
+    end
+
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
