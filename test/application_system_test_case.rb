@@ -84,8 +84,9 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     # works and the next click that does not. It needs a live call to
     # Google to decide, so it can only fire where the network is open.
     options.add_preference("profile.password_manager_leak_detection", false)
-    options.add_argument("--password-store=basic")
-    options.add_argument("--use-mock-keychain")
+    # NARROWING RUN: --password-store=basic and --use-mock-keychain removed.
+    # If the system tests still pass without them, the leak check was the
+    # whole cause and those two were cargo.
     options.add_argument(
       "--disable-features=AutofillServerCommunication,PasswordManagerOnboarding," \
       "PasswordLeakDetection,PasswordChangeAffiliationInfo,PasswordChange"
