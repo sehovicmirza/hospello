@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_210001) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_10_220002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -208,6 +208,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_210001) do
     t.index ["hotel_id"], name: "index_request_categories_on_hotel_id"
   end
 
+  create_table "request_events", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "service_request_id", null: false
+    t.bigint "user_id"
+    t.integer "kind", null: false
+    t.integer "from_status"
+    t.integer "to_status"
+    t.text "note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_request_id", "id"], name: "index_request_events_on_service_request_id_and_id"
+    t.index ["user_id"], name: "index_request_events_on_user_id"
+  end
+
   create_table "rooms", force: :cascade do |t|
     t.bigint "hotel_id", null: false
     t.string "number", null: false
@@ -217,6 +231,54 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_210001) do
     t.index ["hotel_id", "active"], name: "index_rooms_on_hotel_id_and_active"
     t.index ["hotel_id", "number"], name: "index_rooms_on_hotel_id_and_number", unique: true
     t.index ["hotel_id"], name: "index_rooms_on_hotel_id"
+  end
+
+  create_table "service_request_drafts", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "request_category_id"
+    t.jsonb "details", default: {}, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_one_live_draft_per_conversation", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
+    t.index ["request_category_id"], name: "index_service_request_drafts_on_request_category_id"
+    t.index ["status", "expires_at"], name: "index_service_request_drafts_on_status_and_expires_at"
+  end
+
+  create_table "service_requests", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "conversation_id"
+    t.bigint "guest_session_id"
+    t.bigint "room_id"
+    t.bigint "request_category_id", null: false
+    t.bigint "department_id"
+    t.string "summary", null: false
+    t.jsonb "details", default: {}, null: false
+    t.text "details_original"
+    t.string "original_locale"
+    t.datetime "requested_for_at"
+    t.integer "status", default: 0, null: false
+    t.integer "priority", default: 0, null: false
+    t.bigint "assigned_to_id"
+    t.integer "source", default: 0, null: false
+    t.integer "channel", default: 0, null: false
+    t.string "dedupe_key", null: false
+    t.bigint "acknowledged_by_id"
+    t.datetime "acknowledged_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_service_requests_on_acknowledged_by_id"
+    t.index ["assigned_to_id"], name: "index_service_requests_on_assigned_to_id"
+    t.index ["conversation_id"], name: "index_service_requests_on_conversation_id"
+    t.index ["dedupe_key"], name: "index_service_requests_on_dedupe_key", unique: true
+    t.index ["department_id"], name: "index_service_requests_on_department_id"
+    t.index ["guest_session_id"], name: "index_service_requests_on_guest_session_id"
+    t.index ["hotel_id", "status", "created_at"], name: "index_service_requests_on_hotel_id_and_status_and_created_at"
+    t.index ["request_category_id"], name: "index_service_requests_on_request_category_id"
+    t.index ["room_id"], name: "index_service_requests_on_room_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -423,7 +485,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_210001) do
   add_foreign_key "messages", "users", column: "sender_user_id", on_delete: :nullify
   add_foreign_key "request_categories", "departments", on_delete: :nullify
   add_foreign_key "request_categories", "hotels", on_delete: :cascade
+  add_foreign_key "request_events", "hotels", on_delete: :cascade
+  add_foreign_key "request_events", "service_requests", on_delete: :cascade
+  add_foreign_key "request_events", "users", on_delete: :nullify
   add_foreign_key "rooms", "hotels", on_delete: :cascade
+  add_foreign_key "service_request_drafts", "conversations", on_delete: :cascade
+  add_foreign_key "service_request_drafts", "hotels", on_delete: :cascade
+  add_foreign_key "service_request_drafts", "request_categories", on_delete: :nullify
+  add_foreign_key "service_requests", "conversations", on_delete: :nullify
+  add_foreign_key "service_requests", "departments", on_delete: :nullify
+  add_foreign_key "service_requests", "guest_sessions", on_delete: :nullify
+  add_foreign_key "service_requests", "hotels", on_delete: :cascade
+  add_foreign_key "service_requests", "request_categories", on_delete: :restrict
+  add_foreign_key "service_requests", "rooms", on_delete: :nullify
+  add_foreign_key "service_requests", "users", column: "acknowledged_by_id", on_delete: :nullify
+  add_foreign_key "service_requests", "users", column: "assigned_to_id", on_delete: :nullify
   add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

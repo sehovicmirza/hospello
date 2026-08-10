@@ -19,6 +19,8 @@ class Conversation < ApplicationRecord
   belongs_to :guest_session
   belongs_to :room, optional: true
   has_many :messages, -> { order(:id) }, dependent: :destroy
+  has_many :service_request_drafts, dependent: :destroy
+  has_many :service_requests
 
   before_validation :assign_hotel_from_guest_session
   before_validation :assign_room_from_guest_session, on: :create

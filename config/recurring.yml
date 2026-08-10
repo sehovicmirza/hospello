@@ -27,6 +27,14 @@ production:
     queue: low
     schedule: every 10 minutes
 
-  # Later slices add more recurring entries here: conversation-timeout
-  # sweeps and escalation reminders (Slice 2+), and data-retention purges
-  # (Slice 7).
+  # A guest who abandons a half-finished request mid-conversation must not
+  # have it spring to life an hour later — and the draft they left behind
+  # holds the one-live-draft slot until it is closed. Every 5 minutes rather
+  # than hourly because the window that matters is the guest's own visit.
+  expire_service_request_drafts:
+    class: ServiceRequests::ExpireDraftsJob
+    queue: low
+    schedule: every 5 minutes
+
+  # Later slices add more recurring entries here: escalation reminders, and
+  # data-retention purges (Slice 7).

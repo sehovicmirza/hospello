@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (after Slice 3 — the AI concierge is complete) |
+| **Last updated** | 2026-08-10 (Slice 3 complete · Slice 4 at 1 of 3 tasks) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 653 unit/integration green · 37 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 695 unit/integration green · 37 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1, 2 and 3 complete** · Slice 4 not started |
+| **Progress** | **Slices 1, 2 and 3 complete** · Slice 4 at 1 of 3 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -225,16 +225,40 @@ hotel sees it, writes the answer once, and it goes live.
 - Read for every active staff member, write for hotel admins (`UnansweredQuestionPolicy`) — the same
   line the knowledge base draws, for the same reason.
 
+**Slice 4 Task 1 — the draft state machine.** Complete. Nothing user-visible yet: this is the
+machinery the rest of the slice hangs off, and it is where the product's central promise — *the
+assistant may gather and propose, but only a human may confirm* — is made structural rather than
+prompted.
+
+- `ServiceRequestDraft` holds a request across the turns it takes to describe one ("two towels" →
+  "when?" → "6pm"), knows what is still `missing_fields`, and expires. `#confirm!` is the **only**
+  path in the application that creates a `ServiceRequest`, and it refuses anything that is not
+  `awaiting_confirmation` and unexpired — a draft still gathering has never been summarised to
+  anyone, so confirming it would be the software deciding on the guest's behalf.
+- The room, guest session and hotel come from the *conversation*, never from `details`. A model
+  persuaded to name another room has nowhere to put it; there is a test that passes a foreign
+  `room_id` and asserts it is ignored.
+- Two guarantees are Postgres's, not the application's: a partial unique index gives **one live
+  draft per conversation**, and `dedupe_key` (SHA-256 of conversation + category + sorted details +
+  time) gives **one request per confirmed draft**. Both were verified by dropping the index and
+  watching the test go red.
+- `ServiceRequest#transition!` is the only way a status changes; every change writes a
+  `RequestEvent` naming who made it, and an impossible transition raises rather than being dropped
+  onto a board somebody is reading. `#overdue?` reads the hotel's own `overdue_after_minutes`.
+- `ServiceRequests::ExpireDraftsJob` (every 5 minutes, in `config/recurring.yml`) closes abandoned
+  drafts, which also frees the one-live-draft slot so the guest's next request is not blocked by
+  the one they walked away from.
+
 ---
 
 ## What to do next
 
-1. **Slice 4 — service requests end to end.** The next slice, and the one that turns the concierge
-   from something that answers into something that does. Breakdown already written:
-   `docs/plan/slice-4-tasks.md`. Two things from Slice 3 are waiting for it specifically: the
-   service-request tools slot into `Ai::Tools` alongside the two that exist (follow their shape —
-   schema, server-side re-validation, `tool_result` on failure), and the plan's rule that **only a
-   human may confirm** is now enforced only by the prompt, so Slice 4 is where it becomes structural.
+1. **Slice 4 Task 2 — the assistant's side.** `propose_service_request` and
+   `confirm_service_request` in `Ai::Tools` (follow the shape of the two that are already there:
+   schema, server-side re-validation against *this hotel's* active categories, `tool_result` on
+   failure), the `<pending_draft>` block in the prompt so a bare "yes" can confirm, the summary card
+   in the guest chat, and the flow test with `FakeClaude` asserting on the database rather than the
+   transcript. Then Task 3, the reception board. Brief: `docs/plan/slice-4-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
@@ -269,6 +293,11 @@ far, so the seam is verified against WebMock only.
   sounding claims in there have been investigated and are false.
 - **A green local run does not mean a green CI run.** Nobody checked the Actions tab for three days
   of work, and the whole build was red the entire time. Check it.
+- **Run `bin/rails test:system` too, not just `bin/rails test`, whenever you touch a fixture.**
+  Learned again the hard way during Slice 3: adding `test/fixtures/kb_entries.yml` broke four
+  browser tests that had assumed an empty table, `bin/rails test` stayed green, and three
+  consecutive commits went red on CI before anyone looked. Fixtures are global — a new row in one
+  file changes what every test in the suite sees.
 - **Don't remove the leak-detection settings** in `test/application_system_test_case.rb`. They look
   like belt-and-braces and they are not: without them every system test that signs in and then
   clicks fails on CI, and passes locally, which is the worst possible failure shape.
