@@ -230,6 +230,35 @@ class Conversation < ApplicationRecord
     set_ai_mode!(:auto, user: user, notice: "Reception handed the conversation back.")
   end
 
+  # The assistant handing a conversation to a person — the only escalation
+  # path that is not a human pressing something, and the one that has to be
+  # legible afterwards. `reason` is validated by the caller (Ai::Tools)
+  # against the reasons a model is allowed to choose; the summary is the
+  # model's own account of why, recorded as an internal note so a
+  # receptionist opening the conversation reads the handover in the
+  # transcript rather than having to reconstruct it.
+  #
+  # A settled conversation is left alone: escalating it would flip a
+  # resolved row back to live, and if the guest has since started a newer
+  # conversation that violates the one-live-per-guest index. The assistant
+  # only ever acts on a live conversation, so this is a guard against a
+  # future caller rather than a case that happens today.
+  def escalate_from_ai!(reason:, summary:)
+    return false unless live?
+
+    note = nil
+    transaction do
+      update!(status: :escalated, escalation_reason: reason, escalated_at: Time.current)
+      note = messages.create!(
+        hotel: hotel, sender_role: :system, visibility: :internal,
+        body: "The assistant handed this over (#{reason.to_s.humanize.downcase}): #{summary}"
+          .truncate(Message::MAX_BODY_LENGTH)
+      )
+    end
+    broadcast_new_message(note)
+    true
+  end
+
   # Unread is a server-side count, cleared when a human actually opens the
   # conversation — never nudged from the browser, so it cannot drift away
   # from what is really in the database (see the plan's realtime section).

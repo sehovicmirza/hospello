@@ -177,9 +177,15 @@ model yet; this is the wall everything will talk *through*.
      the "hotel B's knowledge appears nowhere in hotel A's prompt" test possible. `AiRun` carries the
      budget guard (`tokens_used_today` in the *hotel's* timezone, `budget_exhausted_for?`);
      `UnansweredQuestion.record!` deduplicates in the database, not in Ruby.
-   - **Next, in this order:** `Ai::PromptBuilder` (write its tests first — it is the grounding
-     contract), `Ai::Tools`, `Ai::Concierge`, `Ai::GenerateReplyJob` with its four guards,
-     `Ai::CircuitBreaker` + the pre-translated degradation copy, then the injection corpus.
+   - **Also done and green:** `Ai::PromptBuilder` + `Ai::Prompt` (the grounding contract — three
+     system blocks stable→volatile with the one cache breakpoint after the hotel's knowledge, guest
+     text sealed inside `<guest_message>` with `<` neutralised so it cannot close its own envelope,
+     history filtered to `.guest_visible`), `Ai::Tools` (the only way the assistant can change
+     anything; hotel and conversation come from the job's context and are not arguments), and
+     `Ai::Concierge` + `Ai::Outcome` (the tool loop, bounded; citation marker stripped before the
+     guest sees it; refusal / truncation / empty text are all "not a reply").
+   - **Next, in this order:** `Ai::GenerateReplyJob` with its four guards, `Ai::CircuitBreaker` +
+     the pre-translated degradation copy, then the injection corpus.
    - Everything it needs exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude`
      is how you test it without a network call, and `conversation.ai_mode` is already written by the
      staff toggle and still read by nothing.
