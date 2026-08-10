@@ -12,11 +12,11 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 |
+| **Last updated** | 2026-08-10 (after Slice 2 Task 2) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 373 unit/integration green · 17 system green except one known flake (see below) |
-| **Progress** | Slice 1 complete · Slice 2 in progress (1 of 3 tasks done) · Slices 3–7 not started |
+| **Tests** | 415 unit/integration green · 21 system green (three consecutive clean runs) |
+| **Progress** | Slice 1 complete · Slice 2 at 2 of 3 tasks · Slices 3–7 not started |
 
 ---
 
@@ -36,8 +36,8 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
   four languages.
 - Ops: Solid Queue in-process (no Redis), recurring jobs, a queue-originated dead-man heartbeat,
   Sentry, lograge, Mission Control at `/platform/jobs` gated by platform-admin auth.
-- Security: enforced CSP with a strict `script-src` and a session nonce, Rack::Attack throttles that
-  resolve the real client IP behind Render's proxy, password minimum.
+- Security: enforced CSP with a strict `script-src` and a per-request nonce, Rack::Attack throttles
+  that resolve the real client IP behind Render's proxy, password minimum.
 - CI (GitHub Actions), `.env.example`, `README.md` deploy walkthrough, `docs/runbook.md`,
   `docs/whatsapp-onboarding.md`.
 
@@ -54,43 +54,35 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 - Identity is **always unverified**, enforced on the write path, not just at creation.
 - A suspended hotel refuses guests on *every* request, not only at signup.
 
----
+**Slice 2 Task 2 — the chat.** Complete and pushed; review in progress at time of writing.
 
-## What is in progress right now
-
-**Slice 2 Task 2 — the chat itself.** A subagent was mid-implementation when this was written.
-
-Its brief is `docs/plan/slice-2-tasks.md` (Task 2 section). It creates `Conversation` and `Message`,
-the guest chat UI with quick-action chips built from the hotel's own request categories, live updates
-over Action Cable, and the resilience layer.
-
-**If the working tree has uncommitted migrations or half-written models when you arrive:** check
-`git status` and `git log`. Nothing was pushed for this task. Either finish it against the brief or
-`git checkout` the incomplete files and restart the task cleanly — both are fine, but decide
-deliberately rather than building on top of an unknown half-state.
-
-**Two decisions already made for this task**, so you don't re-litigate them:
-
-1. `Guest::ChatsController#show` currently exists as a deliberately thin placeholder from Task 1. It
-   is meant to be **replaced wholesale** by this task.
-2. The brief asks for both a Turbo Stream broadcast *and* a custom `ConversationChannel`. **Pick one
-   transport**, and make the ownership check real: either signed Turbo stream names (and test that a
-   tampered name is rejected) or a custom channel that verifies the guest session owns the
-   conversation in `subscribed`. The test must fail if the check is removed. Do not ship both.
+- `Conversation` and `Message`, with the two guarantees enforced by Postgres rather than by care: a
+  partial unique index giving **one live conversation per guest**, and a `client_message_id` unique
+  index giving **exactly one message per send** (a guest double-tapping send on a slow phone is the
+  real scenario). `Conversation.live_for` rescues `RecordNotUnique` and re-finds.
+- Guest chat UI: message bubbles, quick-action chips built from the hotel's own active request
+  categories that **prefill the composer without sending**, and the empty/sending/failed states.
+- Live updates over Action Cable plus the resilience layer — on disconnect, reconnect and
+  `visibilitychange` it resyncs over HTTP from `?after=<id>`, and polls while the cable is down. The
+  rule encoded: the database is the truth, broadcasts are an enhancement.
+- **Fixed a pre-existing bug that had disabled all JavaScript on the guest surface.** The CSP nonce
+  generator used `request.session.id.to_s`, which is empty on guest requests because guests never
+  touch Rails' session — so the inline importmap and Stimulus loader were blocked on every guest
+  page. Nothing caught it because the only CSP test drove the *staff* side. Now a per-request
+  `SecureRandom` nonce. Verified: restoring the old generator fails the guest chat tests.
 
 ---
 
 ## What to do next
 
-1. **Finish Slice 2 Task 2** (chat) — see above.
-2. **Slice 2 Task 3** — the reception inbox: staff see conversations live, open one, reply. Brief is
+1. **Slice 2 Task 3** — the reception inbox: staff see conversations live, open one, reply. Brief is
    in `docs/plan/slice-2-tasks.md`. **This is the milestone where the product becomes genuinely usable
    by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still reaches reception")
    becomes structurally true from here on.
-3. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
+2. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
    Breakdown already written: `docs/plan/slice-3-tasks.md`.
-4. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
-5. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
+3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
+4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
 
 Slices 3 and 4 need an `ANTHROPIC_API_KEY`. The app boots and runs fine without one; only the
