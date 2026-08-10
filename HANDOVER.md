@@ -331,12 +331,16 @@ this is the part that decides whether translating is safe to switch on at all.
 
 ## What to do next
 
-1. **Slice 5 Task 2 — delivery: the claim column and the 15-second budget.** The race that produces
-   the worst available outcome (the same message delivered twice, once translated and once not) and
-   the one atomic `UPDATE` that closes it. Brief: `docs/plan/slice-5-tasks.md`. `Ai::Translator` is
-   ready to be called; `messages.delivered_at` and `translation_status` are waiting. Then Task 3
-   (both directions plus the original/translation chip) and Task 4 (the staff workspace in Bosnian,
-   and the request-summary overlay).
+1. **Slice 5 Task 2 — delivery. Read the open entry in `docs/plan/known-issues.md` first.** There is
+   a genuine product decision in front of this task that I did not want to make silently: the plan's
+   "15-second delivery budget" is unambiguous for WhatsApp, where a message is really sent once, and
+   ambiguous for the web chat, where nothing is sent and both surfaces render live from the database.
+   Holding a guest's message out of the inbox for up to 15 seconds so the receptionist's *first*
+   sight of it is translated, versus showing it immediately and letting the translation land as an
+   overlay a second later, is a trade-off worth someone's thirty seconds. The known-issues entry lays
+   out both readings and recommends one with its reasoning. `Ai::Translator` is ready to be called
+   either way. Then Task 3 (both directions plus the original/translation chip) and Task 4 (the staff
+   workspace in Bosnian, and the request-summary overlay). Brief: `docs/plan/slice-5-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns

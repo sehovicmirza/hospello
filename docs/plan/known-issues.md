@@ -7,8 +7,39 @@ looks like a passing test and is a hole.
 
 ## Open
 
-*(Nothing open right now. The long-running system-test failure that lived here is solved — see
-"Resolved" below, and read it before you touch the browser harness.)*
+### What "delivered" means on the web channel — decide this before Slice 5 Task 2
+
+The plan gives Slice 5 a "15s delivery budget with the delivery-claim column + watchdog", and the
+acceptance criterion is "translation-vs-timeout → exactly one delivery". That is unambiguous for
+**WhatsApp**, where a message is genuinely *sent* once and cannot be taken back. It is not obvious
+for the web chat, where nothing is sent at all: the message is written to the database and both
+surfaces render whatever is there, live.
+
+Today (end of Slice 4) a message is broadcast to the other party the instant it is created —
+`Conversation#post_guest_message!` and `#post_staff_message!` both do it. So on the web there are two
+coherent readings of "delivery":
+
+1. **Hold the broadcast until the translation lands, or 15s, whichever comes first.** Matches the
+   plan's wording literally. Costs a receptionist up to 15 seconds of not knowing a guest has
+   written, in exchange for their first sight of it being in their own language.
+2. **Broadcast immediately; the translation arrives later as an overlay and re-broadcasts.** The
+   message appears at once in the sender's language and switches to the reader's a second later.
+   Nothing is ever delayed, and the "exactly one delivery" race does not exist on this channel
+   because nothing is irreversible.
+
+**The recommendation, for whoever picks this up:** build (2) for the web and build the claim column
+and watchdog anyway, unused on this channel, because Slice 6 needs them and building them against a
+real second channel is when their semantics stop being guesswork. Say so explicitly in the code
+rather than leaving a reader to wonder why a claim exists that nothing claims.
+
+The argument for (2) is that a receptionist glancing at the inbox and seeing *nothing* for fifteen
+seconds after a guest hit send is a worse failure than seeing the guest's own words for one second.
+The argument against is that it means the inbox briefly shows text a Bosnian-only receptionist
+cannot read — which is exactly what the chip solves, and which they would see anyway on every
+fallback.
+
+**Do not build both.** This is a product decision with a real trade-off, not a technical one, and it
+is worth a human's thirty seconds before it becomes a week of behaviour.
 
 ---
 
