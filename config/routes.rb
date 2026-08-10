@@ -37,6 +37,27 @@ Rails.application.routes.draw do
     root "dashboard#show"
     resource :hotel_settings, only: %i[edit update]
 
+    # The reception inbox. Like everything else in this namespace it takes
+    # no hotel from the URL — Staff::BaseController sets the tenant from
+    # Current.user.hotel, and #show/#update look the conversation up
+    # through Current.hotel.conversations, so another hotel's id 404s
+    # (test/tenancy/cross_tenant_access_test.rb).
+    #
+    # Nested messages (Staff::MessagesController — a nested `resources`
+    # adds no module, so this is NOT Staff::Conversations::MessagesController)
+    # rather than a top-level collection: unlike the guest side, where the
+    # conversation is always "the one this cookie owns", a receptionist
+    # works many conversations at once and has to say which one they are
+    # replying to.
+    resources :conversations, only: %i[index show] do
+      resources :messages, only: %i[create]
+
+      member do
+        patch :ai_mode
+        patch :resolve
+      end
+    end
+
     resources :rooms, only: %i[index create edit update destroy] do
       collection { post :bulk_create }
     end

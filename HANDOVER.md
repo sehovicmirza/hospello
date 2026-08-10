@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 2 Task 3 in progress — model layer done) |
+| **Last updated** | 2026-08-10 (Slice 2 Task 3 in progress — inbox works, system tests pending) |
 | **Branch** | `claude/continue-ai-agent-work-bq59gm` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 432 unit/integration green · 21 system green |
+| **Tests** | 474 unit/integration green · 21 system green |
 | **Progress** | Slice 1 complete · Slice 2 at 2½ of 3 tasks · Slices 3–7 not started |
 
 ---
@@ -87,17 +87,31 @@ against the engineering rules; the controllers, views, and live updates are not 
   one, reopening would break the one-live-conversation index — that case raises
   `Conversation::SupersededConversation` and rolls the reply back rather than leaving it in a
   transcript the guest will never open again.
+- The inbox itself: `/staff/conversations` with all / needs-attention / resolved tabs, search by
+  guest name or room number, needs-attention rows sorted first and marked in **words** as well as
+  colour, the UNVERIFIED badge on every row, and a server-computed unread badge in the nav.
+- The conversation detail view: full transcript, the internal-note boundary (distinct background,
+  lock glyph, and the literal sentence "Internal note — the guest cannot see this"), **two separate
+  composers** rather than one with a mode toggle, the Pause AI / Return toggle, and Mark resolved.
+- `HotelInboxChannel` — the staff-side counterpart of `ConversationChannel`. It re-checks that the
+  subscriber is active staff of an unsuspended hotel on subscribe, because a cable connection
+  outlives the request that opened it.
+- Live updates are a Turbo 8 **morphing page refresh** broadcast to `[hotel, :inbox]`, not targeted
+  stream appends: the list and the detail view are different DOM shapes reacting to the same event,
+  and re-rendering from the server is what keeps every count server-computed.
+  `inbox_resilience_controller.js` re-visits the page on reconnect/visibilitychange and polls every
+  60s while the cable is down.
 
 ---
 
 ## What to do next
 
-1. **Finish Slice 2 Task 3** — `ConversationPolicy`, `Staff::ConversationsController` /
-   `Staff::MessagesController`, the inbox and detail views, `HotelInboxChannel` +
-   `inbox_resilience_controller.js`, the nav unread badge, and the two system tests. Brief is in
-   `docs/plan/slice-2-tasks.md`. **This is the milestone where the product becomes genuinely usable
-   by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still reaches
-   reception") becomes structurally true from here on.
+1. **Finish Slice 2 Task 3** — only the two system tests remain: `test/system/reception_inbox_test.rb`
+   and the two-browser `test/system/guest_staff_live_test.rb` (Step 4 of the brief in
+   `docs/plan/slice-2-tasks.md` — "the test that proves the slice"). Everything else in the task is
+   built and covered by unit/integration tests. **This is the milestone where the product becomes
+   genuinely usable by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still
+   reaches reception") becomes structurally true from here on.
 2. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
    Breakdown already written: `docs/plan/slice-3-tasks.md`.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.

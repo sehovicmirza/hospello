@@ -29,6 +29,8 @@ class Hotel < ApplicationRecord
   has_many :departments
   has_many :request_categories
   has_many :guest_sessions
+  has_many :conversations
+  has_many :messages
 
   has_one_attached :logo
   has_one_attached :welcome_image

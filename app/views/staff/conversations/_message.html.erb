@@ -1,0 +1,38 @@
+<%# One entry in the staff-side transcript. Unlike the guest's own view
+    this renders internal notes too, so the boundary between "the guest
+    read this" and "the guest cannot see this" is the single most important
+    thing on the screen. It is drawn three ways at once — a distinct
+    background and border, a lock glyph, and the literal sentence "Internal
+    note — the guest cannot see this" — because getting it wrong means a
+    receptionist's private remark gets typed into a guest's chat, and no
+    one of those three signals survives every way a person reads a screen
+    in a hurry.
+
+    dir="auto" on the body: guest and staff may be writing in different
+    scripts, so each entry resolves its own direction. %>
+<div id="<%= dom_id(message) %>" data-message-id="<%= message.id %>"
+     class="flex flex-col gap-1 <%= message.guest? ? "items-start" : "items-end" %>">
+  <% if message.internal? %>
+    <div class="w-full max-w-[85%] rounded-lg border-2 border-dashed border-purple-400 bg-purple-50 px-3 py-2">
+      <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-purple-800">
+        <span aria-hidden="true">🔒</span>
+        Internal note — the guest cannot see this
+      </p>
+      <p class="text-sm text-purple-950" dir="auto"><%= message.body %></p>
+      <p class="mt-1 text-xs text-purple-700">
+        <%= staff_message_author(message) %> ·
+        <time datetime="<%= message.created_at.iso8601 %>"><%= staff_time(message.created_at).strftime("%d %b %H:%M") %></time>
+      </p>
+    </div>
+  <% else %>
+    <div class="flex max-w-[85%] flex-col gap-0.5 <%= message.guest? ? "items-start" : "items-end" %>">
+      <span class="text-xs font-medium text-gray-500"><%= staff_message_author(message) %></span>
+      <p class="rounded-lg px-3 py-2 text-sm <%= staff_message_bubble_classes(message) %>" dir="auto">
+        <%= message.body %>
+      </p>
+      <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
+        <%= staff_time(message.created_at).strftime("%d %b %H:%M") %>
+      </time>
+    </div>
+  <% end %>
+</div>

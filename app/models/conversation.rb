@@ -51,17 +51,34 @@ class Conversation < ApplicationRecord
   scope :needs_attention, -> { where(status: :escalated).or(live.where(arel_table[:staff_unread_count].gt(0))) }
   scope :settled, -> { where(status: %w[resolved expired]) }
 
+  # The row-level counterpart of the scope above — the inbox list marks
+  # individual rows with it while the tab counts and the nav badge use the
+  # scope, and the two disagreeing would mean a row flagged in one place
+  # and not the other. test/models/conversation_test.rb pins them against
+  # each other over the same set of conversations rather than trusting two
+  # readings of the same sentence.
+  def needs_attention? = escalated? || (live? && staff_unread_count.positive?)
+
   # Newest activity first, with everything still awaiting a human above
   # everything that isn't — a busy receptionist reads from the top and must
   # not have to scan for the urgent row. NULLS LAST because a conversation
   # created but never messaged has no last_message_at and belongs at the
   # bottom, not (as Postgres would otherwise sort a descending NULL) at the
   # very top.
+  #
+  # Every column is table-qualified because this scope is routinely chained
+  # onto .matching, which left-joins guest_sessions — and guest_sessions
+  # has its own `status` column, so a bare `status` here raises
+  # PG::AmbiguousColumn the moment a receptionist types in the search box.
   scope :inbox_order, -> {
     order(
-      Arel.sql("CASE WHEN status = #{statuses[:escalated]} OR (status IN (#{statuses[:active]}, #{statuses[:escalated]}) AND staff_unread_count > 0) THEN 0 ELSE 1 END"),
-      Arel.sql("last_message_at DESC NULLS LAST"),
-      id: :desc
+      Arel.sql(
+        "CASE WHEN conversations.status = #{statuses[:escalated]} " \
+        "OR (conversations.status IN (#{statuses[:active]}, #{statuses[:escalated]}) AND conversations.staff_unread_count > 0) " \
+        "THEN 0 ELSE 1 END"
+      ),
+      Arel.sql("conversations.last_message_at DESC NULLS LAST"),
+      arel_table[:id].desc
     )
   }
 

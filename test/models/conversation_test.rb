@@ -405,6 +405,35 @@ class ConversationTest < ActiveSupport::TestCase
     end
   end
 
+  # The scope drives the tab counts and the nav badge; the predicate marks
+  # individual rows in the inbox list. If they ever disagree, a row is
+  # flagged in one place and not the other — so they are checked against
+  # each other over a set covering every combination that matters, rather
+  # than by reading the two definitions and deciding they look alike.
+  test "the needs_attention scope and the needs_attention? predicate always agree" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      Conversation.where(hotel: hotel).destroy_all
+
+      [
+        { status: :active,    staff_unread_count: 0 },
+        { status: :active,    staff_unread_count: 4 },
+        { status: :escalated, staff_unread_count: 0 },
+        { status: :escalated, staff_unread_count: 2 },
+        { status: :resolved,  staff_unread_count: 0 },
+        { status: :resolved,  staff_unread_count: 5 },
+        { status: :expired,   staff_unread_count: 1 }
+      ].each { |attributes| Conversation.live_for(fresh_guest_session(hotel)).update!(**attributes) }
+
+      by_scope = Conversation.needs_attention.pluck(:id).sort
+      by_predicate = Conversation.all.select(&:needs_attention?).map(&:id).sort
+
+      assert_equal by_scope, by_predicate
+      assert_equal 3, by_scope.length, "the fixture set above should flag exactly the unread-live and escalated rows"
+    end
+  end
+
   test "inbox_order puts conversations needing attention above newer quiet ones" do
     hotel = hotels(:stari_grad)
 
@@ -436,6 +465,25 @@ class ConversationTest < ActiveSupport::TestCase
       assert_equal [ by_room.id ], Conversation.matching(rooms(:stari_302).number).pluck(:id)
       assert_equal 2, Conversation.matching("   ").count, "a blank query must not filter anything out"
       assert_empty Conversation.matching("nobody-by-that-name").pluck(:id)
+    end
+  end
+
+  # These two are always chained together by the inbox
+  # (Staff::ConversationsController#index), and chaining them is what broke:
+  # .matching left-joins guest_sessions, which has its own `status` column,
+  # so an unqualified `status` in inbox_order's CASE raised
+  # PG::AmbiguousColumn the moment anyone typed in the search box. Neither
+  # scope is wrong on its own, which is exactly why the combination needs
+  # its own test rather than being left to two passing single-scope ones.
+  test "matching and inbox_order compose without an ambiguous column" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      Conversation.where(hotel: hotel).destroy_all
+      wanted = Conversation.live_for(fresh_guest_session(hotel, room: rooms(:stari_302)))
+      wanted.update!(staff_unread_count: 1)
+
+      assert_equal [ wanted.id ], Conversation.matching(rooms(:stari_302).number).inbox_order.pluck(:id)
     end
   end
 

@@ -1,0 +1,62 @@
+<%# One row of the reception inbox. Two things a busy receptionist needs and
+    rarely gets: noticing and context. Noticing is the needs-attention
+    marker, which is a coloured left border AND the words "Needs attention"
+    — never colour alone. Context is everything else on the row: who,
+    which room, that nobody verified either of those, which channel they
+    came in on, what they last said, and when.
+
+    dir="auto" on every element carrying guest-supplied text: a guest name
+    or a message may be in Arabic while the staff workspace is in English,
+    and each of those has to resolve its own direction. %>
+<% needs_attention = conversation.needs_attention? %>
+<% preview = @previews[conversation.id] %>
+
+<li id="<%= dom_id(conversation) %>"
+    class="<%= needs_attention ? "border-l-4 border-l-amber-500 bg-amber-50/40" : "border-l-4 border-l-transparent" %>">
+  <%= link_to staff_conversation_path(conversation), class: "flex flex-col gap-1 px-4 py-3 hover:bg-gray-50" do %>
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span class="font-medium text-gray-900" dir="auto"><%= conversation.guest_session.guest_name %></span>
+
+      <span class="text-sm text-gray-600">
+        <%= conversation.room ? "Room #{conversation.room.number}" : "No room given" %>
+      </span>
+
+      <%= guest_identity_badge(conversation.guest_session) %>
+
+      <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        <%= conversation.web? ? "Web chat" : "WhatsApp" %>
+      </span>
+
+      <% if needs_attention %>
+        <span class="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">Needs attention</span>
+      <% end %>
+
+      <% if conversation.resolved? || conversation.expired? %>
+        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          <%= conversation.status.capitalize %>
+        </span>
+      <% end %>
+
+      <% if conversation.paused? %>
+        <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Reception handling</span>
+      <% end %>
+    </div>
+
+    <div class="flex items-baseline justify-between gap-4">
+      <p class="line-clamp-1 text-sm text-gray-600" dir="auto">
+        <% if preview %>
+          <span class="text-gray-400"><%= preview.sender_role == "guest" ? "Guest:" : "You:" %></span>
+          <%= truncate(preview.body, length: 120) %>
+        <% else %>
+          <span class="italic text-gray-400">No messages yet</span>
+        <% end %>
+      </p>
+
+      <% if conversation.last_message_at %>
+        <time datetime="<%= conversation.last_message_at.iso8601 %>" class="shrink-0 text-xs text-gray-500">
+          <%= staff_time(conversation.last_message_at).strftime("%d %b %H:%M") %>
+        </time>
+      <% end %>
+    </div>
+  <% end %>
+</li>

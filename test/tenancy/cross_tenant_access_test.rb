@@ -78,6 +78,106 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert vrelo_user.reload.active?
   end
 
+  # The reception inbox (Slice 2 Task 3). A conversation carries the guest's
+  # name, room, and everything they have said — so hotel B's conversation
+  # must be invisible to hotel A's staff on every one of its routes, not
+  # only the obvious read. Each verb is checked separately because they
+  # reach the record by three different code paths (#show, the nested
+  # messages controller, and the two member actions), and a guard on one is
+  # worth nothing to the other two.
+  test "hotel A staff cannot read, reply to, or act on hotel B's conversation" do
+    vrelo_conversation = conversations(:vrelo_conversation)
+    messages_before = with_tenant(hotels(:vrelo)) { vrelo_conversation.messages.count }
+    sign_in users(:stari_admin)
+
+    get staff_conversation_path(vrelo_conversation)
+    assert_response :not_found
+
+    post staff_conversation_messages_path(vrelo_conversation),
+      params: { kind: "reply", message: { body: "cross-tenant reply attempt" } }
+    assert_response :not_found
+
+    post staff_conversation_messages_path(vrelo_conversation),
+      params: { kind: "internal_note", message: { body: "cross-tenant note attempt" } }
+    assert_response :not_found
+
+    patch ai_mode_staff_conversation_path(vrelo_conversation)
+    assert_response :not_found
+
+    patch resolve_staff_conversation_path(vrelo_conversation)
+    assert_response :not_found
+
+    with_tenant(hotels(:vrelo)) do
+      assert_equal messages_before, vrelo_conversation.reload.messages.count,
+        "hotel B's conversation must not have received anything from hotel A's staff"
+      assert vrelo_conversation.active?, "hotel B's conversation must not have been resolved by hotel A's staff"
+      assert vrelo_conversation.auto?, "hotel B's conversation's AI mode must not be flippable by hotel A's staff"
+    end
+  end
+
+  # The inbox list is the other shape of the same boundary: #show 404s on a
+  # named id, but the list names no ids at all, so nothing about that 404
+  # says the list itself is scoped. This checks the rendered page.
+  test "the inbox lists only the signed-in staff member's own hotel's conversations" do
+    sign_in users(:stari_admin)
+
+    get staff_conversations_path
+
+    assert_response :success
+    assert_select "##{ActionView::RecordIdentifier.dom_id(conversations(:stari_conversation))}"
+    assert_select "##{ActionView::RecordIdentifier.dom_id(conversations(:vrelo_conversation))}", count: 0
+    # Guest names are what a conversation row actually leaks if the scoping
+    # is wrong, so they are asserted directly rather than only via dom ids.
+    assert_select "#conversation-list", text: /#{Regexp.escape(guest_sessions(:stari_guest).guest_name)}/
+    assert_select "#conversation-list", text: /#{Regexp.escape(guest_sessions(:vrelo_guest).guest_name)}/, count: 0
+  end
+
+  # Searching is a second, independent way into the list — it builds a
+  # different query (a left join across guest_sessions and rooms), so
+  # "the list is scoped" does not by itself mean "the search is scoped".
+  #
+  # Asserted against the rendered rows, not the whole page: the page echoes
+  # the query back in the search field and in "No conversations match …",
+  # so a blanket assert_no_match on the guest's name fails on the search
+  # box rather than on any leak. The row count is what actually
+  # distinguishes "found nothing" from "found hotel B's guest".
+  test "inbox search can never surface another hotel's guest" do
+    sign_in users(:stari_admin)
+
+    get staff_conversations_path(q: guest_sessions(:vrelo_guest).guest_name)
+
+    assert_response :success
+    assert_select "##{ActionView::RecordIdentifier.dom_id(conversations(:vrelo_conversation))}", count: 0
+    assert_select "#conversation-list li", count: 0
+    assert_select "#inbox-empty"
+  end
+
+  # ...and the same search run by that guest's *own* hotel does find them,
+  # so the test above cannot be passing because the search is simply broken.
+  test "inbox search does find a guest at the searcher's own hotel" do
+    sign_in users(:vrelo_admin)
+
+    get staff_conversations_path(q: guest_sessions(:vrelo_guest).guest_name)
+
+    assert_response :success
+    assert_select "##{ActionView::RecordIdentifier.dom_id(conversations(:vrelo_conversation))}"
+  end
+
+  # The staff-side live transport, mirroring the guest-side ConversationChannel
+  # test below: a validly-signed name for hotel B's inbox stream (Turbo's
+  # signing proves only that it wasn't tampered with) must be refused for a
+  # hotel A staff member's connection.
+  test "hotel A staff can never subscribe to hotel B's inbox stream over ActionCable" do
+    signed_name = Turbo::StreamsChannel.signed_stream_name([ hotels(:vrelo), :inbox ])
+
+    connection = ActionCable::Channel::ConnectionStub.new(current_user: users(:stari_staff), current_guest_session: nil)
+    subscription = HotelInboxChannel.new(connection, "test_stub", { "signed_stream_name" => signed_name }.with_indifferent_access)
+    subscription.singleton_class.include(ActionCable::Channel::ChannelStub)
+    subscription.subscribe_to_channel
+
+    assert subscription.rejected?
+  end
+
   # Guest sessions (Slice 2 Task 1) are the other side of this app's tenancy
   # boundary: there is no id, slug, or any other hotel-identifying value
   # anywhere in the guest namespace's own routes — Guest::BaseController
