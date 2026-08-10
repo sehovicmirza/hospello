@@ -315,12 +315,14 @@ and the card's assignee line all exist; what is missing is a way to set it.
 ## What to do next
 
 1. **Slice 5 — translation.** The next slice, and the one that makes a receptionist and a guest who
-   share no language able to talk. Its task breakdown is **not written yet** — the plan
-   (`docs/plan/implementation-plan.md`) specifies the slice; write `docs/plan/slice-5-tasks.md` the
-   way slices 1–4 have one before starting. Everything it needs is in place: `TRANSLATION_MODEL` is
-   configured and separate from `AI_MODEL` on purpose, the budget guard already lets translation run
-   to 100% while the concierge stops at 90%, and `messages.translated_body` /
-   `translated_locale` / `translation_status` have been sitting unused since Slice 2.
+   share no language able to talk. **The task breakdown is written**: `docs/plan/slice-5-tasks.md`,
+   four tasks, in the same shape as slices 3 and 4 — start at Task 1, the digit guard, because it is
+   the one part of the slice that can make the product actively harmful ("room 305" delivered as
+   "room 350" is a confident, fluent, wrong sentence a receptionist will act on). Everything else it
+   needs is in place: `TRANSLATION_MODEL` is configured and separate from `AI_MODEL` on purpose, the
+   budget guard already lets translation run to 100% while the concierge stops at 90%, and
+   `messages.translated_body` / `translated_locale` / `translation_status` / `delivered_at` have
+   been sitting unused since Slice 2 waiting for exactly this.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
