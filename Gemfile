@@ -69,4 +69,12 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
   gem "webmock"
+
+  # Chrome DevTools Protocol access (Selenium's own `devtools` driver
+  # method needs this for the CDP command definitions) — used by exactly
+  # one test, test/system/guest_chat_test.rb's cable-down test, to block
+  # the WebSocket upgrade to /cable at the network layer so that test can
+  # prove the resync-polling fallback actually works when Action Cable
+  # genuinely isn't delivering anything, not just when it happens to.
+  gem "selenium-devtools", "~> 0.150"
 end

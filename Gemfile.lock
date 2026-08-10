@@ -357,6 +357,8 @@ GEM
       logger
     rubyzip (3.4.1)
     securerandom (0.4.1)
+    selenium-devtools (0.150.0)
+      selenium-webdriver (~> 4.2)
     selenium-webdriver (4.46.0)
       base64 (~> 0.2)
       logger (~> 1.4)
@@ -464,6 +466,7 @@ DEPENDENCIES
   rails-i18n
   rqrcode
   rubocop-rails-omakase
+  selenium-devtools (~> 0.150)
   selenium-webdriver
   sentry-rails
   sentry-ruby

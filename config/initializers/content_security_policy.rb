@@ -49,6 +49,24 @@ Rails.application.configure do
   # since inline style="" *attributes* can never carry a nonce to begin
   # with. Leaving style-src off this list is what keeps its 'unsafe-inline'
   # actually in effect.
-  config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
+  # request.session.id.to_s (Rails' own generator template default) is
+  # broken for this app's guest namespace specifically: a guest is
+  # deliberately never authenticated through Rails' own session (see
+  # Guest::BaseController and Guest::EntriesController, both
+  # allow_unauthenticated_access and read a custom signed hospello_guest
+  # cookie instead), so request.session — Rails' cookie-store session,
+  # entirely separate from that — is never written to on a guest request
+  # and request.session.id is blank. That blank nonce reached the rendered
+  # page as script-src 'nonce-'' (an empty, invalid source Chrome discards
+  # with a console warning) and silently dropped every nonce-carrying
+  # <script> tag, including importmap-rails' own — breaking Turbo and
+  # every Stimulus controller on the entire guest surface without ever
+  # 500ing or failing a single existing test, because no test before this
+  # task drove real client-side JS behaviour through a guest page (see
+  # test/system/content_security_policy_test.rb's own header comment: it
+  # verifies the *staff* side only). A plain per-request SecureRandom value
+  # has no such dependency on which authentication style, if any, a given
+  # request uses.
+  config.content_security_policy_nonce_generator = ->(request) { SecureRandom.base64(16) }
   config.content_security_policy_nonce_directives = %w[script-src]
 end
