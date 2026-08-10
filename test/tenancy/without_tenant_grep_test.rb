@@ -20,7 +20,14 @@ class WithoutTenantGrepTest < ActiveSupport::TestCase
     # find_by_sql/raw SQL added anywhere else in app/ tomorrow would sail
     # through this test in total silence.
     /\bfind_by_sql\b/ => "find_by_sql builds records straight from a raw SQL row, bypassing the default_scope (and so the tenant check) entirely",
-    /\.connection\.(execute|select_all|select_one|select_rows|select_value|exec_query)\b/ =>
+    # No leading `\.` (re-review finding): requiring an explicit dot before
+    # `connection` caught `ActiveRecord::Base.connection.execute(...)` but
+    # sailed straight past a bare `connection.execute(...)` — the implicit
+    # receiver form, which inside a model or a migration is the *more*
+    # idiomatic of the two and therefore the likelier one to be written.
+    # A word boundary matches both: the character before `connection` is
+    # either a `.` or whitespace, and neither is a word character.
+    /\bconnection\.(execute|select_all|select_one|select_rows|select_value|exec_query)\b/ =>
       "raw SQL via ActiveRecord's connection object bypasses every model-level scope, tenant included"
   }.freeze
 
@@ -79,6 +86,27 @@ class WithoutTenantGrepTest < ActiveSupport::TestCase
         "guest_session.rb now trips #{pattern.inspect}, which is not covered by its allowlist entry — " \
         "this needs the same review any other new escape would, not a silent pass"
     end
+  end
+
+  # Re-review finding: the raw-SQL pattern used to require a literal dot
+  # before `connection`, so it caught the explicit-receiver form and missed
+  # the implicit one — which is the form actually written inside a model.
+  # The guard is only worth having if it catches the shape someone would
+  # really type, so both are pinned here rather than left to a reading of
+  # the regex.
+  test "the raw-SQL escape pattern catches an implicit receiver, not just an explicit one" do
+    pattern = ESCAPES.keys.find { |key| key.source.include?("select_all") }
+    assert pattern, "the raw-connection escape pattern is gone from ESCAPES"
+
+    assert pattern.match?("ActiveRecord::Base.connection.execute(sql)"),
+      "explicit-receiver raw SQL is no longer caught"
+    assert pattern.match?("    connection.execute(sql)"),
+      "implicit-receiver raw SQL slips past the guard — the idiomatic form inside a model"
+    assert pattern.match?("connection.select_value(sql)"),
+      "implicit-receiver select_value slips past the guard"
+
+    assert_not pattern.match?("@hotel.connection_notes"),
+      "the pattern is loose enough to fire on an unrelated method name"
   end
 
   private

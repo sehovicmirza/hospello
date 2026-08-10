@@ -34,7 +34,18 @@ class GuestSession < ApplicationRecord
   # over this by accident — e.g. `update_column`/`update_columns`, which
   # bypass callbacks entirely and so are visibly a different, more
   # deliberate kind of write than an ordinary `update`.
-  before_validation :force_unverified_identity
+  #
+  # before_save, not before_validation (re-review finding): `update_attribute`
+  # calls `save(validate: false)`, which skips the validation callbacks
+  # entirely — so a before_validation guard never ran and
+  # `session.update_attribute(:identity_status, :staff_verified)` flipped the
+  # flag. That method reads like a safe single-field update, which is exactly
+  # why it is the wrong thing to be silently exempt. before_save still runs
+  # under `validate: false`, so the guard now covers it, while
+  # update_column/update_columns stay deliberately outside (they bypass
+  # callbacks altogether and so remain the visibly-deliberate escape a real
+  # staff-verification workflow would have to reach for).
+  before_save :force_unverified_identity
 
   validates :guest_name, presence: true
   validates :locale, inclusion: { in: GuestLocaleHelper::SUPPORTED_LOCALES }

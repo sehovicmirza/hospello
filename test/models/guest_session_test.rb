@@ -150,6 +150,27 @@ class GuestSessionTest < ActiveSupport::TestCase
     end
   end
 
+  # Re-review finding: `update` was covered, but `update_attribute` was not.
+  # It calls `save(validate: false)`, which skips the validation callbacks
+  # altogether — so the guard, when it was a before_validation, never ran and
+  # this flipped the flag. It reads like a safe single-field update, which is
+  # precisely why it must not be the one write that quietly gets through.
+  test "identity_status cannot be flipped by update_attribute, which skips validation" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      session = hotel.guest_sessions.create!(
+        guest_name: "Guest", room: rooms(:stari_301), locale: "en",
+        privacy_accepted_at: Time.current, expires_at: 7.days.from_now
+      )
+
+      session.update_attribute(:identity_status, :staff_verified)
+
+      assert session.reload.unverified?
+      assert_not session.staff_verified?
+    end
+  end
+
   test "guest_name is required" do
     hotel = hotels(:stari_grad)
 
