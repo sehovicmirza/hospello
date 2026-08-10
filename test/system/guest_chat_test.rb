@@ -9,6 +9,7 @@ require "application_system_test_case"
 class GuestChatTest < ApplicationSystemTestCase
   test "a guest sends a message and sees it in the transcript" do
     visit_chat_as_guest(locale: "en")
+    assert_selector "#empty-state-greeting"
 
     fill_in "message_body", with: "Could I get an extra pillow, please?"
     find("#composer-send").click
@@ -16,6 +17,9 @@ class GuestChatTest < ApplicationSystemTestCase
     within "#chat-messages" do
       assert_text "Could I get an extra pillow, please?"
     end
+    # The hotel's own greeting is for a *blank* conversation — it must not
+    # linger on top of the guest's own first message once there is one.
+    assert_no_selector "#empty-state-greeting"
   end
 
   test "a quick action prefills the composer without sending" do

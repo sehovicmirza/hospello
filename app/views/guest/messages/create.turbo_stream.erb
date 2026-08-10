@@ -1,1 +1,6 @@
+<%# .remove is a harmless no-op once the greeting is already gone (Turbo
+    just skips a target it can't find) — always issuing it here, rather
+    than conditioning on whether this was the *first* message, is what
+    keeps this correct even against two rapid sends racing each other. %>
+<%= turbo_stream.remove "empty-state-greeting" %>
 <%= turbo_stream.append "chat-messages", partial: "guest/messages/message", locals: { message: @message } %>

@@ -125,6 +125,10 @@ class Conversation < ApplicationRecord
         # is safe even though the sender's own browser is also subscribed
         # to this stream and will receive its own message back a second
         # time.
+        # .remove is a harmless no-op once the greeting is already gone
+        # (same reasoning as guest/messages/create.turbo_stream.erb, which
+        # this mirrors for the live-broadcast delivery path specifically).
+        Turbo::StreamsChannel.broadcast_remove_to(self, target: "empty-state-greeting")
         Turbo::StreamsChannel.broadcast_append_to(
           self, target: "chat-messages", partial: "guest/messages/message", locals: { message: message }
         )

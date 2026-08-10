@@ -1,6 +1,9 @@
 <%# The resync endpoint — see Guest::MessagesController#index. Zero
     <turbo-stream> tags when there is nothing new, which is the common
     case for a poll that finds no missed messages. %>
-<% @messages.each do |message| %>
-  <%= turbo_stream.append "chat-messages", partial: "guest/messages/message", locals: { message: message } %>
+<% if @messages.any? %>
+  <%= turbo_stream.remove "empty-state-greeting" %>
+  <% @messages.each do |message| %>
+    <%= turbo_stream.append "chat-messages", partial: "guest/messages/message", locals: { message: message } %>
+  <% end %>
 <% end %>

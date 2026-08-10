@@ -197,7 +197,10 @@ class ConversationTest < ActiveSupport::TestCase
       conversation = Conversation.live_for(session)
       stream_name = conversation.to_gid_param
 
-      assert_broadcasts(stream_name, 1) do
+      # 2, not 1: a "remove the now-stale empty-state greeting" action
+      # alongside the "append the message" action — see
+      # Conversation#broadcast_new_message.
+      assert_broadcasts(stream_name, 2) do
         conversation.post_guest_message!(body: "Room service, please", client_message_id: SecureRandom.uuid)
       end
 
