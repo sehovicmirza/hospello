@@ -15,6 +15,14 @@ class Message < ApplicationRecord
   enum :translation_status, { not_needed: 0, pending: 1, translated: 2, failed: 3 }, prefix: true
   enum :delivery_status, { local: 0, queued: 1, sent: 2, delivered: 3, read: 4, failed: 5 }, prefix: true
 
+  # Whether the guest may ever see this message. Internal notes (the
+  # reception inbox's staff commentary) share this table with guest-visible
+  # replies so the conversation detail view reads as one chronological
+  # story — see db/migrate/*_add_visibility_to_messages.rb. Every
+  # guest-facing read goes through the .guest_visible scope below; nothing
+  # on the guest surface may ever read `messages` unfiltered.
+  enum :visibility, { guest_visible: 0, internal: 1 }
+
   belongs_to :conversation
   belongs_to :sender_user, class_name: "User", optional: true
 
@@ -26,7 +34,9 @@ class Message < ApplicationRecord
   validates :sender_role, presence: true
   validate :conversation_must_belong_to_the_same_hotel
   validate :sender_user_must_belong_to_the_same_hotel
+  validate :internal_is_only_for_staff_authored_messages
   validate :body_is_immutable_after_creation, on: :update
+  validate :visibility_is_immutable_after_creation, on: :update
 
   scope :chronological, -> { order(:id) }
   scope :after_id, ->(id) { id.present? ? where(arel_table[:id].gt(id)) : all }
@@ -63,5 +73,31 @@ class Message < ApplicationRecord
     # change body fail validation, on every update, forever.
     def body_is_immutable_after_creation
       errors.add(:body, "cannot be changed after creation") if body_changed?
+    end
+
+    # An internal note that could later be flipped guest-visible is a leak
+    # with a delay on it; the reverse would retract something the guest has
+    # already read. Neither is a thing this product should be able to do, so
+    # visibility is settled at creation and frozen — same shape, and the
+    # same reasoning, as body's immutability above.
+    def visibility_is_immutable_after_creation
+      errors.add(:visibility, "cannot be changed after creation") if visibility_changed?
+    end
+
+    # Only the two staff-authored roles may ever be internal: a note a
+    # receptionist types, and a system notice about what staff did
+    # (Conversation#pause_ai!/#resume_ai!, whose transcript entries explain
+    # the staff side's own history). A *guest's* message marked internal
+    # would mean a request parameter had reached this attribute — the guest
+    # would be typing into a transcript they cannot read back, a stranger
+    # failure than a refused write — and an assistant reply (Slice 3) is by
+    # definition an answer to the guest.
+    INTERNAL_CAPABLE_ROLES = %w[staff system].freeze
+
+    def internal_is_only_for_staff_authored_messages
+      return unless internal?
+      return if INTERNAL_CAPABLE_ROLES.include?(sender_role)
+
+      errors.add(:visibility, "is only available on staff messages and system notices")
     end
 end

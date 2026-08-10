@@ -26,7 +26,58 @@ class Conversation < ApplicationRecord
 
   validate :guest_session_must_belong_to_the_same_hotel
 
-  scope :live, -> { where(status: %w[active escalated]) }
+  # Raised when a staff reply would have to reopen a conversation the guest
+  # has already moved on from. The partial unique index allows exactly one
+  # live conversation per guest session, so reopening a resolved one while
+  # the guest is talking in a newer one is not a database accident to be
+  # rescued and retried — it means the receptionist is typing into a
+  # superseded transcript the guest will never look at again, and the only
+  # honest outcome is to say so and point at the live one.
+  class SupersededConversation < StandardError; end
+
+  # The statuses a guest can still be talking in — the same list the
+  # partial unique index uses (status IN (0, 1)), named once so the scope,
+  # the predicate, and that index cannot drift apart.
+  LIVE_STATUSES = %w[active escalated].freeze
+
+  scope :live, -> { where(status: LIVE_STATUSES) }
+
+  def live? = LIVE_STATUSES.include?(status)
+
+  # The inbox's own three lenses (Staff::ConversationsController#index).
+  # "Needs attention" is deliberately *not* just "has unread messages":
+  # an escalated conversation with everything read is still the thing a
+  # receptionist most needs to look at.
+  scope :needs_attention, -> { where(status: :escalated).or(live.where(arel_table[:staff_unread_count].gt(0))) }
+  scope :settled, -> { where(status: %w[resolved expired]) }
+
+  # Newest activity first, with everything still awaiting a human above
+  # everything that isn't — a busy receptionist reads from the top and must
+  # not have to scan for the urgent row. NULLS LAST because a conversation
+  # created but never messaged has no last_message_at and belongs at the
+  # bottom, not (as Postgres would otherwise sort a descending NULL) at the
+  # very top.
+  scope :inbox_order, -> {
+    order(
+      Arel.sql("CASE WHEN status = #{statuses[:escalated]} OR (status IN (#{statuses[:active]}, #{statuses[:escalated]}) AND staff_unread_count > 0) THEN 0 ELSE 1 END"),
+      Arel.sql("last_message_at DESC NULLS LAST"),
+      id: :desc
+    )
+  }
+
+  # Guest name and room number are what a receptionist actually has in hand
+  # ("the guy in 301 who asked about towels"), so both are searched at once
+  # rather than behind a field picker. ILIKE, not a full-text index: a
+  # hotel's live conversation list is tens of rows, not thousands, and an
+  # unanchored substring match is what makes "301" find "A-301".
+  scope :matching, ->(query) {
+    query = query.to_s.strip
+    next all if query.blank?
+
+    pattern = "%#{sanitize_sql_like(query)}%"
+    left_joins(:guest_session, :room)
+      .where("guest_sessions.guest_name ILIKE :pattern OR rooms.number ILIKE :pattern", pattern: pattern)
+  }
 
   class << self
     # The guest's one live conversation, creating it if none exists yet.
@@ -91,23 +142,118 @@ class Conversation < ApplicationRecord
   # Same shape for the staff side: creates the Message and resets
   # staff_unread_count to 0 — a staff reply means whatever was unread has
   # now been seen — in one transaction, broadcasting after commit.
+  #
+  # A reply to a resolved (or expired) conversation reopens it rather than
+  # disappearing into a transcript nobody will open again: the guest's chat
+  # only ever renders Conversation.live_for, so a reply left on a settled
+  # conversation would be invisible to the one person it was written for.
+  # The reopen can legitimately fail — see SupersededConversation — and it
+  # fails inside the transaction, so the reply is rolled back with it
+  # instead of landing somewhere the guest will never look.
   def post_staff_message!(user:, body:)
     message = nil
     transaction do
       message = messages.create!(hotel: hotel, sender_role: :staff, sender_user: user, body: body)
-      update!(last_message_at: Time.current, staff_unread_count: 0)
+      attributes = { last_message_at: Time.current, staff_unread_count: 0 }
+      attributes[:status] = :active unless live?
+      update!(**attributes)
     end
     broadcast_new_message(message)
     message
+  rescue ActiveRecord::RecordNotUnique
+    # Only the one-live-conversation-per-guest index can raise this here,
+    # and only on the reopen above: the guest has started a newer
+    # conversation since this one was settled.
+    raise SupersededConversation
   end
 
+  # Staff commentary the guest must never see (Message#visibility). It
+  # deliberately touches none of the inbox's own signals — not
+  # last_message_at, not staff_unread_count — because a receptionist
+  # jotting a note has neither answered the guest nor received anything
+  # new, and letting a note reorder the inbox or clear an unread badge
+  # would make both mean something other than what they say.
+  def post_internal_note!(user:, body:)
+    note = messages.create!(
+      hotel: hotel, sender_role: :staff, sender_user: user, body: body, visibility: :internal
+    )
+    broadcast_new_message(note)
+    note
+  end
+
+  # The Pause AI / Return to AI toggle. Nothing reads ai_mode yet — the
+  # concierge arrives in Slice 3 — but the control and its audit trail
+  # belong with the inbox that operates it, and building the trail now
+  # means Slice 3 inherits a history that already explains itself rather
+  # than one that starts mid-story.
+  #
+  # The system notice is internal: it is an explanation of what the *staff*
+  # side did, and this slice's guest surface has never mentioned an AI at
+  # all (nor should it — see the engineering rules on AI vocabulary), so a
+  # guest-visible "Reception took over" would be answering a question the
+  # guest was never asked.
+  def pause_ai!(user:)
+    set_ai_mode!(:paused, user: user, notice: "Reception took over the conversation.")
+  end
+
+  def resume_ai!(user:)
+    set_ai_mode!(:auto, user: user, notice: "Reception handed the conversation back.")
+  end
+
+  # Unread is a server-side count, cleared when a human actually opens the
+  # conversation — never nudged from the browser, so it cannot drift away
+  # from what is really in the database (see the plan's realtime section).
+  def mark_read_by_staff!
+    return if staff_unread_count.zero?
+
+    update!(staff_unread_count: 0)
+    Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
+  end
+
+
   private
+    # sender_user on a :system message is unusual (the column exists for
+    # :staff messages) and deliberate here: "who took over" is the whole
+    # point of the trail, and a name embedded in the body would be
+    # unqueryable and would have to be re-typed into every future locale of
+    # this string.
+    def set_ai_mode!(mode, user:, notice:)
+      notice_message = nil
+      transaction do
+        update!(ai_mode: mode)
+        notice_message = messages.create!(
+          hotel: hotel, sender_role: :system, sender_user: user, body: notice, visibility: :internal
+        )
+      end
+      broadcast_new_message(notice_message)
+      notice_message
+    end
+
     def touch_guest_activity!
       now = Time.current
       update!(last_guest_message_at: now, last_message_at: now, staff_unread_count: staff_unread_count + 1)
     end
 
     def broadcast_new_message(message)
+      broadcast_to_guest(message) if message.guest_visible?
+
+      # [hotel, :inbox] — the reception inbox's stream (HotelInboxChannel).
+      # A refresh rather than a targeted append: the inbox list and the
+      # conversation detail view are different DOM shapes that both have to
+      # react to the same event, and Turbo 8's morphing page refresh
+      # re-renders each from the server, which is also what keeps
+      # staff_unread_count server-computed rather than nudged client-side.
+      # Internal notes broadcast here too — the staff side is exactly who
+      # they are for.
+      Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
+    end
+
+    # The [conversation] stream is the *guest's* browser, so nothing that
+    # isn't guest-visible may ever be written to it — the third and last of
+    # this app's guest-facing message reads (Guest::ChatsController#show and
+    # Guest::MessagesController#index are the other two), and the only one
+    # that runs with no request behind it to make the mistake obvious.
+    def broadcast_to_guest(message)
       # This render happens outside any request — I18n.locale would
       # otherwise be whatever the last thread-local value left behind
       # (GuestLocalization's with_locale only scopes a real request; there
@@ -133,11 +279,6 @@ class Conversation < ApplicationRecord
           self, target: "chat-messages", partial: "guest/messages/message", locals: { message: message }
         )
       end
-
-      # [hotel, :inbox] — Task 3's reception inbox stream. Nothing
-      # subscribes to it yet, so this is a no-op broadcast today and a
-      # ready-made hook for that task.
-      Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
     end
 
     def assign_hotel_from_guest_session

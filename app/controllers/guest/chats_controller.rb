@@ -7,7 +7,13 @@ module Guest
     def show
       @guest_session = Current.guest_session
       @conversation = Conversation.live_for(@guest_session)
-      @messages = @conversation.messages.chronological.to_a
+      # .guest_visible, never a bare `messages`: since Slice 2 Task 3 this
+      # table also holds the reception inbox's internal notes, which the
+      # guest must never see (Message#visibility). Every guest-facing read
+      # of `messages` in this app carries this scope — see
+      # Guest::MessagesController#index and Conversation#broadcast_new_message
+      # for the other two.
+      @messages = @conversation.messages.guest_visible.chronological.to_a
     end
   end
 end

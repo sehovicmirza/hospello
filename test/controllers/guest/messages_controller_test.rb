@@ -120,6 +120,28 @@ class Guest::MessagesControllerTest < ActionDispatch::IntegrationTest
     assert_match "only-message-here", response.body
   end
 
+  # The resync endpoint is the sharper half of the internal-note leak
+  # boundary: it hands back whatever arrived since the guest last looked,
+  # with no page reload for anyone to notice, so a note written seconds ago
+  # would go straight to the guest's phone. The guest-visible reply posted
+  # *after* the note is what makes this test able to fail — it proves the
+  # response really did carry everything past `after`, and that the note
+  # was filtered rather than the whole tail being cut off at it.
+  test "GET index never returns an internal note, even when it falls inside the ?after= window" do
+    sign_in_guest("stari-grad-fixture-guest-token")
+    hotel = hotels(:stari_grad)
+    conversation = with_tenant(hotel) { Conversation.live_for(guest_sessions(:stari_guest)) }
+    marker = with_tenant(hotel) { conversation.post_guest_message!(body: "the-marker-body", client_message_id: SecureRandom.uuid) }
+    with_tenant(hotel) { conversation.post_internal_note!(user: users(:stari_staff), body: "internal-only-body") }
+    with_tenant(hotel) { conversation.post_staff_message!(user: users(:stari_staff), body: "guest-visible-reply-body") }
+
+    get guest_messages_path, params: { after: marker.id }, headers: { "Accept" => TURBO_STREAM_ACCEPT }
+
+    assert_response :success
+    assert_no_match "internal-only-body", response.body
+    assert_match "guest-visible-reply-body", response.body
+  end
+
   test "GET index without a cookie renders the re-entry page, not a 500" do
     get guest_messages_path, headers: { "Accept" => TURBO_STREAM_ACCEPT }
 

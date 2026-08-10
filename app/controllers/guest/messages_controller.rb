@@ -50,7 +50,12 @@ module Guest
     # an enhancement on top of it.
     def index
       @conversation = Conversation.live_for(Current.guest_session)
-      @messages = @conversation.messages.chronological.after_id(params[:after]).limit(MAX_RESYNC_MESSAGES)
+      # .guest_visible for the same reason Guest::ChatsController#show
+      # carries it — and it matters more here: a guest polling "what did I
+      # miss" is the one path that would otherwise hand over an internal
+      # note written seconds ago, with no page reload for anyone to notice.
+      @messages = @conversation.messages.guest_visible.chronological
+        .after_id(params[:after]).limit(MAX_RESYNC_MESSAGES)
 
       render :index
     end

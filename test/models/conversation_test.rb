@@ -234,6 +234,211 @@ class ConversationTest < ActiveSupport::TestCase
     end
   end
 
+  # The leak boundary internal notes introduce, at its source: the
+  # [conversation] stream is the guest's own browser, so a note must never
+  # be written to it. Asserted as "zero broadcasts on that stream", not
+  # "the broadcast didn't contain the text" — the latter would also pass if
+  # the note were broadcast with an empty render.
+  test "an internal note is never broadcast to the guest's conversation stream" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+
+      assert_broadcasts(conversation.to_gid_param, 0) do
+        conversation.post_internal_note!(user: users(:stari_staff), body: "Guest already asked twice today.")
+      end
+    end
+  end
+
+  # ...while a guest-visible staff reply on the same conversation still is,
+  # so the assertion above cannot be satisfied by broadcasting nothing at
+  # all.
+  test "a guest-visible staff reply is still broadcast to the guest's conversation stream" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+
+      assert_broadcasts(conversation.to_gid_param, 2) do
+        conversation.post_staff_message!(user: users(:stari_staff), body: "Housekeeping is on the way.")
+      end
+
+      assert_includes ActionCable.server.pubsub.broadcasts(conversation.to_gid_param).last,
+        "Housekeeping is on the way."
+    end
+  end
+
+  test "post_internal_note! writes a staff-authored internal message and leaves the inbox signals alone" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+      conversation.post_guest_message!(body: "Any chance of a late checkout?", client_message_id: SecureRandom.uuid)
+      conversation.reload
+      unread_before = conversation.staff_unread_count
+      last_message_at_before = conversation.last_message_at
+
+      note = conversation.post_internal_note!(user: users(:stari_staff), body: "Front desk already said yes verbally.")
+      conversation.reload
+
+      assert note.internal?
+      assert note.staff?
+      assert_equal users(:stari_staff), note.sender_user
+      # The guest asked something and nobody has answered — jotting a note
+      # is not answering, so the badge that says so must survive it.
+      assert_equal unread_before, conversation.staff_unread_count
+      assert_equal last_message_at_before, conversation.last_message_at
+    end
+  end
+
+  test "a staff reply to a resolved conversation reopens it rather than vanishing" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+      conversation.update!(status: :resolved)
+
+      conversation.post_staff_message!(user: users(:stari_staff), body: "One more thing — your taxi is booked.")
+
+      assert conversation.reload.active?, "a reply must reopen the conversation it was written into"
+      # The guest's chat only ever renders live_for, so "reopened" has to
+      # mean the guest can actually see it — not merely that a status
+      # column changed.
+      assert_equal conversation, Conversation.live_for(session)
+      assert conversation.messages.guest_visible.exists?(body: "One more thing — your taxi is booked.")
+    end
+  end
+
+  # The reopen above is not always possible: one live conversation per
+  # guest session is a database constraint, so a receptionist replying to a
+  # settled conversation the guest has already moved on from must be told,
+  # not handed a 500 and not left with a reply nobody will ever read.
+  test "a staff reply to a superseded conversation is refused, and writes nothing" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      old_conversation = Conversation.live_for(session)
+      old_conversation.update!(status: :resolved)
+      new_conversation = Conversation.live_for(session)
+      assert_not_equal old_conversation.id, new_conversation.id
+
+      assert_raises(Conversation::SupersededConversation) do
+        old_conversation.post_staff_message!(user: users(:stari_staff), body: "reply into a stale transcript")
+      end
+
+      assert old_conversation.reload.resolved?
+      assert_not Message.where(body: "reply into a stale transcript").exists?,
+        "the rolled-back reply must not survive in the settled conversation"
+    end
+  end
+
+  test "pause_ai! and resume_ai! flip ai_mode and leave an internal trail naming who did it" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+      assert conversation.auto?, "a new conversation starts on auto — otherwise the flip below proves nothing"
+
+      conversation.pause_ai!(user: users(:stari_staff))
+      assert conversation.reload.paused?
+
+      takeover = conversation.messages.last
+      assert takeover.system?
+      assert takeover.internal?, "the takeover notice explains the staff side's history, not the guest's"
+      assert_equal users(:stari_staff), takeover.sender_user
+      assert_equal "Reception took over the conversation.", takeover.body
+
+      conversation.resume_ai!(user: users(:stari_admin))
+      assert conversation.reload.auto?
+      assert_equal "Reception handed the conversation back.", conversation.messages.last.body
+    end
+  end
+
+  test "mark_read_by_staff! clears the unread count" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+      conversation.post_guest_message!(body: "Hello?", client_message_id: SecureRandom.uuid)
+      assert_equal 1, conversation.reload.staff_unread_count
+
+      conversation.mark_read_by_staff!
+
+      assert_equal 0, conversation.reload.staff_unread_count
+    end
+  end
+
+  # "Needs attention" has to mean both halves — an unanswered guest message
+  # AND an escalation nobody has picked up, even one whose messages have
+  # all been read. A scope covering only the first is the easy mistake.
+  test "needs_attention covers unread live conversations and escalated ones alike" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      unread = Conversation.live_for(fresh_guest_session(hotel))
+      unread.update!(staff_unread_count: 2)
+
+      escalated_but_read = Conversation.live_for(fresh_guest_session(hotel))
+      escalated_but_read.update!(status: :escalated, staff_unread_count: 0)
+
+      quiet = Conversation.live_for(fresh_guest_session(hotel))
+      quiet.update!(staff_unread_count: 0)
+
+      resolved_with_unread = Conversation.live_for(fresh_guest_session(hotel))
+      resolved_with_unread.update!(status: :resolved, staff_unread_count: 3)
+
+      needing = Conversation.needs_attention.pluck(:id)
+
+      assert_includes needing, unread.id
+      assert_includes needing, escalated_but_read.id
+      assert_not_includes needing, quiet.id
+      assert_not_includes needing, resolved_with_unread.id,
+        "a settled conversation is not waiting on anyone, whatever its stale unread count says"
+    end
+  end
+
+  test "inbox_order puts conversations needing attention above newer quiet ones" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      Conversation.where(hotel: hotel).destroy_all
+
+      stale_but_unread = Conversation.live_for(fresh_guest_session(hotel))
+      stale_but_unread.update!(staff_unread_count: 1, last_message_at: 3.hours.ago)
+
+      recent_and_quiet = Conversation.live_for(fresh_guest_session(hotel))
+      recent_and_quiet.update!(staff_unread_count: 0, last_message_at: 1.minute.ago)
+
+      assert_equal [ stale_but_unread.id, recent_and_quiet.id ], Conversation.inbox_order.pluck(:id)
+    end
+  end
+
+  test "matching searches guest name and room number, and ignores a blank query" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      Conversation.where(hotel: hotel).destroy_all
+
+      by_name = Conversation.live_for(fresh_guest_session(hotel))
+      by_name.guest_session.update!(guest_name: "Ingrid Lindqvist")
+
+      by_room = Conversation.live_for(fresh_guest_session(hotel, room: rooms(:stari_302)))
+
+      assert_equal [ by_name.id ], Conversation.matching("lindqvist").pluck(:id)
+      assert_equal [ by_room.id ], Conversation.matching(rooms(:stari_302).number).pluck(:id)
+      assert_equal 2, Conversation.matching("   ").count, "a blank query must not filter anything out"
+      assert_empty Conversation.matching("nobody-by-that-name").pluck(:id)
+    end
+  end
+
   private
     def fresh_guest_session(hotel, room: nil, locale: "en")
       hotel.guest_sessions.create!(

@@ -13,6 +13,29 @@ class Guest::ChatsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#chat-greeting"
   end
 
+  # The leak boundary internal notes (Slice 2 Task 3) introduce, checked at
+  # the surface a guest actually looks at. The guest-visible reply is
+  # asserted alongside it on purpose: without it, this test would still
+  # pass if the transcript rendered no staff messages at all.
+  test "an internal note never appears in the guest's own transcript" do
+    hotel = hotels(:stari_grad)
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(guest_sessions(:stari_guest))
+      conversation.post_staff_message!(user: users(:stari_staff), body: "Towels are on their way up.")
+      conversation.post_internal_note!(user: users(:stari_staff), body: "Third towel request today, flagged.")
+    end
+
+    sign_in_guest("stari-grad-fixture-guest-token")
+    get guest_chat_path
+
+    assert_response :success
+    assert_select "#chat-messages" do
+      assert_select "*", text: /Towels are on their way up\./
+      assert_select "*", text: /Third towel request today, flagged\./, count: 0
+    end
+    assert_no_match "Third towel request today, flagged.", response.body
+  end
+
   test "no cookie at all renders the re-entry page, not the chat" do
     get guest_chat_path
 

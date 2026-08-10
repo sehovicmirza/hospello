@@ -12,11 +12,11 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (after Slice 2 Task 2) |
-| **Branch** | `main` |
+| **Last updated** | 2026-08-10 (Slice 2 Task 3 in progress — model layer done) |
+| **Branch** | `claude/continue-ai-agent-work-bq59gm` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 415 unit/integration green · 21 system green (three consecutive clean runs) |
-| **Progress** | Slice 1 complete · Slice 2 at 2 of 3 tasks · Slices 3–7 not started |
+| **Tests** | 432 unit/integration green · 21 system green |
+| **Progress** | Slice 1 complete · Slice 2 at 2½ of 3 tasks · Slices 3–7 not started |
 
 ---
 
@@ -71,14 +71,33 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
   page. Nothing caught it because the only CSP test drove the *staff* side. Now a per-request
   `SecureRandom` nonce. Verified: restoring the old generator fails the guest chat tests.
 
+**Slice 2 Task 3 — the reception inbox.** In progress. The model layer is complete and reviewed
+against the engineering rules; the controllers, views, and live updates are not built yet.
+
+- `messages.visibility` (`guest_visible` / `internal`) — internal notes share the messages table so
+  the staff transcript reads as one chronological story. The default is the safe one, visibility is
+  frozen after creation, and only staff-authored roles (`staff`, `system`) may be internal.
+- **All three guest-facing message reads now filter on it**: `Guest::ChatsController#show`,
+  `Guest::MessagesController#index` (the resync endpoint), and `Conversation#broadcast_new_message`.
+  Each of the three has a test that goes red when its filter is removed — verified by removing them.
+- `Conversation`: `post_internal_note!`, `pause_ai!` / `resume_ai!` (internal system notice naming
+  the acting user), `mark_read_by_staff!`, `needs_attention` / `settled` / `inbox_order` /
+  `matching` scopes, `LIVE_STATUSES` + `#live?`.
+- A staff reply to a **resolved** conversation reopens it. When the guest has already started a newer
+  one, reopening would break the one-live-conversation index — that case raises
+  `Conversation::SupersededConversation` and rolls the reply back rather than leaving it in a
+  transcript the guest will never open again.
+
 ---
 
 ## What to do next
 
-1. **Slice 2 Task 3** — the reception inbox: staff see conversations live, open one, reply. Brief is
-   in `docs/plan/slice-2-tasks.md`. **This is the milestone where the product becomes genuinely usable
-   by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still reaches reception")
-   becomes structurally true from here on.
+1. **Finish Slice 2 Task 3** — `ConversationPolicy`, `Staff::ConversationsController` /
+   `Staff::MessagesController`, the inbox and detail views, `HotelInboxChannel` +
+   `inbox_resilience_controller.js`, the nav unread badge, and the two system tests. Brief is in
+   `docs/plan/slice-2-tasks.md`. **This is the milestone where the product becomes genuinely usable
+   by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still reaches
+   reception") becomes structurally true from here on.
 2. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
    Breakdown already written: `docs/plan/slice-3-tasks.md`.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
