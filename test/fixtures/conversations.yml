@@ -1,0 +1,28 @@
+# One live conversation per hotel's guest fixture, mirroring the "one row
+# per hotel, deliberately different guest/room" shape guest_sessions.yml and
+# rooms.yml already use — so a test asserting on rendered content can't pass
+# by both sides coincidentally matching. Raw integer enum values, matching
+# every other fixture file in this app (see guest_sessions.yml's header).
+stari_conversation:
+  hotel: stari_grad
+  guest_session: stari_guest
+  room: stari_301
+  channel: 0 # web
+  status: 0 # active
+  ai_mode: 0 # auto
+  guest_locale: bs
+  last_guest_message_at: <%= 30.minutes.ago.iso8601 %>
+  last_message_at: <%= 30.minutes.ago.iso8601 %>
+  staff_unread_count: 1
+
+vrelo_conversation:
+  hotel: vrelo
+  guest_session: vrelo_guest
+  room: vrelo_401
+  channel: 0 # web
+  status: 0 # active
+  ai_mode: 0 # auto
+  guest_locale: en
+  last_guest_message_at: <%= 20.minutes.ago.iso8601 %>
+  last_message_at: <%= 20.minutes.ago.iso8601 %>
+  staff_unread_count: 0

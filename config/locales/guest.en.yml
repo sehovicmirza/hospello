@@ -24,9 +24,29 @@ en:
       re_entry:
         title: "Your session has ended"
         body: "Please scan the hotel's QR code again to start a new conversation."
+    messages:
+      sender_labels:
+        guest: "You"
+        staff: "Hotel staff"
+        system: "System"
     chats:
       show:
         title: "Chat"
         greeting: "Hello, %{name}!"
         room_label: "Room %{room}"
-        placeholder_notice: "This is a temporary placeholder page — the full chat arrives soon."
+        empty_state_greeting: "Welcome! %{hotel_name} is here to help — send a message any time during your stay."
+      quick_actions:
+        heading: "Quick actions"
+        ask_question_label: "Ask a question"
+        ask_question_prefill: "I have a question: "
+        contact_reception_label: "Contact reception"
+        contact_reception_prefill: "Could you please connect me with reception?"
+        category_prefill: "I'd like to request: %{category}"
+      composer:
+        placeholder: "Type a message…"
+        send: "Send"
+        sending: "Sending…"
+        blank_error: "Please enter a message before sending."
+        too_long_error: "Your message is too long. Please shorten it and try again."
+        offline_banner: "You're offline — messages will send once you're back online."
+        send_failed_notice: "Couldn't send. Check your connection and try again."

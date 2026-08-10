@@ -22,6 +22,7 @@ class GuestSession < ApplicationRecord
   enum :status, { active: 0, blocked: 1 }
 
   belongs_to :room, optional: true
+  has_many :conversations
 
   # Review round 1, IMPORTANT 9: this used to run `on: :create` only, so
   # `session.update(identity_status: :staff_verified)` silently succeeded —

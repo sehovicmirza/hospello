@@ -24,9 +24,29 @@ bs:
       re_entry:
         title: "Vaša sesija je istekla"
         body: "Molimo ponovo skenirajte QR kod hotela kako biste započeli novi razgovor."
+    messages:
+      sender_labels:
+        guest: "Vi"
+        staff: "Osoblje hotela"
+        system: "Sistem"
     chats:
       show:
         title: "Razgovor"
         greeting: "Zdravo, %{name}!"
         room_label: "Soba %{room}"
-        placeholder_notice: "Ovo je privremena stranica — puni chat stiže uskoro."
+        empty_state_greeting: "Dobrodošli! %{hotel_name} vam je na raspolaganju — pošaljite poruku u bilo kojem trenutku tokom boravka."
+      quick_actions:
+        heading: "Brze radnje"
+        ask_question_label: "Postavi pitanje"
+        ask_question_prefill: "Imam pitanje: "
+        contact_reception_label: "Kontaktiraj recepciju"
+        contact_reception_prefill: "Možete li me povezati sa recepcijom?"
+        category_prefill: "Želio/la bih zatražiti: %{category}"
+      composer:
+        placeholder: "Unesite poruku…"
+        send: "Pošalji"
+        sending: "Slanje…"
+        blank_error: "Molimo unesite poruku prije slanja."
+        too_long_error: "Vaša poruka je preduga. Molimo skratite je i pokušajte ponovo."
+        offline_banner: "Niste povezani — poruke će biti poslane čim se ponovo povežete."
+        send_failed_notice: "Slanje nije uspjelo. Provjerite internetsku vezu i pokušajte ponovo."

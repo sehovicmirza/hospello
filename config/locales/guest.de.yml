@@ -24,9 +24,29 @@ de:
       re_entry:
         title: "Ihre Sitzung ist abgelaufen"
         body: "Bitte scannen Sie den QR-Code des Hotels erneut, um ein neues Gespräch zu starten."
+    messages:
+      sender_labels:
+        guest: "Sie"
+        staff: "Hotelpersonal"
+        system: "System"
     chats:
       show:
         title: "Chat"
         greeting: "Hallo, %{name}!"
         room_label: "Zimmer %{room}"
-        placeholder_notice: "Dies ist eine vorübergehende Platzhalterseite — der vollständige Chat folgt in Kürze."
+        empty_state_greeting: "Willkommen! %{hotel_name} hilft Ihnen gerne — schreiben Sie jederzeit während Ihres Aufenthalts eine Nachricht."
+      quick_actions:
+        heading: "Schnellaktionen"
+        ask_question_label: "Frage stellen"
+        ask_question_prefill: "Ich habe eine Frage: "
+        contact_reception_label: "Rezeption kontaktieren"
+        contact_reception_prefill: "Könnten Sie mich bitte mit der Rezeption verbinden?"
+        category_prefill: "Ich möchte gerne Folgendes anfragen: %{category}"
+      composer:
+        placeholder: "Nachricht eingeben…"
+        send: "Senden"
+        sending: "Wird gesendet…"
+        blank_error: "Bitte geben Sie vor dem Senden eine Nachricht ein."
+        too_long_error: "Ihre Nachricht ist zu lang. Bitte kürzen Sie sie und versuchen Sie es erneut."
+        offline_banner: "Sie sind offline — Nachrichten werden gesendet, sobald Sie wieder online sind."
+        send_failed_notice: "Senden fehlgeschlagen. Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut."

@@ -1,0 +1,19 @@
+<%# Guest / staff / system bubbles are distinguished by more than colour
+    (spec requirement): alignment + bubble tone differ, AND an sr-only text
+    label names the sender explicitly for anyone who can't see either.
+    dir="auto" on the bubble itself — a guest's own text and a staff
+    reply may be in different scripts, so each bubble resolves its own
+    direction rather than inheriting the page's. %>
+<div id="<%= dom_id(message) %>" data-message-id="<%= message.id %>"
+     class="flex flex-col gap-1 <%= message.guest? ? "items-end" : "items-start" %>">
+  <div class="flex max-w-[85%] flex-col gap-0.5 <%= message.guest? ? "items-end" : "items-start" %>">
+    <span class="sr-only"><%= guest_sender_label(message) %></span>
+    <p dir="auto" class="rounded-lg px-3 py-2 text-sm <%= guest_message_bubble_classes(message) %>"
+       style="<%= guest_message_bubble_style(message) %>">
+      <%= message.body %>
+    </p>
+    <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
+      <%= guest_message_time(message) %>
+    </time>
+  </div>
+</div>

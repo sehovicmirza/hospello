@@ -1,0 +1,25 @@
+# One message per hotel's fixture conversation — enough for a transcript
+# render test without every test having to build its own via
+# Conversation#post_guest_message!. Raw integer enum values, matching every
+# other fixture file in this app (see guest_sessions.yml's header).
+stari_first_message:
+  hotel: stari_grad
+  conversation: stari_conversation
+  sender_role: 0 # guest
+  body: "Do you have extra towels?"
+  translation_status: 0 # not_needed
+  client_message_id: <%= SecureRandom.uuid %>
+  delivery_status: 0 # local
+  created_at: <%= 30.minutes.ago.iso8601 %>
+  updated_at: <%= 30.minutes.ago.iso8601 %>
+
+vrelo_first_message:
+  hotel: vrelo
+  conversation: vrelo_conversation
+  sender_role: 0 # guest
+  body: "What time is breakfast?"
+  translation_status: 0 # not_needed
+  client_message_id: <%= SecureRandom.uuid %>
+  delivery_status: 0 # local
+  created_at: <%= 20.minutes.ago.iso8601 %>
+  updated_at: <%= 20.minutes.ago.iso8601 %>
