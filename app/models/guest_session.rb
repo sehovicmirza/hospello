@@ -23,7 +23,18 @@ class GuestSession < ApplicationRecord
 
   belongs_to :room, optional: true
 
-  before_validation :force_unverified_identity_on_create, on: :create
+  # Review round 1, IMPORTANT 9: this used to run `on: :create` only, so
+  # `session.update(identity_status: :staff_verified)` silently succeeded —
+  # the guard was scoped to "at creation," but nothing stopped a later
+  # write from flipping it. Running on every save (no `on:` restriction)
+  # makes "a guest session is always unverified" hold on the write path in
+  # general, not just at the moment of construction: there is no staff-
+  # verification workflow in this slice, but a future one now has to reach
+  # for something more deliberate than a plain attribute update to trip
+  # over this by accident — e.g. `update_column`/`update_columns`, which
+  # bypass callbacks entirely and so are visibly a different, more
+  # deliberate kind of write than an ordinary `update`.
+  before_validation :force_unverified_identity
 
   validates :guest_name, presence: true
   validates :locale, inclusion: { in: GuestLocaleHelper::SUPPORTED_LOCALES }
@@ -93,11 +104,12 @@ class GuestSession < ApplicationRecord
 
   private
     # There is no code path — staff-initiated, mass-assigned, or otherwise —
-    # that can produce a verified session at creation. Runs after mass
-    # assignment (attributes are already set from whatever new/create was
-    # handed) and immediately before the row is validated/saved, so it
-    # overwrites any identity_status a caller tried to set.
-    def force_unverified_identity_on_create
+    # that can produce a verified session through a normal save, at
+    # creation or later. Runs after mass assignment (attributes are already
+    # set from whatever new/create/update was handed) and immediately
+    # before the row is validated/saved, so it overwrites any
+    # identity_status a caller tried to set.
+    def force_unverified_identity
       self.identity_status = :unverified
     end
 

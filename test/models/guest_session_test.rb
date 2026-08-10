@@ -131,6 +131,25 @@ class GuestSessionTest < ActiveSupport::TestCase
     assert_not session.staff_verified?
   end
 
+  # IMPORTANT 9 (review round 1): the original guard only ran `on: :create`,
+  # so a plain `update` after the fact silently flipped identity_status —
+  # the "always unverified" promise held only at construction, not on the
+  # write path in general.
+  test "identity_status cannot be flipped to staff_verified by an update after creation either" do
+    hotel = hotels(:stari_grad)
+
+    with_tenant(hotel) do
+      session = hotel.guest_sessions.create!(
+        guest_name: "Guest", room: rooms(:stari_301), locale: "en",
+        privacy_accepted_at: Time.current, expires_at: 7.days.from_now
+      )
+
+      assert session.update(identity_status: :staff_verified)
+      assert session.reload.unverified?
+      assert_not session.staff_verified?
+    end
+  end
+
   test "guest_name is required" do
     hotel = hotels(:stari_grad)
 
