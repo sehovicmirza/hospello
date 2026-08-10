@@ -17,26 +17,33 @@ module Guest
     # Guest::EntriesController uses for the same reason.
     allow_unauthenticated_access
 
-    before_action :require_guest_session
+    # Both around_actions: session/locale resolution has to wrap everything
+    # after it (including the eventual render, for I18n.with_locale to
+    # actually cover it — see GuestLocalization), and tenant-scoping has to
+    # wrap everything *it* comes before too. Declaring both as around_action,
+    # in this order, nests them correctly either way.
+    around_action :resolve_guest_session_and_locale
     around_action :scope_to_guest_hotel
 
     private
       # Renders the re-entry page (missing cookie, expired session, or a
       # session staff has blocked all look identical from here — none of
       # them get a session, so none of them get a distinct error message
-      # that would help someone probe which case they hit). Still activates
-      # a best-effort locale for that page even though there's no guest
+      # that would help someone probe which case they hit) without ever
+      # calling `yield` — same halting effect a before_action's render has,
+      # so scope_to_guest_hotel below never runs. Still activates a
+      # best-effort locale for that page even though there's no guest
       # session to read one from.
-      def require_guest_session
+      def resolve_guest_session_and_locale
         session = GuestSession.authenticate_by_token(cookies.signed[:hospello_guest])
 
         if session.nil?
-          activate_guest_locale(nil)
-          return render "guest/base/re_entry", status: :unauthorized
+          I18n.with_locale(guest_locale_for(nil)) { render "guest/base/re_entry", status: :unauthorized }
+          return
         end
 
         Current.guest_session = session
-        activate_guest_locale(session.locale)
+        I18n.with_locale(guest_locale_for(session.locale)) { yield }
       end
 
       def scope_to_guest_hotel(&block)

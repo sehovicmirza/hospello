@@ -24,6 +24,10 @@ module Guest
     # creation (see that method).
     SESSION_LIFETIME = 21.days
 
+    # Declared first so it's the outermost wrapper — every before_action,
+    # around_action, and the eventual render below all happen inside its
+    # I18n.with_locale scope (see GuestLocalization).
+    around_action :activate_guest_locale
     before_action :set_hotel
     # Declared before the suspension check (not after) so Current.hotel is
     # already set — and the guest layout can already render this hotel's
@@ -31,12 +35,11 @@ module Guest
     # not only on the happy path.
     around_action :scope_to_hotel
     before_action :refuse_suspended_hotel
-    before_action :set_guest_locale
 
     def show
       return redirect_to guest_chat_path if guest_already_admitted?
 
-      @guest_session = @hotel.guest_sessions.new(locale: GuestLocaleHelper.detect(request.headers["Accept-Language"]))
+      @guest_session = @hotel.guest_sessions.new(locale: guest_locale_for(nil).to_s)
     end
 
     def create
@@ -95,8 +98,8 @@ module Guest
         ActsAsTenant.with_tenant(@hotel, &block)
       end
 
-      def set_guest_locale
-        activate_guest_locale(params.dig(:guest_session, :locale))
+      def activate_guest_locale(&block)
+        I18n.with_locale(guest_locale_for(params.dig(:guest_session, :locale)), &block)
       end
 
       def guest_already_admitted?
