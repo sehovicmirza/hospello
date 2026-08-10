@@ -121,6 +121,16 @@ concierge and translation need it.
 Local setup, environment variables, and the full Render deploy walkthrough are in
 [README.md](README.md). Incident procedures are in [docs/runbook.md](docs/runbook.md).
 
+**You do not need any secret to develop or test.** `config/master.key` is gitignored and absent from
+a fresh clone — that is correct and expected. Nothing in `app/`, `config/`, or `lib/` reads
+`Rails.application.credentials`, and the full suite passes with the key missing (verified). You only
+need real secrets to *deploy*, and those live in Render's dashboard, not in the repo. If something
+appears to demand a master key, that is a bug introduced by whoever added the credentials read — do
+not work around it by asking for the key.
+
+A database is required. `bin/setup` creates and migrates it; `DATABASE_URL` is honoured if your
+environment provides Postgres that way.
+
 ```bash
 bin/setup                 # install, create and migrate the database, seed
 bin/dev                   # run locally
