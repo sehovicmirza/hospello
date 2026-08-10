@@ -29,6 +29,43 @@ module CloseNativeSelectPopup
   end
 end
 
+# A node Capybara has already found can be detached before it gets to ask
+# whether the node is visible — the ordinary consequence of asserting on text
+# while the page is still navigating, which every sign-in assertion here does
+# (submit, 302, land on the next page). Capybara handles exactly this: it
+# rescues the driver's `invalid_element_errors` while filtering candidate nodes
+# and treats a vanished node as "doesn't match" (see
+# Capybara::Queries::SelectorQuery#matches_filters?), so the query simply
+# retries against the new document.
+#
+# That list contains StaleElementReferenceError. Chrome reports this same
+# condition a second way — UnknownError carrying `Node with given id does not
+# belong to the document` from the DevTools layer — which is not in the list, so
+# the recovery never engages and the error surfaces as a failed assertion in
+# whichever test lost the race. Measured at roughly 1 run in 12 here.
+#
+# Naming it makes Capybara's own recovery work for both spellings of the same
+# condition. Capybara's list already carries entries of exactly this shape (an
+# InvalidSelectorError for a chromedriver go_back/go_forward race, two
+# IE-specific ones). Matching is deliberately narrow — this precise message on
+# this precise class — so an unrelated UnknownError (`chrome not reachable`, a
+# genuinely dead browser) still fails the test loudly instead of being retried
+# into a timeout.
+DetachedNodeError = Module.new do
+  def self.===(error)
+    error.is_a?(::Selenium::WebDriver::Error::UnknownError) &&
+      error.message.include?("does not belong to the document")
+  end
+end
+
+module RetryDetachedNodes
+  def invalid_element_errors
+    super + [ DetachedNodeError ]
+  end
+end
+
+Capybara::Selenium::Driver.prepend(RetryDetachedNodes)
+
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   # Autofill and password-manager popups are native Chrome UI, so they take the
   # same input grab the <select> popup does and drop the keystrokes that follow.
