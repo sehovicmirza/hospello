@@ -70,12 +70,32 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   # Autofill and password-manager popups are native Chrome UI, so they take the
   # same input grab the <select> popup does and drop the keystrokes that follow.
   # There is no human here for them to help.
+  #
+  # The leak-detection settings are the ones that matter, and they are why
+  # this repo's CI failed on every single run from its first commit until
+  # they were added. Every fixture signs in with "password123", which is one
+  # of the most-breached passwords in existence. Chrome checks a submitted
+  # password against its breach corpus and, on a hit, puts up native
+  # "Change your password" UI — *after* a successful sign-in submit, which is
+  # exactly the gap between the one form submit that always worked and the
+  # next click that never landed. Every test that signed in and then clicked
+  # failed; the one test that signed in and only read text passed.
+  #
+  # It cannot reproduce locally because deciding requires a live call to
+  # Google, so anywhere the network is closed the check never fires and the
+  # suite is green — which is why three sessions of local runs, and a
+  # diagnosis that blamed Chrome's click delivery, never found it. See
+  # docs/plan/known-issues.md for the full account.
   driven_by :selenium, using: :headless_chrome, screen_size: [ 1400, 1400 ] do |options|
     options.add_preference("autofill.profile_enabled", false)
     options.add_preference("autofill.credit_card_enabled", false)
     options.add_preference("credentials_enable_service", false)
     options.add_preference("profile.password_manager_enabled", false)
-    options.add_argument("--disable-features=AutofillServerCommunication,PasswordManagerOnboarding")
+    options.add_preference("profile.password_manager_leak_detection", false)
+    options.add_argument(
+      "--disable-features=AutofillServerCommunication,PasswordManagerOnboarding," \
+      "PasswordLeakDetection,PasswordChangeAffiliationInfo,PasswordChange"
+    )
   end
 
   prepend CloseNativeSelectPopup

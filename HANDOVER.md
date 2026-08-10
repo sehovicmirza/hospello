@@ -15,27 +15,31 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-08-10 (after Slice 2 Task 3 — Slice 2 complete) |
 | **Branch** | `claude/continue-ai-agent-work-bq59gm` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 475 unit/integration green · 28 system green locally (four consecutive clean runs) · rubocop and brakeman clean |
-| **CI** | ❌ **red, and has been on every run since the repo's first** — pre-existing, not this work. Verified: see below. |
-| **Progress** | Slices 1 and 2 complete · Slices 3–7 not started |
+| **Tests** | 496 unit/integration green · 31 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
+| **Progress** | Slices 1 and 2 complete · Slice 3 at 1 of 4 tasks |
 
-> ### Read this before trusting "tests green"
+> ### The CI failure is fixed, and it was never a flake
 >
-> Every GitHub Actions run of this repo has failed, back to 2026-08-07. Earlier handovers reported
-> green suites; those were **local** runs and nobody had opened the Actions tab. The failing step is
-> always `bin/rails test:system`, always the same three tests in `platform_hotel_management_test.rb`,
-> and always the Chrome click-delivery flake already diagnosed in
-> [docs/plan/known-issues.md](docs/plan/known-issues.md) — where new evidence from this session is now
-> recorded, including the fact that CI runs the system suite against a *different Chrome build* than
-> the one its own setup step installs.
+> Every GitHub Actions run of this repo had failed, back to the first commit on 2026-08-07. Nobody
+> had opened the Actions tab; three sessions reported "tests green" from **local** runs.
 >
-> Because the job stops at that step, the `rubocop` and `brakeman` steps had **never once run**. Both
-> had accumulated real findings by the time this session checked; both are clean now.
+> The cause: every fixture signs in with `password123`, Chrome checks submitted passwords against
+> its breach corpus, and on a hit it raises native "Change your password" UI that swallows every
+> subsequent click. That is why the *first* form submit in a session always worked and everything
+> after it died — and why it never reproduced locally: the check needs a live call to Google, so it
+> silently does nothing wherever the network is closed. Four lines in
+> `test/application_system_test_case.rb` fix it. Full account, including why the earlier
+> click-delivery diagnosis looked right, is in [docs/plan/known-issues.md](docs/plan/known-issues.md).
 >
-> **This branch was run against real CI to check** (`workflow_dispatch`, run 31418453644): all 475
-> unit/integration tests passed, and of 28 system tests exactly 3 failed — those same three. Every
-> test added by this task passed on the runner, including the two-browser live test. So the red check
-> is entirely the pre-existing flake, and the work under it is covered.
+> Two consequences worth knowing:
+>
+> - Because the job always stopped at the system-test step, `rubocop`, `brakeman` and
+>   `bundler-audit` had **never once executed**. Rubocop and brakeman both had real findings by the
+>   time anyone looked; both are clean now.
+> - **Brakeman runs at `-w2`** (medium confidence and up). Its weak band includes "support for Rails
+>   8.0.5.1 ends on 2026-10-07", which would otherwise fail every build from now on. That date is
+>   real — see "What to do next".
 
 ---
 
@@ -127,16 +131,32 @@ true from here on.
   guest's page updates itself. A second test in the same file writes an internal note while the guest
   sits on a live chat and proves it never arrives.
 
+**Slice 3 Task 1 — the knowledge base.** Complete. This is the corpus the concierge will be allowed
+to answer from, and nothing else.
+
+- `KbEntry` (`hotel`, `category`, `title`, `content`, `published`, `position`) — unpublished by
+  default, capped at 2000 characters with a message a hotel manager can act on, titles unique per
+  hotel so two hotels may each have a "Breakfast".
+- `ordered` is `(position, id)`. The id tiebreak is **load-bearing, not tidiness**: the hotel's
+  knowledge becomes a cached prompt prefix in Task 3, and the cache only hits on an exact match, so
+  two entries sharing a position must come out in the same order every single build.
+- `Hotel#published_kb_entries` is the one answer to "which entries may the model see".
+- `/staff/kb_entries`: category tabs with counts, drafts marked in words, one-tap publish/unpublish,
+  a live character count, and an empty state offering the topics guests actually ask about as
+  starters that open the form already named. Read for all staff, write for hotel admins
+  (`KbEntryPolicy`); publish/unpublish are audit-logged.
+
 ---
 
 ## What to do next
 
-1. **Get CI green** — or decide out loud that it stays red and why. It is one pre-existing flaky file
-   (see the box at the top and `docs/plan/known-issues.md`), and while it is red nothing downstream
-   of it in the workflow runs at all. This is small and it unblocks every future session's ability to
-   trust a green check.
-2. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
-   Breakdown already written: `docs/plan/slice-3-tasks.md`.
+1. **Slice 3 Task 2** — the `Ai::Client` seam and its `FakeClaude` double. Task 1 (the knowledge
+   base) is done. The brief is in `docs/plan/slice-3-tasks.md`; note it wants the fake written
+   *first*, because it is the contract every later AI behaviour is tested through, and it wants **no
+   VCR** — cassettes keep passing after the prompt changes, which is precisely the regression that
+   matters here.
+2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
+   run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
 4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
@@ -159,14 +179,11 @@ concierge and translation need it.
 - **Check [docs/plan/known-issues.md](docs/plan/known-issues.md) before fixing anything that looks
   broken.** Several things that look like bugs are deliberate and documented, and two plausible-
   sounding claims in there have been investigated and are false.
-- **One system test file flakes** (`platform_hotel_management_test.rb`) from a diagnosed Chrome
-  click-delivery bug — ~4 runs in 10 locally for an earlier session, but **100% of runs on GitHub
-  Actions**, where it is the sole reason CI is red. It is not your fault and it is not a product bug;
-  a proposed fix was rejected as unproven. Don't paper over it — `known-issues.md` now carries a
-  concrete, untested lead (CI's Chrome on PATH is a different build from the one its setup step
-  installs).
-- **A green local run does not mean a green CI run.** Nobody had checked the Actions tab for three
-  days of work. Check it.
+- **A green local run does not mean a green CI run.** Nobody checked the Actions tab for three days
+  of work, and the whole build was red the entire time. Check it.
+- **Don't remove the leak-detection settings** in `test/application_system_test_case.rb`. They look
+  like belt-and-braces and they are not: without them every system test that signs in and then
+  clicks fails on CI, and passes locally, which is the worst possible failure shape.
 - **Internal notes and guest-visible messages live in the same table.** Any new read of `messages` on
   a guest-facing path must carry `.guest_visible` — there are exactly three such reads today and each
   has a test that goes red without it. `Message#visibility` documents the rule.

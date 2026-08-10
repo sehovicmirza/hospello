@@ -7,6 +7,53 @@ looks like a passing test and is a hole.
 
 ## Open
 
+*(Nothing open right now. The long-running system-test failure that lived here is solved — see
+"Resolved" below, and read it before you touch the browser harness.)*
+
+---
+
+## Resolved
+
+### SOLVED: the system-test failure that made CI red on every run since the repo's first
+
+**What it was:** Chrome's **breached-password check**. Every fixture signs in with `password123`,
+which is one of the most-breached passwords in existence. Chrome submits it, matches it against
+Google's breach corpus, and raises native "Change your password" UI — which takes the same input
+grab the `<select>` popup does, and silently swallows every click and keystroke that follows.
+
+**Why the symptom looked like a Chrome click bug:** the grab arrives *after* a successful sign-in
+submit. So the first form submit in a session always worked and everything after it was dropped,
+which reads exactly like "the pointer moved but the click never landed" — and that is what the
+earlier diagnosis concluded, with real captured evidence that no request ever reached Rails. The
+evidence was correct; the cause behind it was not.
+
+**Why nobody found it in three sessions of local runs:** deciding whether a password is breached
+needs a live call to Google. Anywhere the network is closed — an offline laptop, a sandbox, a
+proxied container — the check never fires and the whole suite is green. It is not flaky. It is
+100% deterministic, conditional on outbound network access.
+
+**The fix** is four lines in `test/application_system_test_case.rb`: the
+`profile.password_manager_leak_detection` preference plus the matching `PasswordLeakDetection`
+feature flags. Confirmed by isolation — a run with only the leak-detection settings and nothing
+else went green, so the keyring flags tried alongside them (`--password-store=basic`,
+`--use-mock-keychain`) were cargo and were removed.
+
+**Evidence:** run 31422526404 got past the system tests for the first time ever; run 31422934235,
+with the leak-detection settings alone, was this repository's first fully green CI run.
+
+**What this cost, and the lesson:** three sessions reported "tests green" from local runs while
+every CI run had failed, back to the first commit. Because the job stopped at the system-test step,
+`rubocop`, `brakeman` and `bundler-audit` had **never once executed** — and both rubocop and
+brakeman had real findings waiting by the time anyone looked. A green local suite is not a green
+build. Open the Actions tab.
+
+**Do not** re-derive the old theory from the old symptom. The diagnosis document
+([known-issue-system-test-flake.md](known-issue-system-test-flake.md)) is kept for its method, not
+its conclusion.
+
+<details>
+<summary>The superseded diagnosis, kept for the record</summary>
+
 ### System-test flake: Chrome drops clicks (~4 runs in 10)
 
 **Affects:** `test/system/platform_hotel_management_test.rb` only. No guest-facing test has ever been
@@ -67,6 +114,13 @@ run of the Slice 2 Task 3 branch (run 31418453644) executed 28 system tests and 
 the same three, again. Every other test in the suite passed on CI, including that branch's new
 two-browser live test, which drives two simultaneous Chrome sessions and is by far the most timing-
 sensitive test in the repo. Whatever this is, it is not general flakiness in the harness.
+
+**Postscript — the Chrome-version lead above was tested and is false.** Chrome 150.0.7871.128 with
+an exactly-matched chromedriver ran the affected file clean twice locally, so the two-Chromes-on-the
+-runner observation, while real, was not the cause. The actual cause is the password leak check, in
+the section above.
+
+</details>
 
 ---
 

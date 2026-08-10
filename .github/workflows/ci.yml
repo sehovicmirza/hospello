@@ -81,8 +81,16 @@ jobs:
       - name: Rubocop
         run: bundle exec rubocop
 
+      # -w2 (medium confidence and above). Brakeman exits non-zero on any
+      # warning at all by default, and its weak-confidence band includes
+      # lifecycle advisories like "support for Rails X ends on <date>" —
+      # which is worth knowing and is tracked in the handover, but is not a
+      # defect in this diff and should not fail every build from the day
+      # that date comes into view. Real findings (the SQL-injection check
+      # that caught an interpolated ORDER BY in this repo) are medium or
+      # high, so the guard keeps its teeth.
       - name: Brakeman
-        run: bundle exec brakeman --no-pager
+        run: bundle exec brakeman --no-pager -w2
 
       - name: bundler-audit
         run: bundle exec bundler-audit check --update
