@@ -71,6 +71,8 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   # same input grab the <select> popup does and drop the keystrokes that follow.
   # There is no human here for them to help.
   driven_by :selenium, using: :headless_chrome, screen_size: [ 1400, 1400 ] do |options|
+    # TEMPORARY DIAGNOSTIC — remove with the rest of the experiment.
+    options.add_option("goog:loggingPrefs", { browser: "ALL" })
     options.add_preference("autofill.profile_enabled", false)
     options.add_preference("autofill.credit_card_enabled", false)
     options.add_preference("credentials_enable_service", false)

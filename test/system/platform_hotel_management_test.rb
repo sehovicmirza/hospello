@@ -22,6 +22,7 @@ class PlatformHotelManagementTest < ApplicationSystemTestCase
     select "Bosnian", from: "Staff language"
     click_on "Create hotel"
 
+    diagnose("create-hotel", "Hotel Two Rivers created.") { Hotel.exists?(slug: "two-rivers") }
     assert_text "Hotel Two Rivers created."
 
     hotel = Hotel.find_by!(slug: "two-rivers")
@@ -38,6 +39,7 @@ class PlatformHotelManagementTest < ApplicationSystemTestCase
     fill_in "Confirm password", with: "password123"
     click_on "Create admin"
 
+    diagnose("create-admin", "Amra Selimović created") { User.exists?(email_address: "amra@vrelo.example") }
     assert_text "Amra Selimović created as the admin for #{hotels(:vrelo).name}."
 
     admin = User.find_by!(email_address: "amra@vrelo.example")
@@ -49,6 +51,7 @@ class PlatformHotelManagementTest < ApplicationSystemTestCase
     visit platform_hotel_path(hotels(:stari_grad))
 
     click_on "Suspend hotel"
+    diagnose("suspend", "#{hotels(:stari_grad).name} suspended.") { hotels(:stari_grad).reload.suspended? }
     assert_text "#{hotels(:stari_grad).name} suspended."
     assert hotels(:stari_grad).reload.suspended?
 
@@ -73,6 +76,40 @@ class PlatformHotelManagementTest < ApplicationSystemTestCase
   end
 
   private
+    # TEMPORARY DIAGNOSTIC — remove with the rest of the experiment.
+    #
+    # Three questions in one run, printed only when something is already
+    # wrong so a green run stays quiet:
+    #   1. Did the write reach Rails at all? (the block)  — separates
+    #      "the click never landed" from "the click landed, the UI didn't
+    #      catch up".
+    #   2. Does the expected text arrive if we simply wait much longer? —
+    #      separates a slow runner from a lost event.
+    #   3. Did anything blow up in the browser? — a JS error that breaks
+    #      Turbo would swallow a form submit deterministically, which is
+    #      the shape of a 100%-reproducible failure.
+    def diagnose(label, expected_text)
+      # Mirrors exactly what the real assertion below does — same text,
+      # same 5s budget — so "arrived_at_5s=false" means the assertion that
+      # follows is about to fail, and everything after this line describes
+      # that failure rather than a state it never reached.
+      arrived_at_5s = page.has_text?(expected_text, wait: Capybara.default_max_wait_time)
+      return if arrived_at_5s
+
+      landed_at_5s = yield
+      arrived_at_35s = page.has_text?(expected_text, wait: 30)
+      landed_at_35s = yield
+      console = begin
+        page.driver.browser.logs.get(:browser).map(&:message).join(" || ")
+      rescue StandardError => e
+        "unavailable (#{e.class})"
+      end
+
+      puts "DIAG[#{label}] write_landed_at_5s=#{landed_at_5s} write_landed_at_35s=#{landed_at_35s} " \
+           "text_arrived_by_35s=#{arrived_at_35s} url=#{page.current_url}"
+      puts "DIAG[#{label}] console=#{console[0, 3000]}"
+    end
+
     # `click_on` returns when the click is dispatched, not when the page it
     # triggers has loaded. Navigating again before the sign-in response lands
     # leaves the session cookie unset, and the next page is a redirect back to
