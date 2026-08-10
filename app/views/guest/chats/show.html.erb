@@ -1,0 +1,25 @@
+<%# Task 1's placeholder only — real enough to prove the guest
+    session/cookie/tenant machinery and the guest layout's locale/RTL
+    handling work end to end. Task 2 replaces this template wholesale with
+    the actual chat UI. %>
+<% content_for :title, t(".title") %>
+
+<div class="mx-auto flex min-h-screen max-w-md flex-col gap-4 px-4 py-8">
+  <%# Current.hotel, not @guest_session.hotel: this line exists specifically
+      to make Guest::BaseController#scope_to_guest_hotel's own work visible
+      in rendered output, not just GuestSession resolution — see
+      test/tenancy/cross_tenant_access_test.rb, which would otherwise only
+      ever exercise which session a cookie resolves to, never which tenant
+      that session's hotel gets set to. %>
+  <p id="hotel-name" class="text-sm font-medium" style="color:var(--brand-primary)"><%= Current.hotel.name %></p>
+
+  <h1 id="chat-greeting" class="text-xl font-semibold" dir="auto">
+    <%= t(".greeting", name: @guest_session.guest_name) %>
+  </h1>
+
+  <% if @guest_session.room %>
+    <p id="chat-room" dir="auto"><%= t(".room_label", room: @guest_session.room.number) %></p>
+  <% end %>
+
+  <p id="chat-placeholder-notice" class="text-sm text-gray-500"><%= t(".placeholder_notice") %></p>
+</div>

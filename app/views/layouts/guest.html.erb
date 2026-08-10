@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<%# The hotel — not Hospello — is the brand throughout this namespace: body
+    style carries the hotel's own colors as CSS custom properties
+    (BrandingHelper#hotel_brand_style), and "Powered by Hospello" only
+    appears where each view opts in via hotel.powered_by_visible.
+
+    lang/dir follow I18n.locale, which every guest controller activates
+    before rendering (see GuestLocalization) — so a guest who picked Arabic
+    gets a genuinely right-to-left page, not just right-to-left text inside
+    an left-to-right shell. Every layout rule below uses CSS *logical*
+    properties (Tailwind's ps-/pe-/ms-/me-/text-start utilities, not
+    pl-/pr-/ml-/mr-/text-left) so this one stylesheet serves both
+    directions — "start"/"end" flip automatically with dir, "left"/"right"
+    never would. %>
+<html lang="<%= I18n.locale %>" dir="<%= GuestLocaleHelper.rtl?(I18n.locale) ? "rtl" : "ltr" %>">
+  <head>
+    <title><%= content_for(:title) || Current.hotel&.name || "Hospello" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <%# hotel_brand_style already returns an html_safe "--brand-*:...;" string;
+      falling back to "" (not omitting the attribute) when there is no
+      resolved hotel yet (Guest::BaseController's re-entry page, hit before
+      any tenant is known) keeps this one line instead of two branches. %>
+  <body class="min-h-screen bg-gray-50 text-gray-900" style="<%= Current.hotel ? hotel_brand_style(Current.hotel) : "" %>">
+    <% if notice = flash[:notice] %>
+      <p class="mx-auto max-w-md px-4 pt-4 text-sm font-medium text-green-700" id="notice"><%= notice %></p>
+    <% end %>
+    <% if alert = flash[:alert] %>
+      <p class="mx-auto max-w-md px-4 pt-4 text-sm font-medium text-red-600" id="alert"><%= alert %></p>
+    <% end %>
+
+    <%= yield %>
+  </body>
+</html>

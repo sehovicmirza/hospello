@@ -1,0 +1,87 @@
+<% content_for :title, @hotel.name %>
+
+<div class="mx-auto flex max-w-md flex-col gap-6 px-4 py-8">
+  <header class="flex flex-col items-center gap-3 text-center">
+    <% if @hotel.logo.attached? %>
+      <%= image_tag @hotel.logo, alt: @hotel.name, class: "h-16 w-auto" %>
+    <% end %>
+    <h1 id="hotel-name" class="text-2xl font-semibold" style="color:var(--brand-primary)"><%= @hotel.name %></h1>
+  </header>
+
+  <% if @hotel.welcome_image.attached? %>
+    <%= image_tag @hotel.welcome_image, alt: "", class: "aspect-video w-full rounded-lg object-cover" %>
+  <% end %>
+
+  <% if @hotel.welcome_message.present? %>
+    <p id="welcome-message" dir="auto" class="text-center text-gray-700"><%= @hotel.welcome_message %></p>
+  <% end %>
+
+  <% if @hotel.contact_phone.present? %>
+    <p id="contact-phone" class="text-center text-sm text-gray-600">
+      <%= t(".call_reception") %>
+      <%= link_to @hotel.contact_phone, "tel:#{@hotel.contact_phone.gsub(/\s+/, '')}",
+            class: "font-medium underline", style: "color:var(--brand-primary)" %>
+    </p>
+  <% end %>
+
+  <%# Spec requirement, not decoration: a guest must be told, in their own
+      language, that this chat is not for emergencies, and what to do
+      instead. %>
+  <p id="not-emergency-notice" class="rounded-md border px-3 py-2 text-start text-sm" style="border-color:var(--brand-secondary)">
+    <%= t(".not_emergency_notice") %>
+  </p>
+
+  <% if @guest_session.errors.any? %>
+    <div id="form-errors" class="rounded-md bg-red-50 px-3 py-2 text-start text-sm text-red-700" role="alert">
+      <p class="font-medium"><%= t(".errors_heading") %></p>
+      <ul class="list-disc ps-5">
+        <% @guest_session.errors.full_messages.each do |message| %>
+          <li dir="auto"><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= form_with model: @guest_session, url: hotel_landing_path(@hotel.slug), method: :post,
+        id: "new_guest_session", class: "flex flex-col gap-4 text-start" do |f| %>
+    <div>
+      <%= f.label :guest_name, t(".name_label"), class: "block text-sm font-medium text-gray-700" %>
+      <%= f.text_field :guest_name, required: true, dir: "auto", autocomplete: "name",
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+
+    <div>
+      <%= label_tag "guest_session_room_number", t(".room_label"), class: "block text-sm font-medium text-gray-700" %>
+      <%= text_field_tag "guest_session[room_number]", params.dig(:guest_session, :room_number), required: true,
+            id: "guest_session_room_number", dir: "auto",
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+
+    <div>
+      <%= f.label :locale, t(".locale_label"), class: "block text-sm font-medium text-gray-700" %>
+      <%= f.select :locale, GuestLocaleHelper::SUPPORTED_LOCALES.map { |code| [ GuestLocaleHelper::LOCALE_NAMES[code], code ] },
+            {}, class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+
+    <div>
+      <%= f.label :phone_e164, "#{t('.phone_label')} (#{t('.optional')})", class: "block text-sm font-medium text-gray-700" %>
+      <%= f.telephone_field :phone_e164, dir: "auto", autocomplete: "tel",
+            class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+
+    <%= render "guest/entries/privacy_notice" %>
+
+    <div class="flex items-start gap-2">
+      <%= check_box_tag "guest_session[consent]", "1", false, id: "guest_session_consent", class: "mt-1" %>
+      <%= label_tag "guest_session_consent", t(".consent_label"), class: "text-sm text-gray-700" %>
+    </div>
+
+    <%= f.submit t(".submit"), id: "guest-submit",
+          style: "background-color:var(--brand-primary); color:var(--brand-on-primary);",
+          class: "rounded-md px-4 py-2 font-medium" %>
+  <% end %>
+
+  <% if @hotel.powered_by_visible? %>
+    <p class="pb-4 text-center text-xs text-gray-400"><%= t("guest.powered_by_hospello") %></p>
+  <% end %>
+</div>

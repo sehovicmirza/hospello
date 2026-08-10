@@ -1,0 +1,32 @@
+en:
+  guest:
+    powered_by_hospello: "Powered by Hospello"
+    entries:
+      show:
+        call_reception: "Call reception:"
+        not_emergency_notice: "This chat is not for emergencies. For anything urgent, call reception directly or your local emergency number."
+        errors_heading: "Please fix the following:"
+        name_label: "Your full name"
+        room_label: "Room number"
+        locale_label: "Preferred language"
+        phone_label: "Phone number"
+        optional: "optional"
+        consent_label: "I agree to the privacy notice below."
+        submit: "Start chat"
+      privacy_notice:
+        title: "Privacy notice"
+        pending_review_marker: "DRAFT — pending legal review"
+        body: "We use your name, room number, and messages to help hotel staff assist you during your stay. Your phone number, if you give one, is used only to reach you about your stay. This information is kept only as long as needed for your stay and a short period after, and is not sold or shared outside the hotel and Hospello."
+      unavailable:
+        title: "This hotel isn't currently accepting guest chats"
+        body: "Please contact the front desk directly for assistance."
+    base:
+      re_entry:
+        title: "Your session has ended"
+        body: "Please scan the hotel's QR code again to start a new conversation."
+    chats:
+      show:
+        title: "Chat"
+        greeting: "Hello, %{name}!"
+        room_label: "Room %{room}"
+        placeholder_notice: "This is a temporary placeholder page — the full chat arrives soon."

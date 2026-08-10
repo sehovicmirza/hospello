@@ -1,0 +1,12 @@
+<% content_for :title, @hotel.name %>
+
+<div class="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-4 py-8 text-center">
+  <h1 id="hotel-unavailable" class="text-xl font-semibold"><%= t(".title") %></h1>
+  <p dir="auto"><%= t(".body") %></p>
+
+  <% if @hotel.contact_phone.present? %>
+    <p>
+      <%= link_to @hotel.contact_phone, "tel:#{@hotel.contact_phone.gsub(/\s+/, '')}", class: "font-medium underline" %>
+    </p>
+  <% end %>
+</div>

@@ -1,0 +1,36 @@
+# Deterministic raw tokens (documented per row below) let tests set a real,
+# valid guest cookie without a request round-trip through
+# Guest::EntriesController#create — sign the noted raw string into the
+# `hospello_guest` cookie (see GuestSignInTestHelper#sign_in_guest in
+# test/test_helper.rb) and it authenticates as this exact fixture, because
+# token_digest here is Digest::SHA256.hexdigest of that same raw string.
+# One session per hotel, deliberately different rooms/names/locales, so a
+# test asserting on rendered content can't pass by both sides coincidentally
+# matching (see test/fixtures/rooms.yml's header for the same reasoning).
+stari_guest:
+  hotel: stari_grad
+  room: stari_301
+  channel: 0
+  # raw token: "stari-grad-fixture-guest-token"
+  token_digest: <%= Digest::SHA256.hexdigest("stari-grad-fixture-guest-token") %>
+  guest_name: Amira Fixture
+  locale: bs
+  identity_status: 0
+  privacy_accepted_at: <%= 1.day.ago.iso8601 %>
+  status: 0
+  last_seen_at: <%= 1.hour.ago.iso8601 %>
+  expires_at: <%= 6.days.from_now.iso8601 %>
+
+vrelo_guest:
+  hotel: vrelo
+  room: vrelo_401
+  channel: 0
+  # raw token: "vrelo-bosne-fixture-guest-token"
+  token_digest: <%= Digest::SHA256.hexdigest("vrelo-bosne-fixture-guest-token") %>
+  guest_name: Marko Fixture
+  locale: en
+  identity_status: 0
+  privacy_accepted_at: <%= 1.day.ago.iso8601 %>
+  status: 0
+  last_seen_at: <%= 1.hour.ago.iso8601 %>
+  expires_at: <%= 6.days.from_now.iso8601 %>

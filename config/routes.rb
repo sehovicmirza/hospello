@@ -1,6 +1,31 @@
 Rails.application.routes.draw do
   resource :session, only: %i[ new create destroy ]
 
+  # The one public entry point per hotel — the printed QR code
+  # (HotelQrCode#path) encodes exactly this path, so its shape can never
+  # drift from what's already printed on a room card without every existing
+  # code becoming dead paper (see test/services/hotel_qr_code_test.rb and
+  # test/controllers/guest/entries_controller_test.rb, which pin the
+  # coupling by routing HotelQrCode's own #path rather than a re-typed
+  # literal). Guest::EntriesController is the only guest controller that
+  # ever takes a hotel from the URL — see that controller and
+  # Guest::BaseController for why every other guest route resolves the
+  # hotel from the guest's cookie instead.
+  get "/h/:hotel_slug", to: "guest/entries#show", as: :hotel_landing
+  post "/h/:hotel_slug", to: "guest/entries#create"
+
+  namespace :guest do
+    # Guest::BaseController (every controller in this namespace) resolves
+    # Current.hotel from the guest's cookie, never a URL parameter.
+    # Task 2 replaces ChatsController#show with the real chat surface and
+    # adds the message-sending route the guest_messages/ip Rack::Attack
+    # throttle (config/initializers/rack_attack.rb, matching any POST under
+    # "/guest/") is really guarding; this task's version is a thin
+    # placeholder — real enough to redirect the entry form to and to
+    # exercise the guest layout/locale in a system test, nothing more.
+    resource :chat, only: %i[show], controller: "chats"
+  end
+
   # Staff-facing hotel workspace. Every controller here inherits
   # Staff::BaseController, which sets the tenant from Current.user.hotel —
   # nothing in this namespace takes a hotel id from the URL.

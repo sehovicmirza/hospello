@@ -1,0 +1,32 @@
+de:
+  guest:
+    powered_by_hospello: "Bereitgestellt von Hospello"
+    entries:
+      show:
+        call_reception: "Rezeption anrufen:"
+        not_emergency_notice: "Dieser Chat ist nicht für Notfälle gedacht. Rufen Sie bei dringenden Anliegen bitte direkt die Rezeption oder den örtlichen Notruf an."
+        errors_heading: "Bitte korrigieren Sie Folgendes:"
+        name_label: "Ihr vollständiger Name"
+        room_label: "Zimmernummer"
+        locale_label: "Bevorzugte Sprache"
+        phone_label: "Telefonnummer"
+        optional: "optional"
+        consent_label: "Ich stimme dem untenstehenden Datenschutzhinweis zu."
+        submit: "Chat starten"
+      privacy_notice:
+        title: "Datenschutzhinweis"
+        pending_review_marker: "ENTWURF — rechtliche Prüfung ausstehend"
+        body: "Wir verwenden Ihren Namen, Ihre Zimmernummer und Ihre Nachrichten, damit das Hotelpersonal Ihnen während Ihres Aufenthalts helfen kann. Ihre Telefonnummer, falls angegeben, wird nur verwendet, um Sie bezüglich Ihres Aufenthalts zu erreichen. Diese Angaben werden nur so lange aufbewahrt, wie es für Ihren Aufenthalt und kurz danach erforderlich ist, und werden nicht außerhalb des Hotels und Hospellos verkauft oder weitergegeben."
+      unavailable:
+        title: "Dieses Hotel nimmt derzeit keine Gäste-Chats an"
+        body: "Bitte wenden Sie sich direkt an die Rezeption."
+    base:
+      re_entry:
+        title: "Ihre Sitzung ist abgelaufen"
+        body: "Bitte scannen Sie den QR-Code des Hotels erneut, um ein neues Gespräch zu starten."
+    chats:
+      show:
+        title: "Chat"
+        greeting: "Hallo, %{name}!"
+        room_label: "Zimmer %{room}"
+        placeholder_notice: "Dies ist eine vorübergehende Platzhalterseite — der vollständige Chat folgt in Kürze."

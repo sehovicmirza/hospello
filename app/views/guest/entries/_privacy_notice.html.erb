@@ -1,0 +1,8 @@
+<%# Pilot copy, explicitly marked as such — see .pending_review_marker below.
+    A short, plain notice behind a native <details>/<summary> disclosure so
+    it needs no Stimulus controller or extra CSP allowance to collapse. %>
+<details id="privacy-notice" class="rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-600">
+  <summary class="cursor-pointer font-medium text-gray-700"><%= t(".title") %></summary>
+  <p class="mt-2 font-semibold text-amber-700"><%= t(".pending_review_marker") %></p>
+  <p class="mt-2" dir="auto"><%= t(".body") %></p>
+</details>

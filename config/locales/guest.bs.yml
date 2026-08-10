@@ -1,0 +1,32 @@
+bs:
+  guest:
+    powered_by_hospello: "Pokreće Hospello"
+    entries:
+      show:
+        call_reception: "Pozovite recepciju:"
+        not_emergency_notice: "Ovaj razgovor nije namijenjen za hitne slučajeve. Za sve hitno pozovite recepciju direktno ili lokalni broj hitne pomoći."
+        errors_heading: "Molimo ispravite sljedeće:"
+        name_label: "Vaše puno ime"
+        room_label: "Broj sobe"
+        locale_label: "Željeni jezik"
+        phone_label: "Broj telefona"
+        optional: "opcionalno"
+        consent_label: "Slažem se sa obavještenjem o privatnosti ispod."
+        submit: "Započni razgovor"
+      privacy_notice:
+        title: "Obavještenje o privatnosti"
+        pending_review_marker: "NACRT — čeka pravnu reviziju"
+        body: "Koristimo vaše ime, broj sobe i poruke kako bi osoblje hotela moglo da vam pomogne tokom boravka. Vaš broj telefona, ako ga navedete, koristi se samo za kontakt u vezi sa vašim boravkom. Ovi podaci se čuvaju samo onoliko dugo koliko je potrebno za vaš boravak i kratko nakon toga, i ne prodaju se niti dijele van hotela i Hospella."
+      unavailable:
+        title: "Ovaj hotel trenutno ne prima goste putem chata"
+        body: "Molimo obratite se direktno recepciji za pomoć."
+    base:
+      re_entry:
+        title: "Vaša sesija je istekla"
+        body: "Molimo ponovo skenirajte QR kod hotela kako biste započeli novi razgovor."
+    chats:
+      show:
+        title: "Razgovor"
+        greeting: "Zdravo, %{name}!"
+        room_label: "Soba %{room}"
+        placeholder_notice: "Ovo je privremena stranica — puni chat stiže uskoro."

@@ -43,6 +43,33 @@ module SignInTestHelper
   end
 end
 
+# Signs a guest in for controller/integration/system tests by writing the
+# signed `hospello_guest` cookie directly — the same artifact
+# Guest::BaseController reads back via GuestSession.authenticate_by_token.
+# Pass the *raw* token (not its digest): fixtures/guest_sessions.yml
+# documents the raw token each fixture session was created with, and
+# Guest::EntriesController#create generates a fresh one per real signup.
+module GuestSignInTestHelper
+  def sign_in_guest(raw_token)
+    jar = ActionDispatch::TestRequest.create.cookie_jar
+    jar.signed[:hospello_guest] = raw_token
+    cookies[:hospello_guest] = jar[:hospello_guest]
+  end
+
+  # ActionDispatch::IntegrationTest#cookies (unlike ActionController::TestCase's)
+  # returns a plain Rack::Test::CookieJar with no `.signed` reader — it only
+  # ever sees the raw encoded value a controller's `cookies.signed[...] = `
+  # produced. Round-tripping that raw value through a fresh, throwaway
+  # ActionDispatch::Cookies::CookieJar (built the same way
+  # #sign_in_guest above writes one) verifies and decodes it back to the
+  # original raw token, the same way a real request handler would.
+  def read_signed_cookie(name)
+    jar = ActionDispatch::TestRequest.create.cookie_jar
+    jar[name] = cookies[name]
+    jar.signed[name]
+  end
+end
+
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers
@@ -53,6 +80,7 @@ module ActiveSupport
 
     include TenantTestHelper
     include SignInTestHelper
+    include GuestSignInTestHelper
 
     # Leave every test in a known tenant state: a leaked tenant from one test
     # would mask a missing tenant in the next.
