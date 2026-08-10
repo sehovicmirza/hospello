@@ -1,0 +1,19 @@
+<%# Only rendered above the composer while the conversation has no
+    messages yet (see show.html.erb) — a returning guest with history
+    already has better ways to say what they need than a chip list built
+    for a blank slate. Tapping a chip only ever fills the composer's
+    textarea (chat_composer_controller.js#fillFromChip); it never submits
+    anything by itself, so a request the guest didn't read and confirm can
+    never be sent. Free typing is always available regardless. %>
+<div id="quick-actions" class="flex flex-wrap gap-2 px-4 pb-2" role="group"
+     aria-label="<%= t("guest.chats.quick_actions.heading") %>">
+  <% quick_actions.each_with_index do |action, index| %>
+    <button type="button" id="quick-action-<%= index %>" dir="auto"
+            class="rounded-full border px-3 py-1.5 text-sm"
+            style="border-color:var(--brand-secondary)"
+            data-action="click->chat-composer#fillFromChip"
+            data-prefill-text="<%= action.prefill %>">
+      <%= action.label %>
+    </button>
+  <% end %>
+</div>

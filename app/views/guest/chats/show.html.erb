@@ -1,25 +1,74 @@
-<%# Task 1's placeholder only — real enough to prove the guest
-    session/cookie/tenant machinery and the guest layout's locale/RTL
-    handling work end to end. Task 2 replaces this template wholesale with
-    the actual chat UI. %>
 <% content_for :title, t(".title") %>
 
-<div class="mx-auto flex min-h-screen max-w-md flex-col gap-4 px-4 py-8">
-  <%# Current.hotel, not @guest_session.hotel: this line exists specifically
-      to make Guest::BaseController#scope_to_guest_hotel's own work visible
-      in rendered output, not just GuestSession resolution — see
-      test/tenancy/cross_tenant_access_test.rb, which would otherwise only
-      ever exercise which session a cookie resolves to, never which tenant
-      that session's hotel gets set to. %>
-  <p id="hotel-name" class="text-sm font-medium" style="color:var(--brand-primary)"><%= Current.hotel.name %></p>
+<%# Current.hotel, not @guest_session.hotel: this line exists specifically
+    to make Guest::BaseController#scope_to_guest_hotel's own work visible
+    in rendered output, not just GuestSession resolution — see
+    test/tenancy/cross_tenant_access_test.rb, which would otherwise only
+    ever exercise which session a cookie resolves to, never which tenant
+    that session's hotel gets set to.
 
-  <h1 id="chat-greeting" class="text-xl font-semibold" dir="auto">
-    <%= t(".greeting", name: @guest_session.guest_name) %>
-  </h1>
+    chat-scroll/chat-resilience/chat-composer are declared together on one
+    element: chat-resilience needs the messages list AND the cable stream
+    source in its own scope; chat-composer needs both the quick-action
+    chips and the composer form (siblings) in its own scope so a chip tap
+    can reach the composer's textarea target. One shared ancestor keeps
+    all three Stimulus controllers' target lookups working without any
+    inline script. %>
+<div class="mx-auto flex min-h-dvh max-w-md flex-col"
+     data-controller="chat-scroll chat-resilience chat-composer"
+     data-chat-resilience-after-url-value="<%= guest_messages_path %>"
+     data-chat-resilience-last-id-value="<%= @messages.last&.id.to_i || 0 %>">
 
-  <% if @guest_session.room %>
-    <p id="chat-room" dir="auto"><%= t(".room_label", room: @guest_session.room.number) %></p>
+  <header class="flex flex-col gap-0.5 border-b border-gray-200 px-4 py-3">
+    <p id="hotel-name" class="text-sm font-medium" style="color:var(--brand-primary)"><%= Current.hotel.name %></p>
+    <h1 id="chat-greeting" class="text-lg font-semibold" dir="auto">
+      <%= t(".greeting", name: @guest_session.guest_name) %>
+    </h1>
+    <% if @guest_session.room %>
+      <p id="chat-room" class="text-xs text-gray-500" dir="auto"><%= t(".room_label", room: @guest_session.room.number) %></p>
+    <% end %>
+  </header>
+
+  <%# The chat is not an emergency channel — the same notice the landing
+      page shows (Guest::EntriesController), reused verbatim rather than a
+      second copy of the same guarantee, kept reachable here too. %>
+  <p id="not-emergency-notice" class="border-b border-gray-100 px-4 py-2 text-xs text-gray-500" dir="auto">
+    <%= t("guest.entries.show.not_emergency_notice") %>
+    <% if Current.hotel.contact_phone.present? %>
+      <%= link_to Current.hotel.contact_phone, "tel:#{Current.hotel.contact_phone.gsub(/\s+/, '')}",
+            class: "font-medium underline" %>
+    <% end %>
+  </p>
+
+  <p id="offline-banner" class="hidden bg-amber-50 px-4 py-2 text-center text-xs text-amber-800" role="status"
+     data-chat-resilience-target="offlineBanner">
+    <%= t("guest.chats.composer.offline_banner") %>
+  </p>
+
+  <div id="chat-messages" class="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
+       data-chat-scroll-target="messages" data-chat-resilience-target="messages">
+    <% if @messages.empty? %>
+      <%# A warm greeting from the hotel — never "the AI" or "the
+          assistant" (there is no AI in this slice, and won't be a lie
+          about one when there is). %>
+      <p id="empty-state-greeting" class="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700" dir="auto">
+        <%= t(".empty_state_greeting", hotel_name: Current.hotel.name) %>
+      </p>
+    <% else %>
+      <%= render partial: "guest/messages/message", collection: @messages, as: :message %>
+    <% end %>
+  </div>
+
+  <% if @messages.empty? %>
+    <%= render "guest/chats/quick_actions", quick_actions: guest_quick_actions(Current.hotel) %>
   <% end %>
 
-  <p id="chat-placeholder-notice" class="text-sm text-gray-500"><%= t(".placeholder_notice") %></p>
+  <%= render "guest/chats/composer" %>
+
+  <%# Signed by Turbo (Turbo.signed_stream_verifier) — a guest cannot mint
+      or tamper with this value client-side, and ConversationChannel
+      additionally verifies server-side that Current.guest_session actually
+      owns the conversation this decodes to before ever confirming the
+      subscription (see that channel). %>
+  <%= turbo_stream_from @conversation, channel: ConversationChannel, data: { chat_resilience_target: "source" } %>
 </div>

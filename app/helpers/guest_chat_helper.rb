@@ -43,4 +43,36 @@ module GuestChatHelper
   def guest_sender_label(message)
     t("guest.messages.sender_labels.#{message.sender_role}")
   end
+
+  GuestQuickAction = Struct.new(:label, :prefill, keyword_init: true)
+
+  # The chip list above the composer on an empty conversation (spec
+  # requirement — see guest/chats/_quick_actions.html.erb): "ask a
+  # question" first and "contact reception" last are fixed, always
+  # present regardless of hotel; everything between them is this hotel's
+  # own RequestCategory list, active-only, in the hotel's own configured
+  # order. A category's prefill sentence wraps its *own* name verbatim —
+  # RequestCategory#name is free text a hotel_admin typed (Slice 1), not
+  # one of this app's four translated locale strings, so there is no
+  # correct way to machine-translate it here; only the surrounding
+  # sentence (t("guest.chats.quick_actions.category_prefill")) is in the
+  # guest's own language.
+  def guest_quick_actions(hotel)
+    [
+      GuestQuickAction.new(
+        label: t("guest.chats.quick_actions.ask_question_label"),
+        prefill: t("guest.chats.quick_actions.ask_question_prefill")
+      ),
+      *hotel.request_categories.active.ordered.map do |category|
+        GuestQuickAction.new(
+          label: category.name,
+          prefill: t("guest.chats.quick_actions.category_prefill", category: category.name)
+        )
+      end,
+      GuestQuickAction.new(
+        label: t("guest.chats.quick_actions.contact_reception_label"),
+        prefill: t("guest.chats.quick_actions.contact_reception_prefill")
+      )
+    ]
+  end
 end

@@ -1,17 +1,13 @@
-# Slice 2 Task 1 owns just enough of this controller to prove the guest
-# session/cookie/tenant machinery works end to end: a real page, rendered
-# inside the guest layout (so <html dir="rtl"> and the guest's chosen
-# locale are genuinely exercised — see test/system/guest_entry_test.rb),
-# that greets the guest by name and room.
-#
-# Task 2 owns this controller from here: it replaces #show with the actual
-# chat UI and adds the message-sending action the guest_messages/ip
-# Rack::Attack throttle (config/initializers/rack_attack.rb) is really for.
-# Nothing here is meant to survive that task unchanged.
+# Guest::BaseController (inherited) does the session/locale/tenant work —
+# see that controller. This is Task 2's real chat surface, replacing Task
+# 1's deliberately thin placeholder wholesale (see that task's own comment,
+# now gone from history but not forgotten).
 module Guest
   class ChatsController < BaseController
     def show
       @guest_session = Current.guest_session
+      @conversation = Conversation.live_for(@guest_session)
+      @messages = @conversation.messages.chronological.to_a
     end
   end
 end

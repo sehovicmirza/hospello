@@ -17,13 +17,17 @@ Rails.application.routes.draw do
   namespace :guest do
     # Guest::BaseController (every controller in this namespace) resolves
     # Current.hotel from the guest's cookie, never a URL parameter.
-    # Task 2 replaces ChatsController#show with the real chat surface and
-    # adds the message-sending route the guest_messages/ip Rack::Attack
-    # throttle (config/initializers/rack_attack.rb, matching any POST under
-    # "/guest/") is really guarding; this task's version is a thin
-    # placeholder — real enough to redirect the entry form to and to
-    # exercise the guest layout/locale in a system test, nothing more.
     resource :chat, only: %i[show], controller: "chats"
+
+    # POST creates a message — the guest_messages/ip Rack::Attack throttle
+    # (config/initializers/rack_attack.rb, matching any POST under
+    # "/guest/") is really guarding this route. GET (index) is the
+    # resilience layer's resync endpoint ("?after=<id>",
+    # app/javascript/controllers/chat_resilience_controller.js): the
+    # database is the source of truth and the live broadcast is only an
+    # enhancement, so this same action has to be able to answer "what did
+    # I miss" entirely on its own.
+    resources :messages, only: %i[create index]
   end
 
   # Staff-facing hotel workspace. Every controller here inherits

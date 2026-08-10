@@ -1,0 +1,38 @@
+<%# error: an already-translated friendly message from a failed send
+    (Guest::MessagesController#create's rescue) — nil on every other
+    render. Free typing is always available regardless of any quick action
+    tapped above this.
+
+    No data-controller here on purpose: this partial and
+    guest/chats/_quick_actions.html.erb are siblings under one shared
+    data-controller="chat-composer" wrapper (see chats/show.html.erb) —
+    a quick-action chip has to reach *this* form's own textarea target,
+    which only works if both live inside the same controller element. %>
+<% error = local_assigns[:error] %>
+<%= form_with url: guest_messages_path, method: :post, id: "composer",
+      data: {
+        chat_composer_target: "form",
+        action: "turbo:submit-end->chat-composer#submitEnd turbo:fetch-request-error->chat-composer#networkError"
+      },
+      class: "flex flex-col gap-2 border-t border-gray-200 bg-white px-3 py-3" do %>
+  <% if error.present? %>
+    <p id="composer-error" class="text-sm text-red-600" role="alert" dir="auto"><%= error %></p>
+  <% end %>
+  <p id="composer-offline-notice" class="hidden text-sm text-amber-600" role="status"
+     data-chat-composer-target="offlineNotice">
+    <%= t("guest.chats.composer.send_failed_notice") %>
+  </p>
+
+  <div class="flex items-end gap-2">
+    <%= hidden_field_tag "message[client_message_id]", SecureRandom.uuid,
+          data: { chat_composer_target: "clientMessageId" } %>
+    <%= text_area_tag "message[body]", nil, rows: 1, maxlength: Message::MAX_BODY_LENGTH, dir: "auto",
+          placeholder: t("guest.chats.composer.placeholder"), required: true,
+          data: { chat_composer_target: "input" },
+          class: "flex-1 resize-none rounded-md border border-gray-300 px-3 py-2 text-sm" %>
+    <%= submit_tag t("guest.chats.composer.send"), id: "composer-send",
+          data: { turbo_submits_with: t("guest.chats.composer.sending") },
+          style: "background-color:var(--brand-primary); color:var(--brand-on-primary);",
+          class: "shrink-0 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50" %>
+  </div>
+<% end %>
