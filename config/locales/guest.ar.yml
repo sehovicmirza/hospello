@@ -28,6 +28,7 @@ ar:
       sender_labels:
         guest: "أنت"
         staff: "طاقم الفندق"
+        assistant: "مساعد الفندق"
         system: "النظام"
     chats:
       show:

@@ -82,6 +82,18 @@
             <p class="mb-6 rounded-lg bg-red-50 px-3 py-2 font-medium text-red-600" id="alert"><%= alert %></p>
           <% end %>
 
+          <%# Persistent, not a flash: while the assistant is not answering,
+              every guest message is the front desk's to answer, and a receptionist
+              who navigated away from the page that told them so would otherwise
+              never find out. Rendered as words, never as a colour or icon alone.
+              Absent entirely when the assistant is working (StaffHelper). %>
+          <% if ai_notice = staff_ai_status_notice %>
+            <p id="ai-status-notice" role="status"
+               class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-medium text-amber-900">
+              <%= ai_notice %>
+            </p>
+          <% end %>
+
           <%= yield %>
         </main>
       </div>

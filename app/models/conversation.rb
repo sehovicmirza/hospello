@@ -164,6 +164,14 @@ class Conversation < ApplicationRecord
       touch_guest_activity!
     end
     broadcast_new_message(message)
+    # After the broadcast, and unconditionally. The guest's message is already
+    # persisted and already in the reception inbox at this point, so whether
+    # an assistant also answers is a separate question with its own four
+    # guards — and those live in one place, inside the job, rather than being
+    # half-decided here. A job that finds the assistant switched off returns
+    # in microseconds; duplicating the checks to save that would be the
+    # expensive mistake, because the two copies would drift.
+    Ai::GenerateReplyJob.perform_later(self)
     message
   rescue ActiveRecord::RecordNotUnique
     messages.find_by!(client_message_id: client_message_id)
@@ -228,6 +236,56 @@ class Conversation < ApplicationRecord
 
   def resume_ai!(user:)
     set_ai_mode!(:auto, user: user, notice: "Reception handed the conversation back.")
+  end
+
+  # The assistant's own reply to the guest.
+  #
+  # It clears staff_unread_count for the same reason a staff reply does: the
+  # guest has been answered, and "needs attention" is a work queue for a
+  # receptionist, not an audit log of everything that was said. A concierge
+  # that left every conversation flagged would recreate exactly the front-desk
+  # load it exists to remove. The cases where a human really is needed are the
+  # ones the assistant escalates, and an escalated conversation is in the
+  # needs-attention list regardless of its unread count.
+  #
+  # `ai_mode` is re-checked here, inside the transaction, and NOT before it:
+  # a receptionist can press Pause AI while the model is mid-flight, and the
+  # only place that race can be settled is at the moment of the write. A
+  # paused conversation returns nil and the caller discards the reply.
+  def post_assistant_reply!(body:, locale: nil)
+    message = nil
+    transaction do
+      lock!
+      return nil unless auto?
+
+      message = messages.create!(
+        hotel: hotel, sender_role: :assistant, body: body, body_locale: locale || guest_locale
+      )
+      update!(last_message_at: Time.current, staff_unread_count: 0)
+    end
+    broadcast_new_message(message)
+    message
+  end
+
+  # The guest-facing half of the degradation path: the assistant could not
+  # answer, so the guest is told — in their own language, from pre-translated
+  # copy — that a person will, and the conversation is escalated so that a
+  # person actually does.
+  #
+  # staff_unread_count is deliberately left alone. Unlike an assistant reply,
+  # nothing here answered the guest; the count is the receptionist's own
+  # signal that something is waiting, and clearing it would hide the one case
+  # that most needs a human.
+  def post_degraded_notice!(body:, reason:)
+    notice = nil
+    transaction do
+      notice = messages.create!(hotel: hotel, sender_role: :system, body: body, body_locale: guest_locale)
+      attributes = { last_message_at: Time.current }
+      attributes.merge!(status: :escalated, escalation_reason: reason, escalated_at: Time.current) if live?
+      update!(**attributes)
+    end
+    broadcast_new_message(notice)
+    notice
   end
 
   # The assistant handing a conversation to a person — the only escalation

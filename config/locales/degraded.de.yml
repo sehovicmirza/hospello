@@ -1,0 +1,5 @@
+# See config/locales/degraded.en.yml for why this string is pre-translated on
+# disk rather than generated at runtime.
+de:
+  degraded:
+    reception_will_reply: "Ihre Nachricht ist beim Hotelteam eingegangen, und jemand wird Ihnen hier persönlich antworten."

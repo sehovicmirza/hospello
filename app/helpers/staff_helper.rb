@@ -116,6 +116,32 @@ module StaffHelper
     count.positive? ? count : nil
   end
 
+  # The persistent banner a receptionist sees whenever the assistant is not
+  # answering guests — nil the rest of the time, so it is never wallpaper.
+  #
+  # It exists because the degradation path is deliberately invisible from the
+  # guest's side: they are told a person will reply, and they are right. The
+  # only way the front desk learns that "a person will reply" now means *them*,
+  # for every guest, is if we say so here.
+  #
+  # Ordered from most to least fundamental, and only ever one is shown: a hotel
+  # that has switched the assistant off does not also need to be told its
+  # circuit breaker is open.
+  def staff_ai_status_notice
+    hotel = Current.hotel
+    return nil if hotel.nil?
+
+    if !hotel.ai_enabled?
+      "The AI assistant is switched off for this hotel. Guests are being answered by staff only."
+    elsif Ai::CircuitBreaker.new(hotel).open?
+      "AI assistant paused — it is not reaching the provider. Guests are being answered manually, " \
+      "and it will resume on its own once the provider responds."
+    elsif AiRun.budget_exhausted_for?(hotel, fraction: 0.9)
+      "The AI assistant has reached today's usage limit. Guests are being answered manually until " \
+      "tomorrow; staff replies and translation are unaffected."
+    end
+  end
+
   # "Unverified" is not a detail to be tucked away: the room number was
   # self-entered on a shared QR code, so every screen that shows a guest's
   # claimed identity has to say out loud that nobody checked it. Rendered

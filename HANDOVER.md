@@ -184,8 +184,21 @@ model yet; this is the wall everything will talk *through*.
      anything; hotel and conversation come from the job's context and are not arguments), and
      `Ai::Concierge` + `Ai::Outcome` (the tool loop, bounded; citation marker stripped before the
      guest sees it; refusal / truncation / empty text are all "not a reply").
-   - **Next, in this order:** `Ai::GenerateReplyJob` with its four guards, `Ai::CircuitBreaker` +
-     the pre-translated degradation copy, then the injection corpus.
+   - **Also done and green:** `Ai::GenerateReplyJob` (serialized per conversation, coalescing,
+     four guards), `Ai::CircuitBreaker`, `config/locales/degraded.{bs,en,de,ar}.yml`, the staff
+     banner (`StaffHelper#staff_ai_status_notice`, rendered in the staff layout), and
+     `Conversation#post_assistant_reply!` / `#post_degraded_notice!`. The job is enqueued from
+     `Conversation#post_guest_message!`.
+   - **Next:** the injection corpus (`test/services/ai/injection_corpus_test.rb`), then a system
+     test and Task 4 (the knowledge-gap workflow).
+   - **Two decisions worth knowing about, both deviations from a literal reading of the brief:**
+     guards 1 and 2 (`ai_mode` paused, `hotel.ai_enabled` false) return in *silence* — no AiRun and
+     no guest notice — because the assistant being switched off is not a failure and a "someone will
+     reply personally" notice after every message would be noise on a conversation a human is
+     already working. AiRun's status enum has no value for either case, which is the same reading.
+     And an assistant reply clears `staff_unread_count` exactly as a staff reply does: the guest has
+     been answered, and a concierge that left every conversation flagged would recreate the front-
+     desk load it exists to remove. A degraded notice deliberately does *not* clear it.
    - Everything it needs exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude`
      is how you test it without a network call, and `conversation.ai_mode` is already written by the
      staff toggle and still read by nothing.

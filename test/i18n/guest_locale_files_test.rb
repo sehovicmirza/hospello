@@ -8,70 +8,101 @@ require "test_helper"
 # the four files directly off disk (not through I18n's own lookup, which
 # would apply that same fallback and could pass vacuously against a broken
 # file) and compares their key sets and interpolation variables structurally.
+#
+# It covers every guest-facing locale family, not just `guest.*`. The
+# `degraded.*` family matters at least as much: those strings are what a guest
+# sees when the model is unavailable, and a missing Arabic key there would
+# silently answer an Arabic-speaking guest in English at the exact moment the
+# product is already failing.
 class GuestLocaleFilesTest < ActiveSupport::TestCase
   LOCALES = GuestLocaleHelper::SUPPORTED_LOCALES
+  FAMILIES = %w[guest degraded].freeze
 
   test "every guest locale file declares exactly the same set of translation keys" do
-    key_sets = LOCALES.index_with { |locale| flattened_translations(locale).keys.to_set }
+    FAMILIES.each do |family|
+      key_sets = LOCALES.index_with { |locale| flattened_translations(family, locale).keys.to_set }
 
-    reference_locale = LOCALES.first
-    reference_keys = key_sets.fetch(reference_locale)
+      reference_locale = LOCALES.first
+      reference_keys = key_sets.fetch(reference_locale)
 
-    key_sets.each do |locale, keys|
-      next if locale == reference_locale
+      key_sets.each do |locale, keys|
+        next if locale == reference_locale
 
-      missing = (reference_keys - keys).to_a.sort
-      extra = (keys - reference_keys).to_a.sort
+        missing = (reference_keys - keys).to_a.sort
+        extra = (keys - reference_keys).to_a.sort
 
-      assert_empty missing, "guest.#{locale}.yml is missing keys present in guest.#{reference_locale}.yml: #{missing.join(', ')}"
-      assert_empty extra, "guest.#{locale}.yml has keys not present in guest.#{reference_locale}.yml: #{extra.join(', ')}"
+        assert_empty missing,
+          "#{family}.#{locale}.yml is missing keys present in #{family}.#{reference_locale}.yml: #{missing.join(', ')}"
+        assert_empty extra,
+          "#{family}.#{locale}.yml has keys not present in #{family}.#{reference_locale}.yml: #{extra.join(', ')}"
+      end
     end
   end
 
   test "every guest locale file uses the same %{interpolation} variables for a given key" do
-    translations_by_locale = LOCALES.index_with { |locale| flattened_translations(locale) }
-    all_keys = translations_by_locale.values.flat_map(&:keys).uniq
+    FAMILIES.each do |family|
+      translations_by_locale = LOCALES.index_with { |locale| flattened_translations(family, locale) }
+      all_keys = translations_by_locale.values.flat_map(&:keys).uniq
 
-    mismatches = all_keys.filter_map do |key|
-      variables_by_locale = LOCALES.index_with do |locale|
-        interpolation_variables(translations_by_locale.dig(locale, key))
+      mismatches = all_keys.filter_map do |key|
+        variables_by_locale = LOCALES.index_with do |locale|
+          interpolation_variables(translations_by_locale.dig(locale, key))
+        end
+
+        next if variables_by_locale.values.map(&:sort).uniq.size <= 1
+
+        "#{key}: " + variables_by_locale.map { |locale, vars| "#{locale}=#{vars.sort.inspect}" }.join(", ")
       end
 
-      next if variables_by_locale.values.map(&:sort).uniq.size <= 1
-
-      "#{key}: " + variables_by_locale.map { |locale, vars| "#{locale}=#{vars.sort.inspect}" }.join(", ")
+      assert_empty mismatches,
+        "interpolation variables differ across #{family} locale files:\n  #{mismatches.join("\n  ")}"
     end
-
-    assert_empty mismatches, "interpolation variables differ across guest locale files:\n  #{mismatches.join("\n  ")}"
   end
 
   test "no guest locale file has a blank translation for a key another locale fills in" do
-    translations_by_locale = LOCALES.index_with { |locale| flattened_translations(locale) }
+    FAMILIES.each do |family|
+      translations_by_locale = LOCALES.index_with { |locale| flattened_translations(family, locale) }
 
-    blanks = translations_by_locale.flat_map do |locale, translations|
-      translations.filter_map { |key, value| "#{locale}: #{key}" if value.blank? }
+      blanks = translations_by_locale.flat_map do |locale, translations|
+        translations.filter_map { |key, value| "#{locale}: #{key}" if value.blank? }
+      end
+
+      assert_empty blanks, "these #{family} locale keys are present but blank:\n  #{blanks.join("\n  ")}"
     end
+  end
 
-    assert_empty blanks, "these guest locale keys are present but blank:\n  #{blanks.join("\n  ")}"
+  # A guest whose language has no translation of the fallback message is a
+  # guest who, at the worst possible moment, gets English. Asserted through
+  # I18n rather than off disk on purpose — this one is about what a real
+  # request would render, and it is the complement to the structural checks
+  # above.
+  test "every guest language has its own words for the fallback message" do
+    rendered = LOCALES.index_with { |locale| I18n.t("degraded.reception_will_reply", locale: locale) }
+
+    assert_equal LOCALES.length, rendered.values.uniq.length,
+      "two languages share a fallback string, which means at least one is falling back to another: #{rendered.inspect}"
+    rendered.each_value { |string| assert_no_match(/translation missing/i, string) }
   end
 
   private
-    def flattened_translations(locale, hash = load_guest_yaml(locale), prefix = nil)
+    def flattened_translations(family, locale, hash = nil, prefix = nil)
+      hash ||= load_locale_yaml(family, locale)
+
       hash.each_with_object({}) do |(key, value), result|
         full_key = prefix ? "#{prefix}.#{key}" : key.to_s
         if value.is_a?(Hash)
-          result.merge!(flattened_translations(locale, value, full_key))
+          result.merge!(flattened_translations(family, locale, value, full_key))
         else
           result[full_key] = value
         end
       end
     end
 
-    def load_guest_yaml(locale)
+    def load_locale_yaml(family, locale)
       # Rails.root.join keeps this test independent of I18n's own load path
       # / fallback configuration — it must see exactly what's on disk for
       # this one file, nothing merged in from another locale.
-      YAML.load_file(Rails.root.join("config/locales/guest.#{locale}.yml")).fetch(locale.to_s)
+      YAML.load_file(Rails.root.join("config/locales/#{family}.#{locale}.yml")).fetch(locale.to_s)
     end
 
     def interpolation_variables(value)

@@ -1,0 +1,5 @@
+# See config/locales/degraded.en.yml for why this string is pre-translated on
+# disk rather than generated at runtime.
+bs:
+  degraded:
+    reception_will_reply: "Vaša poruka je stigla do osoblja hotela i neko će vam lično odgovoriti ovdje."

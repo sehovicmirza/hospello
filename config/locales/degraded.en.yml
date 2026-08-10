@@ -1,0 +1,19 @@
+# The message a guest gets when the assistant cannot answer — the API is
+# down, the circuit breaker is open, the hotel's daily budget is spent, or the
+# model declined.
+#
+# It is pre-translated here, on disk, and never generated at runtime. That is
+# the entire point: the moment this message is needed is the moment the model
+# is unavailable, so any implementation that asked a model to translate it
+# would fail exactly when it was called for. This is the last thing standing
+# between a guest and a dead end.
+#
+# The wording is bound by the product's rules: it promises a person, not a
+# time; it never mentions an AI, a system, or a failure, because none of that
+# is the guest's problem; and it does not apologise for something the guest
+# cannot see. Their message *has* reached the hotel — that part is true
+# regardless of what the model did, because persistence and staff routing
+# never depend on Anthropic.
+en:
+  degraded:
+    reception_will_reply: "Your message has reached the hotel team, and someone will reply to you here personally."

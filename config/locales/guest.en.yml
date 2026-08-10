@@ -28,6 +28,7 @@ en:
       sender_labels:
         guest: "You"
         staff: "Hotel staff"
+        assistant: "Hotel assistant"
         system: "System"
     chats:
       show:

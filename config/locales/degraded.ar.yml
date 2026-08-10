@@ -1,0 +1,5 @@
+# See config/locales/degraded.en.yml for why this string is pre-translated on
+# disk rather than generated at runtime.
+ar:
+  degraded:
+    reception_will_reply: "لقد وصلت رسالتك إلى فريق الفندق، وسيرد عليك أحد الموظفين شخصيًا هنا."
