@@ -44,10 +44,6 @@ class Conversation < ApplicationRecord
 
   def live? = LIVE_STATUSES.include?(status)
 
-  # The inbox's own three lenses (Staff::ConversationsController#index).
-  # "Needs attention" is deliberately *not* just "has unread messages":
-  # an escalated conversation with everything read is still the thing a
-  # receptionist most needs to look at.
   # "Waiting on a human", written once as SQL. Deliberately *not* just
   # "has unread messages": an escalated conversation with everything read
   # is still the thing a receptionist most needs to look at.
@@ -243,7 +239,6 @@ class Conversation < ApplicationRecord
     update!(staff_unread_count: 0)
     Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
   end
-
 
   private
     # sender_user on a :system message is unusual (the column exists for

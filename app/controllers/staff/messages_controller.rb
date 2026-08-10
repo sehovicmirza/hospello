@@ -13,15 +13,13 @@ module Staff
     before_action :set_conversation
 
     def create
-      body = message_params[:body].to_s
-
       if internal_note?
         authorize @conversation, :note?
-        @conversation.post_internal_note!(user: Current.user, body: body)
+        @conversation.post_internal_note!(user: Current.user, body: message_params[:body].to_s)
         redirect_to staff_conversation_path(@conversation), notice: "Internal note saved. The guest cannot see it."
       else
         authorize @conversation, :reply?
-        @conversation.post_staff_message!(user: Current.user, body: body)
+        @conversation.post_staff_message!(user: Current.user, body: message_params[:body].to_s)
         redirect_to staff_conversation_path(@conversation)
       end
     rescue ActiveRecord::RecordInvalid => invalid

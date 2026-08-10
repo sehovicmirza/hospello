@@ -54,7 +54,12 @@
 
   <% if @conversations.any? %>
     <ul id="conversation-list" class="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <%= render partial: "staff/conversations/conversation_row", collection: @conversations, as: :conversation %>
+      <%# previews passed as a local, not read off an ivar inside the
+          partial: the row would otherwise depend on a variable set by one
+          specific controller action, and rendering it from anywhere else
+          would fail on nil rather than simply showing no preview. %>
+      <%= render partial: "staff/conversations/conversation_row", collection: @conversations,
+            as: :conversation, locals: { previews: @previews } %>
     </ul>
   <% else %>
     <div id="inbox-empty" class="rounded-lg border border-dashed border-gray-300 p-12 text-center">

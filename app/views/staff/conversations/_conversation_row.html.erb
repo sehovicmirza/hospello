@@ -9,7 +9,7 @@
     or a message may be in Arabic while the staff workspace is in English,
     and each of those has to resolve its own direction. %>
 <% needs_attention = conversation.needs_attention? %>
-<% preview = @previews[conversation.id] %>
+<% preview = local_assigns.fetch(:previews, {})[conversation.id] %>
 
 <li id="<%= dom_id(conversation) %>"
     class="<%= needs_attention ? "border-l-4 border-l-amber-500 bg-amber-50/40" : "border-l-4 border-l-transparent" %>">
