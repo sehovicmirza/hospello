@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (after Slice 3 Task 2 — the AI client seam) |
+| **Last updated** | 2026-08-10 (after Slice 3 Task 3 — the concierge is live) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 535 unit/integration green · 31 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 639 unit/integration green · 34 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | Slices 1 and 2 complete · Slice 3 at 2 of 4 tasks |
+| **Progress** | Slices 1 and 2 complete · Slice 3 at 3 of 4 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -167,55 +167,78 @@ model yet; this is the wall everything will talk *through*.
   non-zero cache read on the second call — and is skipped unless `LIVE_AI=1`. Run it before a
   release; it is the only thing that can catch the API changing under us.
 
+**Slice 3 Task 3 — the concierge.** Complete. A guest asks in German and gets a German answer built
+only from that hotel's published knowledge base; a question the hotel never wrote down is answered
+honestly and passed to reception; a receptionist can pause the assistant and hand it back.
+
+- `Ai::PromptBuilder` + `Ai::Prompt` — the grounding contract. Three system blocks ordered
+  stable → volatile with the **one** cache breakpoint after the hotel's knowledge, the whole knowledge
+  base in every prompt (no retrieval — see the class comment for why that is a feature), guest text
+  sealed inside `<guest_message>` with `<` neutralised so it cannot close its own envelope, and
+  history filtered to `.guest_visible`.
+- `Ai::Tools` — `escalate_to_staff` and `log_unanswered_question`, the only way the assistant can
+  change anything. The hotel and conversation come from the job's context and are **not arguments**,
+  so a model naming a different hotel has nowhere to put the name. Failures come back as
+  `tool_result` blocks, never exceptions.
+- `Ai::Concierge` + `Ai::Outcome` — the bounded tool loop, usage summed across every call in the
+  turn, and the judgement that a successful HTTP response is not necessarily a reply (`refusal?`,
+  `truncated?`, blank text, and a loop that ran out of rounds all report "not a reply"). The
+  `[kb: 12, 14]` citation marker is stripped before the guest sees anything and filtered against the
+  hotel's real published entries.
+- `Ai::GenerateReplyJob` — serialized per conversation (`limits_concurrency`), coalescing (each run
+  records the guest message it handled, so a queued-behind job finds it dealt with), and the four
+  guards. Enqueued from `Conversation#post_guest_message!`.
+- `Ai::CircuitBreaker` (cache-backed, per hotel; timeouts and 5xx only), the pre-translated
+  `config/locales/degraded.{bs,en,de,ar}.yml`, and the persistent staff banner
+  (`StaffHelper#staff_ai_status_notice`).
+- `AiRun` and `UnansweredQuestion`, with the budget guard counting a day in the *hotel's* timezone.
+- `test/services/ai/injection_corpus_test.rb` — 17 real jailbreak shapes against the three
+  guarantees code can actually make. It deliberately asserts nothing about how the model behaves.
+
+**Two decisions in there that a reader might expect to go the other way**, both deliberate:
+
+- Guards 1 and 2 (`ai_mode` paused, `hotel.ai_enabled` false) return in **silence** — no `AiRun`, no
+  guest notice. The assistant being switched off is not a failure, and a "someone will reply
+  personally" notice after every message is noise on a conversation a human is already working.
+  `AiRun`'s status enum has no value for either case, which is the same reading.
+- An assistant reply clears `staff_unread_count` exactly as a staff reply does: the guest has been
+  answered, and a concierge that left every conversation flagged would recreate the front-desk load
+  it exists to remove. A **degraded** notice deliberately does not clear it, because nothing answered
+  the guest. If a pilot shows receptionists want to review every AI answer, this is the line to
+  revisit — `Conversation#post_assistant_reply!`.
+
 ---
 
 ## What to do next
 
-1. **Slice 3 Task 3 — in progress.** The concierge itself. Brief in `docs/plan/slice-3-tasks.md`.
-   - **Done and green:** `ai_runs` and `unanswered_questions` (schema, models, tests), plus
-     `test/fixtures/kb_entries.yml` — deliberately distinctive strings per hotel, which is what makes
-     the "hotel B's knowledge appears nowhere in hotel A's prompt" test possible. `AiRun` carries the
-     budget guard (`tokens_used_today` in the *hotel's* timezone, `budget_exhausted_for?`);
-     `UnansweredQuestion.record!` deduplicates in the database, not in Ruby.
-   - **Also done and green:** `Ai::PromptBuilder` + `Ai::Prompt` (the grounding contract — three
-     system blocks stable→volatile with the one cache breakpoint after the hotel's knowledge, guest
-     text sealed inside `<guest_message>` with `<` neutralised so it cannot close its own envelope,
-     history filtered to `.guest_visible`), `Ai::Tools` (the only way the assistant can change
-     anything; hotel and conversation come from the job's context and are not arguments), and
-     `Ai::Concierge` + `Ai::Outcome` (the tool loop, bounded; citation marker stripped before the
-     guest sees it; refusal / truncation / empty text are all "not a reply").
-   - **Also done and green:** `Ai::GenerateReplyJob` (serialized per conversation, coalescing,
-     four guards), `Ai::CircuitBreaker`, `config/locales/degraded.{bs,en,de,ar}.yml`, the staff
-     banner (`StaffHelper#staff_ai_status_notice`, rendered in the staff layout), and
-     `Conversation#post_assistant_reply!` / `#post_degraded_notice!`. The job is enqueued from
-     `Conversation#post_guest_message!`.
-   - **Next:** the injection corpus (`test/services/ai/injection_corpus_test.rb`), then a system
-     test and Task 4 (the knowledge-gap workflow).
-   - **Two decisions worth knowing about, both deviations from a literal reading of the brief:**
-     guards 1 and 2 (`ai_mode` paused, `hotel.ai_enabled` false) return in *silence* — no AiRun and
-     no guest notice — because the assistant being switched off is not a failure and a "someone will
-     reply personally" notice after every message would be noise on a conversation a human is
-     already working. AiRun's status enum has no value for either case, which is the same reading.
-     And an assistant reply clears `staff_unread_count` exactly as a staff reply does: the guest has
-     been answered, and a concierge that left every conversation flagged would recreate the front-
-     desk load it exists to remove. A degraded notice deliberately does *not* clear it.
-   - Everything it needs exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude`
-     is how you test it without a network call, and `conversation.ai_mode` is already written by the
-     staff toggle and still read by nothing.
+1. **Slice 3 Task 4 — the knowledge-gap workflow.** The last task in the slice, and the smallest.
+   `UnansweredQuestion` already exists, is already being written by the `log_unanswered_question`
+   tool, and already has `open_gaps` (this hotel's open questions, most-asked first). What is left is
+   the staff screen: `Staff::UnansweredQuestionsController` + views, "Answer & add to KB" pre-filling
+   a `KbEntry` form and linking + publishing it on save, dismiss, a nav badge, and the isolation and
+   system tests. Brief in `docs/plan/slice-3-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
 4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
 
-Still open from Slice 2 Task 3, for whoever builds the concierge: `ai_mode` is written by the staff
-toggle but **nothing reads it yet**, and the takeover notice it records is an internal note. Whether
-the guest should also be told "you are now speaking to reception" is a product-copy decision that
-only makes sense once there is an assistant to be handed over from.
+Still open, and now a real product question rather than a hypothetical one: the takeover notice
+`pause_ai!` records is an **internal** note, so a guest whose conversation moves from the assistant
+to a person is told nothing. That reads as deliberate from the guest's side (the chat simply carries
+on) and there is a system test asserting it. Whether they should be told is a copy decision for a
+human, not something to change on a hunch.
 
 Slices 3 and 4 need an `ANTHROPIC_API_KEY`. The app boots and runs fine without one; only the
 concierge and translation need it, and with no key `Ai::Client#chat` raises a plain `Ai::ApiError`
-that the degradation path will treat like any other AI failure.
+that the degradation path treats like any other AI failure — the guest gets "someone will reply
+personally" and the conversation escalates, which is exactly what should happen.
+
+**Run the live smoke test before a release.** `LIVE_AI=1 ANTHROPIC_API_KEY=... bin/rails test
+test/services/ai/live_smoke_test.rb` makes one real call and is the only thing in this repository
+that can catch the API changing under us — a mocked suite proves we send what we think we send, not
+that anyone still accepts it. It has **never been run**: no key has been available in any session so
+far, so the seam is verified against WebMock only.
 
 ---
 
@@ -233,8 +256,10 @@ that the degradation path will treat like any other AI failure.
   like belt-and-braces and they are not: without them every system test that signs in and then
   clicks fails on CI, and passes locally, which is the worst possible failure shape.
 - **Internal notes and guest-visible messages live in the same table.** Any new read of `messages` on
-  a guest-facing path must carry `.guest_visible` — there are exactly three such reads today and each
-  has a test that goes red without it. `Message#visibility` documents the rule.
+  a guest-facing path must carry `.guest_visible` — there are exactly **four** such reads today and
+  each has a test that goes red without it. `Message#visibility` documents the rule. The fourth is
+  the least obvious: `Ai::PromptBuilder#history`. The model's output goes straight to the guest, so a
+  note in the prompt is a leak with one extra step.
 - **`max_tokens` caps thinking *and* visible text together** on current models, so a comfortable-
   looking cap can end a turn with `stop_reason == "max_tokens"` and little or no text — a successful
   HTTP 200 carrying nothing usable. `Ai::Result#truncated?` names it; treat it as a failure, never as

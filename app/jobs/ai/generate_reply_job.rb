@@ -41,10 +41,23 @@ module Ai
     # which enqueues with the conversation alone).
     def perform(conversation, client: nil, breaker: nil)
       @conversation = conversation.reload
-      @hotel = conversation.hotel
+      @hotel = @conversation.hotel
       @client = client
       @breaker = breaker || CircuitBreaker.new(@hotel)
 
+      generate_reply
+    end
+
+    private
+
+    attr_reader :conversation, :hotel, :client, :breaker
+
+    # Split from #perform rather than inlined: there, the `breaker:` and
+    # `client:` keyword arguments shadow the readers below, so a default-built
+    # breaker was silently invisible and every call read nil. The unit tests
+    # missed it because they all inject one; the system test, which does not,
+    # found it immediately.
+    def generate_reply
       guest_message = latest_guest_message
       return if guest_message.nil?
 
@@ -71,10 +84,6 @@ module Ai
 
       answer(guest_message)
     end
-
-    private
-
-    attr_reader :conversation, :hotel, :client, :breaker
 
     def answer(guest_message)
       outcome = Concierge.new(conversation: conversation, **concierge_options).reply

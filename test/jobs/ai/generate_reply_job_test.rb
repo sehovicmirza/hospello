@@ -40,6 +40,18 @@ module Ai
       assert run.latency_ms.present?
     end
 
+    # Every other test here injects a breaker so it can assert on its state.
+    # This one runs the job exactly as production does, with nothing injected
+    # but the client — which is how a nil breaker (the keyword argument
+    # shadowing the reader) once reached the guard and raised on a real page.
+    test "runs with the app's own circuit breaker when none is injected" do
+      @fake.script_text("Answered with the real wiring.")
+
+      Ai::GenerateReplyJob.perform_now(@conversation, client: @fake)
+
+      assert_equal "assistant", @conversation.reload.messages.order(:id).last.sender_role
+    end
+
     test "an answered conversation is no longer waiting on a receptionist" do
       @conversation.update!(staff_unread_count: 3)
       @fake.script_text("Da, imamo.")

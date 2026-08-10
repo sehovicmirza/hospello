@@ -10,21 +10,27 @@ class KnowledgeBaseTest < ApplicationSystemTestCase
     assert_text "This is what the assistant is allowed to tell your guests"
 
     click_on "Add an entry"
-    fill_in "Title", with: "Breakfast"
-    fill_in "What the assistant may tell guests", with: "Breakfast is served 07:00-10:30 in the ground-floor dining room."
+    fill_in "Title", with: "Room service"
+    fill_in "What the assistant may tell guests", with: "Room service runs 07:00-23:00 — dial 9 from the room phone."
     click_on "Save entry"
 
-    assert_text "“Breakfast” saved."
-    # Saved without ticking the box means a draft — the guest-facing state
-    # has to be asked for, never arrived at.
-    assert_text "Draft"
+    assert_text "“Room service” saved."
 
-    click_on "Publish"
-    assert_text "“Breakfast” is now live for guests."
-    assert_text "Live"
+    # Scoped to this entry's own row: the fixtures carry other drafts, so an
+    # unscoped click would be ambiguous — and, worse, could publish somebody
+    # else's half-written entry.
+    entry = ActsAsTenant.with_tenant(hotels(:stari_grad)) { KbEntry.find_by!(title: "Room service") }
 
-    entry = ActsAsTenant.with_tenant(hotels(:stari_grad)) { KbEntry.find_by!(title: "Breakfast") }
-    assert entry.published?
+    within "##{ActionView::RecordIdentifier.dom_id(entry)}" do
+      # Saved without ticking the box means a draft — the guest-facing state
+      # has to be asked for, never arrived at.
+      assert_text "Draft"
+      click_on "Publish"
+    end
+
+    assert_text "“Room service” is now live for guests."
+    within("##{ActionView::RecordIdentifier.dom_id(entry)}") { assert_text "Live" }
+    assert entry.reload.published?
   end
 
   test "the empty state offers a starter that opens the form already named" do
@@ -39,7 +45,7 @@ class KnowledgeBaseTest < ApplicationSystemTestCase
 
   test "a receptionist can look things up but is not offered the editing controls" do
     ActsAsTenant.with_tenant(hotels(:stari_grad)) do
-      hotels(:stari_grad).kb_entries.create!(title: "Parking", content: "Garage under the building, 15 KM a night.")
+      hotels(:stari_grad).kb_entries.create!(title: "Bicycle hire", content: "Bicycles at the front desk, 15 KM a day.")
     end
 
     visit root_url
@@ -50,7 +56,7 @@ class KnowledgeBaseTest < ApplicationSystemTestCase
 
     visit staff_kb_entries_path
 
-    assert_text "Garage under the building"
+    assert_text "Bicycles at the front desk"
     assert_no_link "Add an entry"
     assert_no_button "Publish"
   end
