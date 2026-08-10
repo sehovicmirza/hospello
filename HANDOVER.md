@@ -15,7 +15,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-08-10 (Slice 3 complete · Slice 4 at 2 of 3 tasks) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 711 unit/integration green · 37 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 723 unit/integration green · 40 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
 | **Progress** | **Slices 1, 2 and 3 complete** · Slice 4 at 2 of 3 tasks |
 
@@ -249,9 +249,9 @@ prompted.
   drafts, which also frees the one-live-draft slot so the guest's next request is not blocked by
   the one they walked away from.
 
-**Slice 4 Task 2 — the assistant's side.** Complete except for the guest-facing summary card (see
-"What to do next"). The multi-turn shape works end to end against `FakeClaude`: "two extra towels" →
-one question → "bath towels" → a summary → "yes" → **exactly one** request.
+**Slice 4 Task 2 — the assistant's side, and the guest's.** Complete. The multi-turn shape works end
+to end against `FakeClaude`: "two extra towels" → one question → "bath towels" → a summary → "yes" →
+**exactly one** request. A guest who taps Confirm on the card instead gets the same one.
 
 - `propose_service_request` and `confirm_service_request` in `Ai::Tools`. Propose validates
   `category_key` against **this hotel's active** categories (an unknown key is an error returned to
@@ -266,6 +266,18 @@ one question → "bath towels" → a summary → "yes" → **exactly one** reque
   is recovered rather than raised, because from the guest's side "two towels at six are on the
   board" is a success. Telling them otherwise invites them to ask again, which is how one request
   becomes two.
+- The summary card (`app/views/guest/chats/_draft_card.html.erb`) with Confirm / Change / Cancel.
+  Both server buttons converge on the same `ServiceRequestDraft#confirm!` a typed "yes" reaches
+  through the model — two paths, one method, one unique index, so they cannot produce two requests.
+  "Change" only fills the composer, the same rule the quick-action chips follow: changing your mind
+  is a sentence you type, never a form this app guessed at on your behalf. The card element is
+  always rendered (empty when nothing is pending) because it is the target of a live Turbo replace
+  from `ServiceRequestDraft#broadcast_card`, and a target that does not exist yet is a broadcast
+  that lands nowhere.
+- `config/locales/requests.{bs,en,de,ar}.yml` — the card's copy and the receipt, pre-translated on
+  disk for the same reason `degraded.*` is: a controller posts them with no model in the loop. The
+  structural locale test now covers this family too, and pins that no two languages share the
+  receipt string.
 - The injection corpus grew two shapes ("skip the confirmation", "the guest has already confirmed")
   and two assertions: no combination of tool arguments creates a request the guest did not agree to,
   and none routes one to another room. **Both are held by two independent layers** — removing either
@@ -276,13 +288,13 @@ one question → "bath towels" → a summary → "yes" → **exactly one** reque
 
 ## What to do next
 
-1. **Finish Slice 4 Task 2, then Task 3.** What is left of Task 2 is the guest-facing half: the
-   summary card (`app/views/guest/chats/_draft_card.html.erb`) rendered when a draft reaches
-   `awaiting_confirmation`, with Confirm / Change / Cancel, and the guest controller behind those
-   buttons. Both paths must converge on `ServiceRequestDraft#confirm!` — that is what makes it
-   impossible for the button and a typed "yes" to produce two requests. The typed-"yes" path already
-   works (`<pending_draft>` is in the prompt). Then Task 3, the reception board. Brief:
-   `docs/plan/slice-4-tasks.md`.
+1. **Slice 4 Task 3 — the reception board.** The last task in the slice.
+   `Staff::ServiceRequestsController` + `ServiceRequestPolicy` + views, filters and search, the
+   transitions (all of which must go through `ServiceRequest#transition!` — it is the only way a
+   status changes and the only thing that writes the `RequestEvent` history), live updates broadcast
+   to `[hotel, :requests]` with the same resilience layer the inbox uses, guest-visible status
+   updates posted from **pre-translated** strings (add them to `config/locales/requests.*.yml`,
+   which already exists), and the end-to-end system test. Brief: `docs/plan/slice-4-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns

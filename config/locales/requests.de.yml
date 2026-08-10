@@ -1,0 +1,14 @@
+# See config/locales/requests.en.yml for the rules this copy is bound by.
+de:
+  requests:
+    card:
+      heading: "Soll ich das an die Rezeption schicken?"
+      pending_note: "Es wird nichts gesendet, bis Sie es sagen, und die Rezeption entscheidet, wie es weitergeht."
+      room: "Zimmer %{room}"
+      confirm: "Ja, senden"
+      change: "Etwas ändern"
+      cancel: "Nein, abbrechen"
+      change_prefill: "Ich möchte doch etwas ändern: "
+    sent_to_reception: "An die Rezeption gesendet. Jemand schaut es sich an und meldet sich hier bei Ihnen."
+    cancelled: "Kein Problem — es wurde nichts gesendet."
+    nothing_pending: "Im Moment wartet nichts darauf, gesendet zu werden."

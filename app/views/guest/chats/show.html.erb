@@ -63,6 +63,11 @@
     <%= render "guest/chats/quick_actions", quick_actions: guest_quick_actions(Current.hotel) %>
   <% end %>
 
+  <%# Always rendered, empty when nothing is pending — it is the target of a
+      live Turbo replace, and a target that does not exist yet is a broadcast
+      that lands nowhere. %>
+  <%= render "guest/chats/draft_card", draft: @pending_draft %>
+
   <%= render "guest/chats/composer" %>
 
   <%# Signed by Turbo (Turbo.signed_stream_verifier) — a guest cannot mint

@@ -1,0 +1,14 @@
+# See config/locales/requests.en.yml for the rules this copy is bound by.
+bs:
+  requests:
+    card:
+      heading: "Da pošaljem ovo recepciji?"
+      pending_note: "Ništa se ne šalje dok vi ne kažete, a recepcija odlučuje šta dalje."
+      room: "Soba %{room}"
+      confirm: "Da, pošalji"
+      change: "Promijeni nešto"
+      cancel: "Ne, otkaži"
+      change_prefill: "Zapravo, želio bih promijeniti nešto: "
+    sent_to_reception: "Poslano recepciji. Neko će pogledati i javiti vam se ovdje."
+    cancelled: "Nema problema — ništa nije poslano."
+    nothing_pending: "Trenutno nema ništa što čeka slanje."

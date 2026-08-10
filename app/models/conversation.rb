@@ -290,6 +290,21 @@ class Conversation < ApplicationRecord
     notice
   end
 
+  # A guest-visible system notice with nothing else attached: the receipt
+  # after a guest taps Confirm on a summary card, and the "nothing has been
+  # sent" after they cancel.
+  #
+  # Unlike #post_degraded_notice! this does not escalate and does not touch
+  # the unread count. A guest confirming their own request has not asked for
+  # a person — a receptionist will see the request itself on the board, which
+  # is the screen built for exactly that.
+  def post_system_notice!(body:)
+    notice = messages.create!(hotel: hotel, sender_role: :system, body: body, body_locale: guest_locale)
+    update!(last_message_at: Time.current)
+    broadcast_new_message(notice)
+    notice
+  end
+
   # The assistant handing a conversation to a person — the only escalation
   # path that is not a human pressing something, and the one that has to be
   # legible afterwards. `reason` is validated by the caller (Ai::Tools)

@@ -40,6 +40,14 @@ class ServiceRequestDraft < ApplicationRecord
   scope :live, -> { where(status: LIVE_STATUSES) }
   scope :past_expiry, -> { live.where(expires_at: ..Time.current) }
 
+  # The summary card on the guest's open chat, kept in step with the draft
+  # from every direction: the assistant proposing one, the guest tapping
+  # Confirm or Cancel, a typed "yes", and the expiry sweep. An after_commit
+  # rather than a call at each of those sites, because there are four of them
+  # and a card left on screen for a request that no longer exists is a guest
+  # confirming something that cannot happen.
+  after_commit :broadcast_card
+
   def live? = LIVE_STATUSES.include?(status)
 
   def expired_by_time? = expires_at.present? && expires_at <= Time.current
@@ -129,6 +137,23 @@ class ServiceRequestDraft < ApplicationRecord
   class NotConfirmable < StandardError; end
 
   private
+    def broadcast_card
+      # Whatever this draft's own state, the card shows the conversation's
+      # current pending one — a discarded draft broadcasting "nothing here"
+      # must not blank a card belonging to the one that replaced it.
+      pending = self.class.live_for(conversation)&.then { |draft| draft if draft.status_awaiting_confirmation? }
+
+      # No request behind this (a tool call inside a job, or the expiry
+      # sweep), so I18n.locale is whatever the thread was last left with —
+      # the same reasoning as Conversation#broadcast_to_guest.
+      I18n.with_locale(conversation.guest_locale.presence || I18n.default_locale) do
+        Turbo::StreamsChannel.broadcast_replace_to(
+          conversation, target: "draft-card",
+          partial: "guest/chats/draft_card", locals: { draft: pending }
+        )
+      end
+    end
+
     def build_request
       guest_session = conversation.guest_session
 

@@ -1,0 +1,14 @@
+# See config/locales/requests.en.yml for the rules this copy is bound by.
+ar:
+  requests:
+    card:
+      heading: "هل أرسل هذا إلى مكتب الاستقبال؟"
+      pending_note: "لن يُرسل أي شيء حتى توافق، ومكتب الاستقبال هو من يقرر ما سيحدث بعد ذلك."
+      room: "غرفة %{room}"
+      confirm: "نعم، أرسله"
+      change: "تغيير شيء ما"
+      cancel: "لا، إلغاء"
+      change_prefill: "في الواقع، أود تغيير شيء ما: "
+    sent_to_reception: "أُرسل إلى مكتب الاستقبال. سيطّلع عليه أحد الموظفين ويعود إليك هنا."
+    cancelled: "لا مشكلة — لم يُرسل أي شيء."
+    nothing_pending: "لا يوجد حاليًا ما ينتظر الإرسال."

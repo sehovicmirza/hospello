@@ -28,6 +28,18 @@ Rails.application.routes.draw do
     # enhancement, so this same action has to be able to answer "what did
     # I miss" entirely on its own.
     resources :messages, only: %i[create index]
+
+    # The summary card's two buttons. A singular resource with no id in the
+    # path, like everything else in this namespace: the draft is always "the
+    # live one belonging to this cookie's conversation", never one a form
+    # could name. Both buttons converge on the same
+    # ServiceRequestDraft#confirm! a typed "yes" reaches through the model,
+    # which is what makes it impossible for the two paths to produce two
+    # requests.
+    resource :service_request_draft, only: [] do
+      post :confirm
+      post :discard
+    end
   end
 
   # Staff-facing hotel workspace. Every controller here inherits

@@ -14,6 +14,17 @@ module Guest
       # Guest::MessagesController#index and Conversation#broadcast_new_message
       # for the other two.
       @messages = @conversation.messages.guest_visible.chronological.to_a
+      # The summary card, if there is something waiting to be agreed to. A
+      # guest who reloads mid-decision has to find it still there — the card
+      # is the only place the confirmation actually happens for someone who
+      # taps rather than types.
+      @pending_draft = pending_draft
     end
+
+    private
+      def pending_draft
+        draft = ServiceRequestDraft.live_for(@conversation)
+        draft if draft&.status_awaiting_confirmation?
+      end
   end
 end

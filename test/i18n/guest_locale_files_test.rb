@@ -16,7 +16,7 @@ require "test_helper"
 # product is already failing.
 class GuestLocaleFilesTest < ActiveSupport::TestCase
   LOCALES = GuestLocaleHelper::SUPPORTED_LOCALES
-  FAMILIES = %w[guest degraded].freeze
+  FAMILIES = %w[guest degraded requests].freeze
 
   test "every guest locale file declares exactly the same set of translation keys" do
     FAMILIES.each do |family|
@@ -76,12 +76,22 @@ class GuestLocaleFilesTest < ActiveSupport::TestCase
   # I18n rather than off disk on purpose — this one is about what a real
   # request would render, and it is the complement to the structural checks
   # above.
-  test "every guest language has its own words for the fallback message" do
-    rendered = LOCALES.index_with { |locale| I18n.t("degraded.reception_will_reply", locale: locale) }
+  #
+  # Both keys are ones a *controller or a job* posts, with no model involved:
+  # the degradation notice when the assistant is unavailable, and the receipt
+  # when a guest taps Confirm on a summary card. Neither can fall back to a
+  # live translation, so the file on disk is the only thing standing between a
+  # guest and a message in the wrong language.
+  UNTRANSLATABLE_AT_RUNTIME = %w[degraded.reception_will_reply requests.sent_to_reception].freeze
 
-    assert_equal LOCALES.length, rendered.values.uniq.length,
-      "two languages share a fallback string, which means at least one is falling back to another: #{rendered.inspect}"
-    rendered.each_value { |string| assert_no_match(/translation missing/i, string) }
+  test "every guest language has its own words for the messages nothing can translate later" do
+    UNTRANSLATABLE_AT_RUNTIME.each do |key|
+      rendered = LOCALES.index_with { |locale| I18n.t(key, locale: locale) }
+
+      assert_equal LOCALES.length, rendered.values.uniq.length,
+        "two languages share #{key}, which means at least one is falling back to another: #{rendered.inspect}"
+      rendered.each_value { |string| assert_no_match(/translation missing/i, string) }
+    end
   end
 
   private

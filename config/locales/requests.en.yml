@@ -1,0 +1,25 @@
+# What a guest is told about their own service request.
+#
+# Every string here is bound by the product's central rule: a request is
+# **sent** and **pending** until a person acts on it. Nothing in this file may
+# say confirmed, booked, approved, reserved, arranged or guaranteed, and
+# nothing may promise a time. Read the rest of that reasoning in
+# docs/plan/engineering-rules.md, "Product invariants".
+#
+# Pre-translated on disk, like config/locales/degraded.*.yml, and for a
+# related reason: this text is posted by a controller and by a background job,
+# neither of which may depend on a model being available to say something the
+# guest needs to understand.
+en:
+  requests:
+    card:
+      heading: "Shall I send this to reception?"
+      pending_note: "Nothing is sent until you say so, and reception decides what happens next."
+      room: "Room %{room}"
+      confirm: "Yes, send it"
+      change: "Change something"
+      cancel: "No, cancel"
+      change_prefill: "Actually, I'd like to change something: "
+    sent_to_reception: "Sent to reception. Someone will take a look and get back to you here."
+    cancelled: "No problem — nothing has been sent."
+    nothing_pending: "There's nothing waiting to be sent right now."
