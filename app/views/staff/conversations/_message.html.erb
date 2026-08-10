@@ -14,7 +14,12 @@
      class="flex flex-col gap-1 <%= message.guest? ? "items-start" : "items-end" %>">
   <% if message.internal? %>
     <div class="w-full max-w-[85%] rounded-lg border-2 border-dashed border-purple-400 bg-purple-50 px-3 py-2">
-      <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-purple-800">
+      <%# Deliberately not `uppercase`: CSS text-transform would make the
+          sentence a reader sees differ from the sentence in this file, so a
+          test asserting on either one would stop describing the other. It
+          is also a long sentence, and long sentences in all caps are read
+          more slowly — the opposite of what a warning needs. %>
+      <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-purple-800">
         <span aria-hidden="true">🔒</span>
         Internal note — the guest cannot see this
       </p>

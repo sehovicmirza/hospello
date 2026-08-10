@@ -48,7 +48,25 @@ class Conversation < ApplicationRecord
   # "Needs attention" is deliberately *not* just "has unread messages":
   # an escalated conversation with everything read is still the thing a
   # receptionist most needs to look at.
-  scope :needs_attention, -> { where(status: :escalated).or(live.where(arel_table[:staff_unread_count].gt(0))) }
+  # "Waiting on a human", written once as SQL. Deliberately *not* just
+  # "has unread messages": an escalated conversation with everything read
+  # is still the thing a receptionist most needs to look at.
+  #
+  # The scope filters by this, inbox_order sorts by it, and #needs_attention?
+  # answers it for a single already-loaded row — three uses that must agree,
+  # so two of them share this one definition and the third is pinned
+  # against it by test/models/conversation_test.rb. An earlier version
+  # spelled the same condition out a third time as an interpolated SQL
+  # string inside the ORDER BY, which both duplicated the logic and read to
+  # Brakeman as a possible injection.
+  def self.needs_attention_predicate
+    arel_table[:status].eq(statuses[:escalated]).or(
+      arel_table[:status].in(LIVE_STATUSES.map { |status| statuses[status] })
+        .and(arel_table[:staff_unread_count].gt(0))
+    )
+  end
+
+  scope :needs_attention, -> { where(needs_attention_predicate) }
   scope :settled, -> { where(status: %w[resolved expired]) }
 
   # The row-level counterpart of the scope above — the inbox list marks
@@ -66,17 +84,16 @@ class Conversation < ApplicationRecord
   # bottom, not (as Postgres would otherwise sort a descending NULL) at the
   # very top.
   #
-  # Every column is table-qualified because this scope is routinely chained
-  # onto .matching, which left-joins guest_sessions — and guest_sessions
-  # has its own `status` column, so a bare `status` here raises
-  # PG::AmbiguousColumn the moment a receptionist types in the search box.
+  # Sorting by the needs-attention predicate descending puts it first:
+  # Postgres orders false before true. Every column is table-qualified —
+  # arel_table does that for the predicate, and the raw fragment names its
+  # table by hand — because this scope is routinely chained onto .matching,
+  # which left-joins guest_sessions, and guest_sessions has a `status`
+  # column of its own: an unqualified reference raised PG::AmbiguousColumn
+  # the moment a receptionist typed in the search box.
   scope :inbox_order, -> {
     order(
-      Arel.sql(
-        "CASE WHEN conversations.status = #{statuses[:escalated]} " \
-        "OR (conversations.status IN (#{statuses[:active]}, #{statuses[:escalated]}) AND conversations.staff_unread_count > 0) " \
-        "THEN 0 ELSE 1 END"
-      ),
+      Arel::Nodes::Descending.new(Arel::Nodes::Grouping.new(needs_attention_predicate)),
       Arel.sql("conversations.last_message_at DESC NULLS LAST"),
       arel_table[:id].desc
     )

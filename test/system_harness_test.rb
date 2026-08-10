@@ -14,7 +14,7 @@ class SystemHarnessTest < ActiveSupport::TestCase
 
   test "Capybara retries the Chrome spelling of a detached node" do
     stale = Selenium::WebDriver::Error::UnknownError.new(
-      %q{unhandled inspector error: {"code":-32000,"message":"Node with given id does not belong to the document"}}
+      %q(unhandled inspector error: {"code":-32000,"message":"Node with given id does not belong to the document"})
     )
 
     assert @driver.invalid_element_errors.any? { |error| error === stale },

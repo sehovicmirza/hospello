@@ -12,11 +12,27 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 2 Task 3 in progress — inbox works, system tests pending) |
+| **Last updated** | 2026-08-10 (after Slice 2 Task 3 — Slice 2 complete) |
 | **Branch** | `claude/continue-ai-agent-work-bq59gm` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 474 unit/integration green · 21 system green |
-| **Progress** | Slice 1 complete · Slice 2 at 2½ of 3 tasks · Slices 3–7 not started |
+| **Tests** | 475 unit/integration green · 28 system green locally (four consecutive clean runs) · rubocop and brakeman clean |
+| **CI** | ❌ **red, and has been on every run since the repo's first** — pre-existing, not this work. See below. |
+| **Progress** | Slices 1 and 2 complete · Slices 3–7 not started |
+
+> ### Read this before trusting "tests green"
+>
+> Every GitHub Actions run of this repo has failed, back to 2026-08-07. Earlier handovers reported
+> green suites; those were **local** runs and nobody had opened the Actions tab. The failing step is
+> always `bin/rails test:system`, always the same three tests in `platform_hotel_management_test.rb`,
+> and always the Chrome click-delivery flake already diagnosed in
+> [docs/plan/known-issues.md](docs/plan/known-issues.md) — where new evidence from this session is now
+> recorded, including the fact that CI runs the system suite against a *different Chrome build* than
+> the one its own setup step installs.
+>
+> Because the job stops at that step, the `rubocop` and `brakeman` steps had **never once run**. Both
+> had accumulated real findings by the time this session checked; both are clean now.
+>
+> `bin/rails test` passes on CI. This work is covered by it.
 
 ---
 
@@ -71,8 +87,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
   page. Nothing caught it because the only CSP test drove the *staff* side. Now a per-request
   `SecureRandom` nonce. Verified: restoring the old generator fails the guest chat tests.
 
-**Slice 2 Task 3 — the reception inbox.** In progress. The model layer is complete and reviewed
-against the engineering rules; the controllers, views, and live updates are not built yet.
+**Slice 2 Task 3 — the reception inbox.** Complete. **Slice 2 is done**: a guest scans a QR code,
+chats in their own language, and a receptionist sees it live and replies. No AI anywhere in the path,
+which is the point — acceptance scenario 12 ("AI down, guest still reaches reception") is structurally
+true from here on.
 
 - `messages.visibility` (`guest_visible` / `internal`) — internal notes share the messages table so
   the staff transcript reads as one chronological story. The default is the safe one, visibility is
@@ -101,22 +119,29 @@ against the engineering rules; the controllers, views, and live updates are not 
   and re-rendering from the server is what keeps every count server-computed.
   `inbox_resilience_controller.js` re-visits the page on reconnect/visibilitychange and polls every
   60s while the cable is down.
+- `test/system/guest_staff_live_test.rb` — **the test that proves the slice**. Two real browsers: the
+  guest posts and the receptionist's page updates itself, then the receptionist replies and the
+  guest's page updates itself. A second test in the same file writes an internal note while the guest
+  sits on a live chat and proves it never arrives.
 
 ---
 
 ## What to do next
 
-1. **Finish Slice 2 Task 3** — only the two system tests remain: `test/system/reception_inbox_test.rb`
-   and the two-browser `test/system/guest_staff_live_test.rb` (Step 4 of the brief in
-   `docs/plan/slice-2-tasks.md` — "the test that proves the slice"). Everything else in the task is
-   built and covered by unit/integration tests. **This is the milestone where the product becomes
-   genuinely usable by a hotel**, humans only, no AI. Acceptance scenario 12 ("AI down, guest still
-   reaches reception") becomes structurally true from here on.
+1. **Get CI green** — or decide out loud that it stays red and why. It is one pre-existing flaky file
+   (see the box at the top and `docs/plan/known-issues.md`), and while it is red nothing downstream
+   of it in the workflow runs at all. This is small and it unblocks every future session's ability to
+   trust a green check.
 2. **Slice 3** — the AI concierge, grounded strictly in the hotel's published knowledge base.
    Breakdown already written: `docs/plan/slice-3-tasks.md`.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
 4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
+
+When Slice 3 arrives, two things this task deliberately left for it: `ai_mode` is written by the
+staff toggle but **nothing reads it yet**, and the takeover notice it records is an internal note.
+Whether the guest should also be told "you are now speaking to reception" is a product-copy decision
+that only makes sense once there is an assistant to be handed over from.
 
 Slices 3 and 4 need an `ANTHROPIC_API_KEY`. The app boots and runs fine without one; only the
 concierge and translation need it.
@@ -131,9 +156,17 @@ concierge and translation need it.
 - **Check [docs/plan/known-issues.md](docs/plan/known-issues.md) before fixing anything that looks
   broken.** Several things that look like bugs are deliberate and documented, and two plausible-
   sounding claims in there have been investigated and are false.
-- **One system test file flakes ~4 runs in 10** (`platform_hotel_management_test.rb`) from a
-  diagnosed Chrome click-delivery bug. It is not your fault, it is not a product bug, and a proposed
-  fix was rejected as unproven. Don't let it block you; don't paper over it.
+- **One system test file flakes** (`platform_hotel_management_test.rb`) from a diagnosed Chrome
+  click-delivery bug — ~4 runs in 10 locally for an earlier session, but **100% of runs on GitHub
+  Actions**, where it is the sole reason CI is red. It is not your fault and it is not a product bug;
+  a proposed fix was rejected as unproven. Don't paper over it — `known-issues.md` now carries a
+  concrete, untested lead (CI's Chrome on PATH is a different build from the one its setup step
+  installs).
+- **A green local run does not mean a green CI run.** Nobody had checked the Actions tab for three
+  days of work. Check it.
+- **Internal notes and guest-visible messages live in the same table.** Any new read of `messages` on
+  a guest-facing path must carry `.guest_visible` — there are exactly three such reads today and each
+  has a test that goes red without it. `Message#visibility` documents the rule.
 - **`.superpowers/` is gitignored** — it is agent scratch. Everything a new session actually needs is
   in `docs/plan/` and this file. If you produce something durable, put it in `docs/`, not there.
 - **Never commit `config/master.key`.** It was accidentally committed once early on and had to be

@@ -32,6 +32,36 @@ code change at all — that confound invalidated an earlier measurement.
 
 **Do not** add mitigations for it in passing, and do not let it block a slice.
 
+#### New evidence (Slice 2 Task 3 session) — this is why CI is red, and has been all along
+
+**Every GitHub Actions run of this repo has failed**, back to the first one on 2026-08-07. Nobody had
+looked: local runs were green and the handover reported those. The failing step is always
+`bin/rails test:system`, and the failures are always the same three tests in
+`platform_hotel_management_test.rb`, with the signature already diagnosed above — the form is still
+on screen, unsubmitted, with no flash message. `bin/rails test` passes on CI (415/415 at the time of
+writing).
+
+Two consequences worth knowing:
+
+- **The `rubocop` and `brakeman` steps have never run.** They come after `test:system` in
+  `.github/workflows/ci.yml`, and the job stops at the first failure. Both had accumulated real
+  findings by the time anyone checked; both are clean as of this session.
+- The failure rate on the CI runner is **100%**, not the ~40% measured locally.
+
+**A concrete difference from a passing local run, not yet tested as a fix:** CI's own log shows two
+different Chromes on the runner. `browser-actions/setup-chrome@v1` reports
+`Successfully setup chromium 151.0.7922.108`, and then the very next step, `google-chrome --version`,
+prints **150.0.7871.128** — the version preinstalled on the runner image. Selenium Manager resolves a
+chromedriver for whichever browser it detects, so the driver and the browser under test may not be
+the pair anyone intended.
+
+In this session's environment, Chrome 151.0.7922.108 driven by an exactly-matched chromedriver
+151.0.7922.108 ran the full system suite **four consecutive times with zero failures**, this file
+included. That is suggestive, not proof — a different machine and a different load, which is exactly
+the confound that invalidated the earlier measurement. Whoever takes this on should pin the browser
+and driver to the same build in CI and read the result, rather than adding retry logic to the app's
+test harness.
+
 ---
 
 ## Unverified assumptions that need checking against reality

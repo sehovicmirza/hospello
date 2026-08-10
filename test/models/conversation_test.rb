@@ -361,7 +361,7 @@ class ConversationTest < ActiveSupport::TestCase
     end
   end
 
-  test "mark_read_by_staff! clears the unread count" do
+  test "mark_read_by_staff! clears the unread count and tells the inbox" do
     hotel = hotels(:stari_grad)
     session = with_tenant(hotel) { fresh_guest_session(hotel) }
 
@@ -370,9 +370,27 @@ class ConversationTest < ActiveSupport::TestCase
       conversation.post_guest_message!(body: "Hello?", client_message_id: SecureRandom.uuid)
       assert_equal 1, conversation.reload.staff_unread_count
 
-      conversation.mark_read_by_staff!
+      assert_broadcasts(inbox_stream_name(hotel), 1) { conversation.mark_read_by_staff! }
 
       assert_equal 0, conversation.reload.staff_unread_count
+    end
+  end
+
+  # The already-zero guard is not an optimisation, it is what stops a loop:
+  # Staff::ConversationsController#show marks the conversation read on every
+  # render, a refresh broadcast makes every open staff page re-render, and a
+  # re-render that broadcast again would feed itself forever across two open
+  # tabs. Asserting "no broadcast" is the only way to see that guard at all —
+  # the unread count is already 0 either way.
+  test "mark_read_by_staff! on an already-read conversation broadcasts nothing" do
+    hotel = hotels(:stari_grad)
+    session = with_tenant(hotel) { fresh_guest_session(hotel) }
+
+    with_tenant(hotel) do
+      conversation = Conversation.live_for(session)
+      assert_equal 0, conversation.staff_unread_count
+
+      assert_broadcasts(inbox_stream_name(hotel), 0) { conversation.mark_read_by_staff! }
     end
   end
 
@@ -488,6 +506,13 @@ class ConversationTest < ActiveSupport::TestCase
   end
 
   private
+    # The same [hotel, :inbox] streamable Conversation broadcasts to and
+    # HotelInboxChannel subscribes from, resolved through Turbo's own
+    # stream-name algorithm rather than a hand-written copy of it.
+    def inbox_stream_name(hotel)
+      Turbo::StreamsChannel.send(:stream_name_from, [ hotel, :inbox ])
+    end
+
     def fresh_guest_session(hotel, room: nil, locale: "en")
       hotel.guest_sessions.create!(
         guest_name: "Fixture-free Guest #{SecureRandom.hex(4)}", room: room, locale: locale,
