@@ -24,8 +24,28 @@ module Guest
     # in this order, nests them correctly either way.
     around_action :resolve_guest_session_and_locale
     around_action :scope_to_guest_hotel
+    # Declared after scope_to_guest_hotel (not before) so Current.hotel is
+    # already set — suspension can happen at any point during an otherwise
+    # still-valid, unexpired session, so this re-checks it on *every* guest
+    # request, not just at cookie-issue time. Staff::BaseController does the
+    # analogous check (`Current.user.hotel&.active?`) on every staff
+    # request; this was missing here entirely, so a guest whose hotel got
+    # suspended mid-stay kept full chat access on an already-issued cookie.
+    before_action :refuse_suspended_hotel
 
     private
+      # Reuses guest/entries/unavailable — the same "not currently accepting
+      # guest chats, call the front desk" page a fresh visitor to a
+      # suspended hotel's landing page sees (Guest::EntriesController), so a
+      # guest never hits a dead end or a raw error here, just the same
+      # honest message either way.
+      def refuse_suspended_hotel
+        return unless Current.hotel.suspended?
+
+        @hotel = Current.hotel
+        render "guest/entries/unavailable"
+      end
+
       # Renders the re-entry page (missing cookie, expired session, or a
       # session staff has blocked all look identical from here — none of
       # them get a session, so none of them get a distinct error message
