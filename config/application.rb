@@ -23,5 +23,17 @@ module Hospello
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # The four guest-facing languages (Slice 2's landing page, entry form,
+    # and chat — see config/locales/guest.*.yml and GuestLocaleHelper).
+    # Staff locales (Hotel::STAFF_LOCALES, User#locale) are bs/en, a subset
+    # of this list, so nothing staff-facing is affected by widening it.
+    config.i18n.available_locales = %i[bs en de ar]
+    config.i18n.default_locale = :en
+    # Falls back to :en (then stops — no further chain) for a key missing
+    # from a locale's translation file, so a guest never sees a raw
+    # "translation missing" string just because one phrase hasn't been
+    # translated into their language yet.
+    config.i18n.fallbacks = true
   end
 end

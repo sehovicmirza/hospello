@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_07_120003) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_10_101127) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -63,6 +63,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_120003) do
     t.datetime "updated_at", null: false
     t.index ["hotel_id", "name"], name: "index_departments_on_hotel_id_and_name", unique: true
     t.index ["hotel_id"], name: "index_departments_on_hotel_id"
+  end
+
+  create_table "guest_sessions", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "room_id"
+    t.integer "channel", default: 0, null: false
+    t.string "token_digest"
+    t.string "phone_e164"
+    t.string "guest_name", null: false
+    t.string "locale", default: "en", null: false
+    t.integer "identity_status", default: 0, null: false
+    t.datetime "privacy_accepted_at", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "last_seen_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "last_seen_at"], name: "index_guest_sessions_on_hotel_id_and_last_seen_at"
+    t.index ["hotel_id", "phone_e164"], name: "index_guest_sessions_on_hotel_id_and_phone_e164", unique: true, where: "(channel = 1)"
+    t.index ["hotel_id"], name: "index_guest_sessions_on_hotel_id"
+    t.index ["room_id"], name: "index_guest_sessions_on_room_id"
+    t.index ["token_digest"], name: "index_guest_sessions_on_token_digest"
   end
 
   create_table "hotels", force: :cascade do |t|
@@ -288,6 +310,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_07_120003) do
   add_foreign_key "audit_logs", "hotels", on_delete: :nullify
   add_foreign_key "audit_logs", "users", column: "actor_user_id", on_delete: :nullify
   add_foreign_key "departments", "hotels", on_delete: :cascade
+  add_foreign_key "guest_sessions", "hotels", on_delete: :cascade
+  add_foreign_key "guest_sessions", "rooms", on_delete: :nullify
   add_foreign_key "request_categories", "departments", on_delete: :nullify
   add_foreign_key "request_categories", "hotels", on_delete: :cascade
   add_foreign_key "rooms", "hotels", on_delete: :cascade
