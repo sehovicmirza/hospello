@@ -78,6 +78,52 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert vrelo_user.reload.active?
   end
 
+  # The knowledge base (Slice 3 Task 1). This one matters twice over: it is
+  # a tenant boundary like any other, and it is also the corpus the
+  # concierge answers from — so an entry leaking across hotels would not
+  # just be visible on a screen, it would end up in another hotel's prompt.
+  test "hotel A staff cannot read, edit, publish or delete hotel B's knowledge base entry" do
+    vrelo_entry = with_tenant(hotels(:vrelo)) do
+      hotels(:vrelo).kb_entries.create!(title: "Vrelo Only Entry", content: "Vrelo-only secret content.")
+    end
+    sign_in users(:stari_admin)
+
+    get edit_staff_kb_entry_path(vrelo_entry)
+    assert_response :not_found
+
+    patch staff_kb_entry_path(vrelo_entry), params: { kb_entry: { content: "HACKED" } }
+    assert_response :not_found
+
+    patch publish_staff_kb_entry_path(vrelo_entry), params: { published: "true" }
+    assert_response :not_found
+
+    delete staff_kb_entry_path(vrelo_entry)
+    assert_response :not_found
+
+    with_tenant(hotels(:vrelo)) do
+      vrelo_entry.reload
+      assert_equal "Vrelo-only secret content.", vrelo_entry.content
+      assert_not vrelo_entry.published?, "hotel A must not be able to put hotel B's text in front of guests"
+    end
+  end
+
+  test "the knowledge base list shows only the signed-in staff member's own hotel's entries" do
+    with_tenant(hotels(:vrelo)) do
+      hotels(:vrelo).kb_entries.create!(title: "Vrelo Only Entry", content: "Vrelo-only secret content.")
+    end
+    with_tenant(hotels(:stari_grad)) do
+      hotels(:stari_grad).kb_entries.create!(title: "Stari Only Entry", content: "Stari-only content.")
+    end
+    sign_in users(:stari_admin)
+
+    get staff_kb_entries_path
+
+    assert_response :success
+    assert_match "Stari Only Entry", response.body
+    assert_no_match "Vrelo Only Entry", response.body
+    assert_no_match "Vrelo-only secret content.", response.body
+  end
+
   # The reception inbox (Slice 2 Task 3). A conversation carries the guest's
   # name, room, and everything they have said — so hotel B's conversation
   # must be invisible to hotel A's staff on every one of its routes, not

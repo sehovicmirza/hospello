@@ -1,4 +1,36 @@
 module StaffHelper
+  # The topics guests ask about most, offered as one-click starters on an
+  # empty knowledge base. The hardest part of starting one is the blank
+  # sheet, and a hotel that never gets past it has a concierge that can
+  # only ever say "I don't know" — so this list is a product feature, not
+  # placeholder copy.
+  KB_STARTERS = [
+    { title: "Breakfast", category: "dining" },
+    { title: "Check-out", category: "policies" },
+    { title: "Wi-Fi", category: "facilities" },
+    { title: "Parking", category: "facilities" },
+    { title: "Spa", category: "facilities" },
+    { title: "Restaurant", category: "dining" },
+    { title: "Getting to the airport", category: "transport" }
+  ].freeze
+
+  # Category names as a hotel manager would say them, not as the enum
+  # spells them. Kept here rather than in a locale file because the whole
+  # staff workspace is still hardcoded English (see the plan's note on
+  # per-user staff locale, which is a later slice); when that arrives this
+  # is one of the places it lands.
+  def kb_category_label(category)
+    {
+      "facilities" => "Facilities",
+      "dining" => "Food & drink",
+      "rooms" => "Rooms",
+      "policies" => "Policies",
+      "local_area" => "Local area",
+      "transport" => "Getting around",
+      "other" => "Other"
+    }.fetch(category.to_s, category.to_s.humanize)
+  end
+
   # Every timestamp rendered anywhere in the staff workspace goes through
   # this — a receptionist in Sarajevo must see Sarajevo time regardless of
   # where the server happens to run or what locale the browser is set to.
@@ -41,6 +73,10 @@ module StaffHelper
     if policy(Conversation).index?
       items << { label: "Inbox", path: staff_conversations_path, badge: staff_inbox_badge_count }
     end
+    # Directly after Inbox: the knowledge base is the other thing a hotel
+    # touches regularly once the concierge is live, and burying it is how a
+    # hotel ends up with an assistant that knows nothing about them.
+    items << { label: "Knowledge base", path: staff_kb_entries_path } if policy(KbEntry).index?
     items << { label: "Hotel settings", path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
     items << { label: "Rooms", path: staff_rooms_path } if policy(Room).index?
     items << { label: "Departments & categories", path: staff_departments_path } if policy(Department).index?

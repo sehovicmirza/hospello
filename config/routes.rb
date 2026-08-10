@@ -62,6 +62,14 @@ Rails.application.routes.draw do
       collection { post :bulk_create }
     end
 
+    # The hotel's own knowledge base — what the Slice 3 concierge answers
+    # from, and nothing else. #publish is its own member route rather than
+    # a field on #update because it is the action that puts text in front
+    # of guests, and it carries its own policy question and audit entry.
+    resources :kb_entries, only: %i[index new create edit update destroy] do
+      member { patch :publish }
+    end
+
     resources :departments, only: %i[index create edit update destroy]
     resources :request_categories, only: %i[index create edit update destroy]
 

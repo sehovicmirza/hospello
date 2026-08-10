@@ -31,6 +31,7 @@ class Hotel < ApplicationRecord
   has_many :guest_sessions
   has_many :conversations
   has_many :messages
+  has_many :kb_entries
 
   has_one_attached :logo
   has_one_attached :welcome_image
@@ -55,6 +56,15 @@ class Hotel < ApplicationRecord
   # room number quietly refuses a guest instead of seating them nowhere.
   def find_active_room(number)
     rooms.active.find_by(number: Room.normalize_number(number))
+  end
+
+  # Everything the Slice 3 concierge is allowed to know about this hotel,
+  # and nothing else. Named here rather than left as a chain at each call
+  # site so there is exactly one answer to "which entries may the model
+  # see" — a draft slipping into a prompt is not a bug anyone would notice
+  # from the outside until a guest quoted it back.
+  def published_kb_entries
+    kb_entries.published.ordered
   end
 
   private

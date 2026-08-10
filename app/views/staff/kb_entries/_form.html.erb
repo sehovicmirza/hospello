@@ -1,0 +1,58 @@
+<%# A plain textarea, deliberately: this content goes straight into a
+    prompt, where markdown and rich-text markup cost tokens and give the
+    model formatting to imitate instead of facts to use. The live character
+    count is here because the 2000-character cap is a real limit a hotel
+    will hit on their longest topic, and discovering it only on submit
+    after writing three paragraphs is a bad afternoon. %>
+<%= form_with model: entry, url: url, class: "space-y-5" do |form| %>
+  <% if entry.errors.any? %>
+    <div id="kb-entry-errors" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+      <ul class="list-inside list-disc">
+        <% entry.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :title, class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500">What a guest would call it — “Breakfast”, “Parking”, “Late check-out”.</p>
+    <%= form.text_field :title, required: true,
+          class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+  </div>
+
+  <div>
+    <%= form.label :category, class: "block text-sm font-medium text-gray-700" %>
+    <%= form.select :category,
+          KbEntry.categories.keys.map { |category| [ kb_category_label(category), category ] },
+          {},
+          class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+  </div>
+
+  <div data-controller="character-count">
+    <%= form.label :content, "What the assistant may tell guests", class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500">
+      Plain sentences, exactly as you would say them at the desk. Include the specifics — times,
+      prices, floors — because the assistant will not invent any of them.
+    </p>
+    <%= form.text_area :content, rows: 8, required: true, maxlength: KbEntry::MAX_CONTENT_LENGTH,
+          data: { character_count_target: "input", action: "input->character-count#update" },
+          class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+    <p class="mt-1 text-xs text-gray-500">
+      <span data-character-count-target="output"><%= entry.content.to_s.length %></span>
+      / <%= KbEntry::MAX_CONTENT_LENGTH %> characters
+    </p>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <%= form.check_box :published, class: "size-4 rounded border-gray-400" %>
+    <%= form.label :published, "Live for guests", class: "text-sm font-medium text-gray-700" %>
+    <span class="text-xs text-gray-500">Leave unticked to keep working on it privately.</span>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <%= form.submit "Save entry", class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+    <%= link_to "Cancel", staff_kb_entries_path, class: "text-sm font-medium text-gray-600 hover:text-gray-900" %>
+  </div>
+<% end %>

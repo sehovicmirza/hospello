@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_180000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -130,6 +130,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_180000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_hotels_on_slug", unique: true
+  end
+
+  create_table "kb_entries", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.integer "category", default: 6, null: false
+    t.string "title", null: false
+    t.text "content", null: false
+    t.boolean "published", default: false, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "published", "position"], name: "index_kb_entries_on_hotel_id_and_published_and_position"
+    t.index ["hotel_id", "title"], name: "index_kb_entries_on_hotel_id_and_title", unique: true
   end
 
   create_table "messages", force: :cascade do |t|
@@ -362,6 +375,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_180000) do
   add_foreign_key "departments", "hotels", on_delete: :cascade
   add_foreign_key "guest_sessions", "hotels", on_delete: :cascade
   add_foreign_key "guest_sessions", "rooms", on_delete: :nullify
+  add_foreign_key "kb_entries", "hotels", on_delete: :cascade
   add_foreign_key "messages", "conversations", on_delete: :cascade
   add_foreign_key "messages", "hotels", on_delete: :cascade
   add_foreign_key "messages", "users", column: "sender_user_id", on_delete: :nullify
