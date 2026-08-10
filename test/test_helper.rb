@@ -23,6 +23,12 @@ require "webmock/minitest"
 # No test may reach the network. Localhost stays open for the system-test driver.
 WebMock.disable_net_connect!(allow_localhost: true)
 
+# Test doubles and helpers that are not tests themselves. Loaded eagerly rather
+# than required per file so that a helper is never accidentally half-loaded in
+# one worker and absent in another (fixtures :all plus parallel workers make
+# that failure mode genuinely hard to read).
+Dir[Rails.root.join("test/support/**/*.rb")].each { |file| require file }
+
 # acts_as_tenant runs with require_tenant = true, so any query touching a
 # tenant-scoped model has to name the hotel it is for. Non-tenant models
 # (Hotel, User, Session, AuditLog) are unaffected and need no block.

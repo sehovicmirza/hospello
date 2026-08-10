@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (after Slice 2 Task 3 — Slice 2 complete) |
-| **Branch** | `claude/continue-ai-agent-work-bq59gm` |
+| **Last updated** | 2026-08-10 (after Slice 3 Task 2 — the AI client seam) |
+| **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 496 unit/integration green · 31 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 535 unit/integration green · 31 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | Slices 1 and 2 complete · Slice 3 at 1 of 4 tasks |
+| **Progress** | Slices 1 and 2 complete · Slice 3 at 2 of 4 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -146,28 +146,51 @@ to answer from, and nothing else.
   starters that open the form already named. Read for all staff, write for hotel admins
   (`KbEntryPolicy`); publish/unpublish are audit-logged.
 
+**Slice 3 Task 2 — the Anthropic seam and its test double.** Complete. Nothing in the app talks to a
+model yet; this is the wall everything will talk *through*.
+
+- `Ai::Client#chat(system:, messages:, tools:, model:, max_tokens:, effort:, timeout:)` → `Ai::Result`.
+  It is the only file in the project that names `Anthropic::` at all.
+- `Ai::Result` (`#text`, `#tool_calls`, `#stop_reason`, `#usage`, `#refusal?`, `#truncated?`) is a
+  plain value object built from primitives, so `FakeClaude` produces *the same type* the real client
+  does. That equivalence is what makes every AI test above this layer worth anything.
+- `Ai::TimeoutError` / `Ai::RateLimitedError` / `Ai::ApiError`, all under `Ai::Error`.
+  `ApiError#server_error?` is the distinction the Task 3 circuit breaker needs: a 5xx is worth backing
+  off from, a 400 will fail identically forever and must never open the breaker for a whole hotel.
+- **`FakeClaude` was written first, and is itself tested** (`test/services/ai/fake_claude_test.rb`).
+  It scripts text, tool-call sequences, refusals, truncation, timeouts, 429s, 5xx, and usage with
+  `cache_read_input_tokens`, and records every call so Task 3 can assert on the prompt that was
+  actually built — including "hotel B's knowledge appears nowhere in hotel A's prompt".
+- `config/initializers/ai.rb` holds the only model strings in the codebase (`AI_MODEL`,
+  `TRANSLATION_MODEL`). Both documented in `.env.example`, `render.yaml` and `README.md`.
+- `test/services/ai/live_smoke_test.rb` makes one real call — grounded answer, real tool call, and a
+  non-zero cache read on the second call — and is skipped unless `LIVE_AI=1`. Run it before a
+  release; it is the only thing that can catch the API changing under us.
+
 ---
 
 ## What to do next
 
-1. **Slice 3 Task 2** — the `Ai::Client` seam and its `FakeClaude` double. Task 1 (the knowledge
-   base) is done. The brief is in `docs/plan/slice-3-tasks.md`; note it wants the fake written
-   *first*, because it is the contract every later AI behaviour is tested through, and it wants **no
-   VCR** — cassettes keep passing after the prompt changes, which is precisely the regression that
-   matters here.
+1. **Slice 3 Task 3** — the concierge itself: `Ai::PromptBuilder`, `Ai::Tools`, `Ai::Concierge`,
+   `Ai::GenerateReplyJob`, `ai_runs`, `unanswered_questions`, the circuit breaker, the pre-translated
+   degradation copy, and the injection corpus. Brief in `docs/plan/slice-3-tasks.md`. Everything it
+   needs now exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude` is how you
+   test it without a network call, and `conversation.ai_mode` is already written by the staff toggle
+   and still read by nothing.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
 4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
 
-When Slice 3 arrives, two things this task deliberately left for it: `ai_mode` is written by the
-staff toggle but **nothing reads it yet**, and the takeover notice it records is an internal note.
-Whether the guest should also be told "you are now speaking to reception" is a product-copy decision
-that only makes sense once there is an assistant to be handed over from.
+Still open from Slice 2 Task 3, for whoever builds the concierge: `ai_mode` is written by the staff
+toggle but **nothing reads it yet**, and the takeover notice it records is an internal note. Whether
+the guest should also be told "you are now speaking to reception" is a product-copy decision that
+only makes sense once there is an assistant to be handed over from.
 
 Slices 3 and 4 need an `ANTHROPIC_API_KEY`. The app boots and runs fine without one; only the
-concierge and translation need it.
+concierge and translation need it, and with no key `Ai::Client#chat` raises a plain `Ai::ApiError`
+that the degradation path will treat like any other AI failure.
 
 ---
 
@@ -187,6 +210,17 @@ concierge and translation need it.
 - **Internal notes and guest-visible messages live in the same table.** Any new read of `messages` on
   a guest-facing path must carry `.guest_visible` — there are exactly three such reads today and each
   has a test that goes red without it. `Message#visibility` documents the rule.
+- **`max_tokens` caps thinking *and* visible text together** on current models, so a comfortable-
+  looking cap can end a turn with `stop_reason == "max_tokens"` and little or no text — a successful
+  HTTP 200 carrying nothing usable. `Ai::Result#truncated?` names it; treat it as a failure, never as
+  a reply. Same for `#refusal?`. Anything that reads `result.text` without checking one of them will
+  eventually post an empty message to a guest.
+- **`Ai::Client` must be the only file that names `Anthropic::`.** If you find yourself rescuing an
+  SDK exception class anywhere else, the seam has already leaked — add the mapping in the client
+  instead. There is a test asserting all three mapped errors descend from `Ai::Error`.
+- **No VCR, ever, for the AI layer.** A cassette recorded against one prompt keeps passing after the
+  prompt changes, and a silently stale grounding prompt is the exact regression Slice 3 exists to
+  prevent. Use `FakeClaude` above the seam and WebMock at it.
 - **`.superpowers/` is gitignored** — it is agent scratch. Everything a new session actually needs is
   in `docs/plan/` and this file. If you produce something durable, put it in `docs/`, not there.
 - **Never commit `config/master.key`.** It was accidentally committed once early on and had to be

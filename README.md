@@ -100,7 +100,10 @@ development. **Never commit real values for any of these.**
 | `PORT` / `PIDFILE` | No | Puma listen port (default 3000) / pidfile path |
 | `ACTIVE_STORAGE_SERVICE` | No | Forces `local` or `r2`; auto-picks `r2` once `R2_BUCKET` is set |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_ENDPOINT` / `R2_BUCKET` | Recommended | Cloudflare R2 storage for hotel logos/welcome images — without these, uploads live on the container's ephemeral disk and are lost on redeploy |
-| `ANTHROPIC_API_KEY` | Not yet | Reserved for the AI concierge/translation, shipping in a later slice — the app boots and runs fully without it today |
+| `ANTHROPIC_API_KEY` | Recommended | The AI concierge and (later) translation. Without it the app still boots and runs fully — guests chat, staff reply — and any AI call degrades to "reception will reply personally" |
+| `AI_MODEL` | No | Concierge model id; defaults to `claude-opus-5` |
+| `TRANSLATION_MODEL` | No | Translation model id; defaults to `claude-haiku-4-5`. Deliberately separate from `AI_MODEL` — translation is the guest-to-receptionist lifeline and must survive the concierge being switched off |
+| `LIVE_AI` | Never in production or CI | Set to `1` locally to run `test/services/ai/live_smoke_test.rb`, which makes one real API call |
 | `SENTRY_DSN` | Recommended | Error tracking; every `Sentry.*` call is a no-op when unset |
 | `HEARTBEAT_URL` | Recommended | An external uptime monitor's ping URL — see `docs/runbook.md` |
 | `CI` | Set automatically by GitHub Actions | Forces eager loading in the test environment to catch autoload bugs |

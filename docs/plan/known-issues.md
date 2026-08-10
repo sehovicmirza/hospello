@@ -167,6 +167,7 @@ Hand these to the final whole-branch review before merge. **Do not fix them spec
 | Guest session cookies never expire server-side (no `sessions.expires_at`) | Deliberate, documented in `app/controllers/concerns/authentication.rb`. Deactivating a user already destroys their live sessions, which covers the sharp edge. Doing it properly needs a migration, a check, and a sweep job — a real task, not a rider |
 | `trusted_proxy?` would raise `NoMethodError` on a non-String argument | Unreachable: Rack's `#ip` only ever passes String or nil |
 | Suspended-hotel page returns HTTP 200 rather than 503 | Consistent between the fresh-visitor and mid-stay flows; predates the current code |
+| On a 429 the anthropic gem sleeps for the response's `retry-after` **unclamped**, inside a single `Ai::Client#chat` call | Only the gem's *own* exponential backoff is capped (`max_retry_delay`, 8s); a header-supplied delay is honoured in full, so a server asking for a long pause blocks the call for that long. Bounded in practice by `MAX_RETRIES = 1` (one sleep, not two) and by Solid Queue serializing the conversation, so the blast radius is one guest waiting. Fixing it properly means either `max_retries: 0` plus our own retry loop, or an SDK middleware that rewrites the header — both real tasks, and neither worth doing before we have seen a single 429 in production. **If you do see one:** check `AiRun` latency before assuming the model was slow |
 
 ---
 

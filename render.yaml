@@ -64,9 +64,19 @@ services:
         sync: false
 
       # Anthropic API key — the AI concierge and translation both use it.
-      # Not needed until the concierge ships; the app boots and runs without it.
+      # The app boots and runs without it: guests chat, staff reply, the inbox
+      # works, and any AI call degrades to "reception will reply personally".
       - key: ANTHROPIC_API_KEY
         sync: false
+
+      # Model ids. Both have sensible defaults in config/initializers/ai.rb
+      # (claude-opus-5 for the concierge, claude-haiku-4-5 for translation);
+      # set them here only to override, e.g. to move a hotel onto a cheaper
+      # model or to roll forward to a new one without a deploy.
+      # - key: AI_MODEL
+      #   value: claude-opus-5
+      # - key: TRANSLATION_MODEL
+      #   value: claude-haiku-4-5
 
       - key: RAILS_ENV
         value: production
