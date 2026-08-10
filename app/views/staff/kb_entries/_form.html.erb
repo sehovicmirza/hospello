@@ -15,6 +15,25 @@
     </div>
   <% end %>
 
+  <%# Carried through the form rather than kept in the URL: a validation
+      error re-renders this page as a POST, and a gap that lost its link
+      there would be silently left open while the hotel believed they had
+      just answered it. %>
+  <% if local_assigns[:unanswered_question].present? %>
+    <%# hidden_field_tag, not form.hidden_field: this is not an attribute of
+        KbEntry and never will be — the link belongs to the question, which
+        is the record that owns the decision. %>
+    <%= hidden_field_tag "kb_entry[unanswered_question_id]", unanswered_question.id, id: "kb-entry-gap-id" %>
+    <div id="answering-gap" class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+      <p class="font-medium">You are answering a question a guest actually asked.</p>
+      <p class="mt-1">Asked <%= pluralize(unanswered_question.asked_count, "time") %>:
+        “<%= unanswered_question.question %>”</p>
+      <% if unanswered_question.question_original.present? %>
+        <p class="mt-1 text-blue-800" dir="auto">In the guest’s own words: “<%= unanswered_question.question_original %>”</p>
+      <% end %>
+    </div>
+  <% end %>
+
   <div>
     <%= form.label :title, class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500">What a guest would call it — “Breakfast”, “Parking”, “Late check-out”.</p>

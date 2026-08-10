@@ -77,6 +77,14 @@ module StaffHelper
     # touches regularly once the concierge is live, and burying it is how a
     # hotel ends up with an assistant that knows nothing about them.
     items << { label: "Knowledge base", path: staff_kb_entries_path } if policy(KbEntry).index?
+    # Immediately under the knowledge base, and badged, because this screen
+    # only works if it is seen: the whole point is that a hotel discovers
+    # what it never wrote down, and a hotel that never opens this discovers
+    # nothing. Same server-computed rule as the inbox badge — nil rather
+    # than 0, so the number always means something.
+    if policy(UnansweredQuestion).index?
+      items << { label: "Knowledge gaps", path: staff_unanswered_questions_path, badge: staff_knowledge_gap_count }
+    end
     items << { label: "Hotel settings", path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
     items << { label: "Rooms", path: staff_rooms_path } if policy(Room).index?
     items << { label: "Departments & categories", path: staff_departments_path } if policy(Department).index?
@@ -140,6 +148,11 @@ module StaffHelper
       "The AI assistant has reached today's usage limit. Guests are being answered manually until " \
       "tomorrow; staff replies and translation are unaffected."
     end
+  end
+
+  def staff_knowledge_gap_count
+    count = Current.hotel.unanswered_questions.status_new.count
+    count.positive? ? count : nil
   end
 
   # "Unverified" is not a detail to be tucked away: the room number was

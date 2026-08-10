@@ -70,6 +70,15 @@ Rails.application.routes.draw do
       member { patch :publish }
     end
 
+    # What guests asked that this hotel never wrote down. No create — rows
+    # are written by the concierge's own log_unanswered_question tool, never
+    # by hand — and no destroy: dismissing is a decision worth keeping, and
+    # the row goes on counting repeats so a dismissal that turns out to be
+    # wrong is visible rather than silently re-created.
+    resources :unanswered_questions, only: %i[index] do
+      member { patch :dismiss }
+    end
+
     resources :departments, only: %i[index create edit update destroy]
     resources :request_categories, only: %i[index create edit update destroy]
 

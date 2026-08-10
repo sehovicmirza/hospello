@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (after Slice 3 Task 3 — the concierge is live) |
+| **Last updated** | 2026-08-10 (after Slice 3 — the AI concierge is complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 639 unit/integration green · 34 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 653 unit/integration green · 37 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | Slices 1 and 2 complete · Slice 3 at 3 of 4 tasks |
+| **Progress** | **Slices 1, 2 and 3 complete** · Slice 4 not started |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -207,20 +207,37 @@ honestly and passed to reception; a receptionist can pause the assistant and han
   the guest. If a pilot shows receptionists want to review every AI answer, this is the line to
   revisit — `Conversation#post_assistant_reply!`.
 
+**Slice 3 Task 4 — the knowledge-gap workflow.** Complete. **Slice 3 is done**: a guest asks in
+their own language and gets an answer built only from that hotel's published knowledge base; a
+question the hotel never wrote down is answered honestly, passed to reception, and recorded; the
+hotel sees it, writes the answer once, and it goes live.
+
+- `/staff/unanswered_questions` — this hotel's open gaps, most-asked first, with the guest's own
+  words alongside the normalised question, and a badged nav item because a screen nobody opens
+  closes no loop.
+- "Answer & add to the knowledge base" opens the `KbEntry` form already named, already ticked to go
+  live, and carrying the gap through a validation failure (a hidden field, not a query parameter —
+  a re-render is a POST, and a lost link would leave the gap open while the hotel believed they had
+  just answered it). Saving links the entry and marks the question answered **only if the entry is
+  actually published** — a gap answered into a draft is a gap no guest can tell was closed.
+- Dismiss settles it without writing anything, and never deletes: the row goes on counting repeats,
+  so a dismissal that turns out to be wrong stays visible instead of quietly reappearing as new.
+- Read for every active staff member, write for hotel admins (`UnansweredQuestionPolicy`) — the same
+  line the knowledge base draws, for the same reason.
+
 ---
 
 ## What to do next
 
-1. **Slice 3 Task 4 — the knowledge-gap workflow.** The last task in the slice, and the smallest.
-   `UnansweredQuestion` already exists, is already being written by the `log_unanswered_question`
-   tool, and already has `open_gaps` (this hotel's open questions, most-asked first). What is left is
-   the staff screen: `Staff::UnansweredQuestionsController` + views, "Answer & add to KB" pre-filling
-   a `KbEntry` form and linking + publishing it on save, dismiss, a nav badge, and the isolation and
-   system tests. Brief in `docs/plan/slice-3-tasks.md`.
+1. **Slice 4 — service requests end to end.** The next slice, and the one that turns the concierge
+   from something that answers into something that does. Breakdown already written:
+   `docs/plan/slice-4-tasks.md`. Two things from Slice 3 are waiting for it specifically: the
+   service-request tools slot into `Ai::Tools` alongside the two that exist (follow their shape —
+   schema, server-side re-validation, `tool_result` on failure), and the plan's rule that **only a
+   human may confirm** is now enforced only by the prompt, so Slice 4 is where it becomes structural.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
-3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.
-4. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
+3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
    not yet written.
 
 Still open, and now a real product question rather than a hypothetical one: the takeover notice

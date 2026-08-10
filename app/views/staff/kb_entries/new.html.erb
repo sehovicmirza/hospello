@@ -6,5 +6,6 @@
 <h1 class="mt-3 mb-6 text-2xl font-semibold text-gray-900">Add an entry</h1>
 
 <div class="max-w-2xl">
-  <%= render "staff/kb_entries/form", entry: @entry, url: staff_kb_entries_path %>
+  <%= render "staff/kb_entries/form", entry: @entry, url: staff_kb_entries_path,
+        unanswered_question: @unanswered_question %>
 </div>

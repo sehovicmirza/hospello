@@ -26,17 +26,28 @@ module Staff
       # A title arriving in the query string is how the empty state's
       # starter buttons work (see the index view): the hotel picks a topic
       # they know guests ask about and lands on a form already named.
-      @entry = Current.hotel.kb_entries.new(title: params[:title], category: requested_category || :other)
+      #
+      # ?unanswered_question= is the other way in — a guest already asked
+      # this and got "I don't have that written down", so the form arrives
+      # named after their question and ticked to go live, because a gap
+      # answered into a draft has not actually been answered.
+      set_unanswered_question
+      @entry = Current.hotel.kb_entries.new(
+        title: params[:title].presence || @unanswered_question&.question,
+        category: requested_category || :other,
+        published: @unanswered_question.present?
+      )
       authorize @entry
     end
 
     def create
+      set_unanswered_question
       @entry = Current.hotel.kb_entries.new(entry_params)
       authorize @entry
 
-      if @entry.save
+      if save_entry_and_close_the_gap
         audit_publication_change if @entry.published?
-        redirect_to staff_kb_entries_path, notice: "“#{@entry.title}” saved."
+        redirect_to staff_kb_entries_path, notice: "“#{@entry.title}” saved.#{gap_notice}"
       else
         render :new, status: :unprocessable_content
       end
@@ -77,6 +88,46 @@ module Staff
     end
 
     private
+      # The gap this entry is being written to answer, if any. Looked up
+      # through Current.hotel, so another hotel's id is simply nil rather
+      # than an authorization question.
+      def set_unanswered_question
+        id = params[:unanswered_question_id].presence || params.dig(:kb_entry, :unanswered_question_id).presence
+        @unanswered_question = Current.hotel.unanswered_questions.find_by(id: id)
+      end
+
+      # Linking and answering happen in the same transaction as the save, so
+      # a hotel never ends up with the entry written and the gap still open
+      # (or the reverse) because something failed in between.
+      #
+      # The question is marked answered only when the entry actually went
+      # live. An admin who unticked "Live for guests" is saying "not yet",
+      # and a gap closed against a draft would be a gap that no guest can
+      # tell was ever closed — the loop would report itself finished while
+      # the next guest gets the same "I don't have that written down".
+      def save_entry_and_close_the_gap
+        KbEntry.transaction do
+          next false unless @entry.save
+          next true if @unanswered_question.nil?
+
+          @unanswered_question.update!(
+            kb_entry: @entry,
+            status: @entry.published? ? :answered : @unanswered_question.status
+          )
+          true
+        end
+      end
+
+      def gap_notice
+        return "" if @unanswered_question.nil?
+
+        if @unanswered_question.status_answered?
+          " That question is answered for guests now."
+        else
+          " It is still a draft, so that question stays open until you publish it."
+        end
+      end
+
       def set_entry
         @entry = Current.hotel.kb_entries.find(params[:id])
         authorize @entry unless action_name == "publish"

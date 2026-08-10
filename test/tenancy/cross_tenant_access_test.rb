@@ -124,6 +124,33 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert_no_match "Vrelo-only secret content.", response.body
   end
 
+  # Knowledge gaps (Slice 3 Task 4). An unanswered question is a verbatim
+  # quote from another hotel's guest, in their own words, so the list is a
+  # tenant boundary in its own right — and dismissing one is a decision only
+  # that hotel gets to make.
+  test "hotel A staff cannot see or dismiss hotel B's unanswered questions" do
+    vrelo_question = with_tenant(hotels(:vrelo)) do
+      UnansweredQuestion.record!(
+        hotel: hotels(:vrelo), question: "Vrelo Only Question", question_original: "Vrelo-only guest words."
+      )
+    end
+    with_tenant(hotels(:stari_grad)) do
+      UnansweredQuestion.record!(hotel: hotels(:stari_grad), question: "Stari Only Question")
+    end
+    sign_in users(:stari_admin)
+
+    get staff_unanswered_questions_path
+    assert_response :success
+    assert_match "Stari Only Question", response.body
+    assert_no_match "Vrelo Only Question", response.body
+    assert_no_match "Vrelo-only guest words.", response.body
+
+    patch dismiss_staff_unanswered_question_path(vrelo_question)
+    assert_response :not_found
+
+    assert with_tenant(hotels(:vrelo)) { vrelo_question.reload.status_new? }
+  end
+
   # The reception inbox (Slice 2 Task 3). A conversation carries the guest's
   # name, room, and everything they have said — so hotel B's conversation
   # must be invisible to hotel A's staff on every one of its routes, not
