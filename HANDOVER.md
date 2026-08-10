@@ -171,12 +171,18 @@ model yet; this is the wall everything will talk *through*.
 
 ## What to do next
 
-1. **Slice 3 Task 3** — the concierge itself: `Ai::PromptBuilder`, `Ai::Tools`, `Ai::Concierge`,
-   `Ai::GenerateReplyJob`, `ai_runs`, `unanswered_questions`, the circuit breaker, the pre-translated
-   degradation copy, and the injection corpus. Brief in `docs/plan/slice-3-tasks.md`. Everything it
-   needs now exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude` is how you
-   test it without a network call, and `conversation.ai_mode` is already written by the staff toggle
-   and still read by nothing.
+1. **Slice 3 Task 3 — in progress.** The concierge itself. Brief in `docs/plan/slice-3-tasks.md`.
+   - **Done and green:** `ai_runs` and `unanswered_questions` (schema, models, tests), plus
+     `test/fixtures/kb_entries.yml` — deliberately distinctive strings per hotel, which is what makes
+     the "hotel B's knowledge appears nowhere in hotel A's prompt" test possible. `AiRun` carries the
+     budget guard (`tokens_used_today` in the *hotel's* timezone, `budget_exhausted_for?`);
+     `UnansweredQuestion.record!` deduplicates in the database, not in Ruby.
+   - **Next, in this order:** `Ai::PromptBuilder` (write its tests first — it is the grounding
+     contract), `Ai::Tools`, `Ai::Concierge`, `Ai::GenerateReplyJob` with its four guards,
+     `Ai::CircuitBreaker` + the pre-translated degradation copy, then the injection corpus.
+   - Everything it needs exists: `Hotel#published_kb_entries` is the grounding corpus, `FakeClaude`
+     is how you test it without a network call, and `conversation.ai_mode` is already written by the
+     staff toggle and still read by nothing.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. **Slice 4** — service requests end to end. Breakdown written: `docs/plan/slice-4-tasks.md`.

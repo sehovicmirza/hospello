@@ -19,8 +19,8 @@ class KbEntryTest < ActiveSupport::TestCase
   test "the published scope returns published entries and excludes drafts" do
     with_tenant(hotels(:stari_grad)) do
       hotel = hotels(:stari_grad)
-      live = hotel.kb_entries.create!(title: "Breakfast", content: "07:00-10:30.", published: true)
-      draft = hotel.kb_entries.create!(title: "Spa", content: "Still deciding.", published: false)
+      live = hotel.kb_entries.create!(title: "Room service", content: "24 hours.", published: true)
+      draft = hotel.kb_entries.create!(title: "Rooftop bar", content: "Still deciding.", published: false)
 
       published_ids = hotel.kb_entries.published.pluck(:id)
 
@@ -42,7 +42,10 @@ class KbEntryTest < ActiveSupport::TestCase
 
       expected = [ earlier.id, first.id, second.id ]
 
-      5.times { assert_equal expected, hotel.kb_entries.ordered.pluck(:id) }
+      # Narrowed to the three rows this test created: the fixtures carry a
+      # tie of their own, and asserting over the whole table would make this
+      # test about the fixture file rather than about the tiebreak.
+      5.times { assert_equal expected, hotel.kb_entries.where(id: expected).ordered.pluck(:id) }
     end
   end
 
@@ -87,10 +90,10 @@ class KbEntryTest < ActiveSupport::TestCase
   # ...but not across hotels: every hotel has a "Breakfast", and one hotel
   # writing theirs down must never stop another from doing the same.
   test "two hotels may each have an entry with the same title" do
-    with_tenant(hotels(:stari_grad)) { hotels(:stari_grad).kb_entries.create!(title: "Breakfast", content: "07:00-10:30.") }
+    with_tenant(hotels(:stari_grad)) { hotels(:stari_grad).kb_entries.create!(title: "Late check-out", content: "Until 14:00.") }
 
     with_tenant(hotels(:vrelo)) do
-      entry = hotels(:vrelo).kb_entries.build(title: "Breakfast", content: "08:00-11:00.")
+      entry = hotels(:vrelo).kb_entries.build(title: "Late check-out", content: "Until 13:00.")
 
       assert entry.valid?, entry.errors.full_messages.to_sentence
     end

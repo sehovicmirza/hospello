@@ -38,7 +38,7 @@ class Staff::KbEntriesControllerTest < ActionDispatch::IntegrationTest
   test "the category filter narrows the list" do
     dining, transport = with_tenant(@hotel) do
       [
-        @hotel.kb_entries.create!(title: "Breakfast", content: "07:00.", category: :dining),
+        @hotel.kb_entries.create!(title: "Room service", content: "24 hours.", category: :dining),
         @hotel.kb_entries.create!(title: "Airport bus", content: "Every hour.", category: :transport)
       ]
     end
@@ -76,7 +76,7 @@ class Staff::KbEntriesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "publishing makes an entry live and writes an audit entry naming who did it" do
-    entry = with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Wi-Fi", content: "Password on the card.") }
+    entry = with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Pool hours", content: "07:00-21:00.") }
     sign_in @admin
 
     assert_difference -> { AuditLog.where(action: "kb_entry.publish").count }, 1 do
@@ -109,18 +109,18 @@ class Staff::KbEntriesControllerTest < ActionDispatch::IntegrationTest
   # A receptionist is answering the same questions by hand all day and has
   # to be able to look up what the hotel already promised...
   test "a plain staff member may read the knowledge base" do
-    with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Parking", content: "Garage under the building.") }
+    with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Bicycle hire", content: "At the front desk.") }
     sign_in @staff
 
     get staff_kb_entries_path
 
     assert_response :success
-    assert_select "*", text: /Parking/
+    assert_select "*", text: /Bicycle hire/
   end
 
   # ...but changing what the hotel promises is not a mid-shift decision.
   test "a plain staff member may not create, edit, publish or delete" do
-    entry = with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Parking", content: "Garage.") }
+    entry = with_tenant(@hotel) { @hotel.kb_entries.create!(title: "Bicycle hire", content: "Front desk.") }
     sign_in @staff
 
     get new_staff_kb_entry_path

@@ -1,0 +1,67 @@
+# The corpus the concierge is allowed to answer from.
+#
+# Every string here is deliberately distinctive, and the two hotels share no
+# vocabulary at all. That is what makes the decisive tenant test in the AI
+# layer possible: build hotel A's prompt, then assert hotel B's string appears
+# nowhere in it. If both hotels said "breakfast is at seven" the test would
+# pass whether or not the isolation worked.
+#
+# Raw integer enum values, matching every other fixture file in this app (see
+# guest_sessions.yml's header).
+
+# --- Hotel Stari Grad -------------------------------------------------------
+
+stari_breakfast:
+  hotel: stari_grad
+  category: 1 # dining
+  title: Breakfast
+  content: "Doručak se služi u restoranu Ćevabdžinica od 07:00 do 10:30 svaki dan."
+  published: true
+  position: 0
+
+stari_wifi:
+  hotel: stari_grad
+  category: 0 # facilities
+  title: Wi-Fi
+  content: "The Wi-Fi network is StariGradGuest and the password is bascarsija2026."
+  published: true
+  position: 1
+
+# Same position as stari_wifi on purpose: the ordering tiebreak by id is
+# load-bearing for the prompt cache, and a fixture pair that ties is what
+# lets a test see it rather than assume it.
+stari_parking:
+  hotel: stari_grad
+  category: 0 # facilities
+  title: Parking
+  content: "Garage parking is available on Mula Mustafe Baseskije street."
+  published: true
+  position: 1
+
+# A draft. Nothing in this entry may ever reach a guest or a prompt, and the
+# distinctive phrase is what a test asserts the absence of.
+stari_spa_draft:
+  hotel: stari_grad
+  category: 0 # facilities
+  title: Spa
+  content: "UNPUBLISHED DRAFT: the rooftop hammam might open in spring, price undecided."
+  published: false
+  position: 2
+
+# --- Hotel Vrelo Bosne ------------------------------------------------------
+
+vrelo_breakfast:
+  hotel: vrelo
+  category: 1 # dining
+  title: Breakfast
+  content: "Breakfast is served in the Ilidza conservatory from 06:30 until 09:45."
+  published: true
+  position: 0
+
+vrelo_shuttle:
+  hotel: vrelo
+  category: 5 # transport
+  title: Airport shuttle
+  content: "The Vrelo airport shuttle leaves on the hour and costs 12 KM per person."
+  published: true
+  position: 1

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_10_210001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "ai_runs", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "conversation_id"
+    t.bigint "message_id"
+    t.integer "kind", null: false
+    t.string "model"
+    t.integer "input_tokens"
+    t.integer "output_tokens"
+    t.integer "cache_read_tokens"
+    t.integer "latency_ms"
+    t.integer "status", null: false
+    t.integer "cited_kb_entry_ids", default: [], null: false, array: true
+    t.string "error_class"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_ai_runs_on_conversation_id"
+    t.index ["hotel_id", "created_at"], name: "index_ai_runs_on_hotel_id_and_created_at"
+    t.index ["hotel_id", "status", "created_at"], name: "index_ai_runs_on_hotel_id_and_status_and_created_at"
+    t.index ["message_id"], name: "index_ai_runs_on_message_id"
   end
 
   create_table "audit_logs", force: :cascade do |t|
@@ -351,6 +372,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "unanswered_questions", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.bigint "conversation_id"
+    t.text "question", null: false
+    t.text "question_original"
+    t.string "locale"
+    t.string "normalized_hash", null: false
+    t.integer "asked_count", default: 1, null: false
+    t.integer "status", default: 0, null: false
+    t.bigint "kb_entry_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_unanswered_questions_on_conversation_id"
+    t.index ["hotel_id", "normalized_hash"], name: "index_unanswered_questions_on_hotel_id_and_normalized_hash", unique: true
+    t.index ["hotel_id", "status", "asked_count"], name: "idx_on_hotel_id_status_asked_count_25dbe93cd3"
+    t.index ["kb_entry_id"], name: "index_unanswered_questions_on_kb_entry_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.bigint "hotel_id"
     t.string "email_address", null: false
@@ -367,6 +406,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "ai_runs", "conversations", on_delete: :nullify
+  add_foreign_key "ai_runs", "hotels", on_delete: :cascade
+  add_foreign_key "ai_runs", "messages", on_delete: :nullify
   add_foreign_key "audit_logs", "hotels", on_delete: :nullify
   add_foreign_key "audit_logs", "users", column: "actor_user_id", on_delete: :nullify
   add_foreign_key "conversations", "guest_sessions", on_delete: :cascade
@@ -389,5 +431,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_200000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "unanswered_questions", "conversations", on_delete: :nullify
+  add_foreign_key "unanswered_questions", "hotels", on_delete: :cascade
+  add_foreign_key "unanswered_questions", "kb_entries", on_delete: :nullify
   add_foreign_key "users", "hotels"
 end

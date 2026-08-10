@@ -32,6 +32,8 @@ class Hotel < ApplicationRecord
   has_many :conversations
   has_many :messages
   has_many :kb_entries
+  has_many :ai_runs
+  has_many :unanswered_questions
 
   has_one_attached :logo
   has_one_attached :welcome_image
