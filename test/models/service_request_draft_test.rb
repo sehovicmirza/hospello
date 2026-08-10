@@ -101,14 +101,29 @@ class ServiceRequestDraftTest < ActiveSupport::TestCase
   # The same request arriving twice by two different routes — a retried job, a
   # second draft raised after the first was confirmed — collapses at the
   # database rather than at whichever caller thought to look.
-  test "two identical confirmed requests collapse to one" do
+  test "the database itself rejects a duplicate request" do
     details = { "quantity" => "2", "description" => "towels" }
-    draft(status: :awaiting_confirmation, details: details).confirm!
+    first = draft(status: :awaiting_confirmation, details: details).confirm!
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      first.dup.tap { |copy| copy.id = nil }.save!(validate: false)
+    end
+  end
+
+  # ...and from the guest's side that is a success, not a failure. They asked
+  # for two towels at six and two towels at six are on the board; telling them
+  # something went wrong would invite them to ask again, which is how one
+  # request becomes two.
+  test "confirming the same thing twice yields the one request, not an error" do
+    details = { "quantity" => "2", "description" => "towels" }
+    first = draft(status: :awaiting_confirmation, details: details).confirm!
 
     second = draft(status: :awaiting_confirmation, details: details)
+    again = second.confirm!
 
-    assert_raises(ActiveRecord::RecordNotUnique) { second.confirm! }
+    assert_equal first, again
     assert_equal 1, ServiceRequest.count
+    assert second.reload.status_confirmed?, "the duplicate draft has to settle too, or it holds the slot forever"
   end
 
   test "a genuinely different request is not treated as a duplicate" do

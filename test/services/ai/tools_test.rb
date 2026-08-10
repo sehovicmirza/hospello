@@ -17,8 +17,9 @@ module Ai
       @conversation = conversations(:stari_conversation)
     end
 
-    test "the definitions are the two tools this slice ships" do
-      assert_equal %w[escalate_to_staff log_unanswered_question], Ai::Tools.definitions.map { |tool| tool[:name] }
+    test "the definitions are the four tools the assistant may use" do
+      assert_equal %w[escalate_to_staff propose_service_request confirm_service_request log_unanswered_question],
+                   Ai::Tools.definitions.map { |tool| tool[:name] }
 
       Ai::Tools.definitions.each do |tool|
         assert tool[:description].present?, "#{tool[:name]} needs a description — the model reads it"

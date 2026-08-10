@@ -44,6 +44,20 @@ class ServiceRequestDraft < ApplicationRecord
 
   def expired_by_time? = expires_at.present? && expires_at <= Time.current
 
+  # What the guest is asked to confirm, and what the summary card renders —
+  # the same sentence in both places on purpose, so a guest who confirms by
+  # typing "yes" and a guest who taps the button are agreeing to identical
+  # words. Category name first because it carries the meaning; the details
+  # qualify it.
+  def summary_for_guest
+    qualifiers = Array(request_category&.detail_fields).filter_map do |field|
+      value = details[field.to_s]
+      "#{field}: #{value}" if value.present?
+    end
+
+    [ request_category&.name, qualifiers.presence&.join(", ") ].compact_blank.join(" — ")
+  end
+
   # The conversation's one live draft, or nil. Deliberately not a
   # find_or_create: creating one is a decision the propose tool makes with a
   # category in hand, not something a reader should trigger by looking.
@@ -88,6 +102,28 @@ class ServiceRequestDraft < ApplicationRecord
       request.save!
     end
     request
+  rescue ActiveRecord::RecordNotUnique
+    # The same request already exists — the dedupe_key index caught it. This
+    # is a success from the guest's side, not a failure: they asked for two
+    # towels at six, and two towels at six are on the board. Telling them
+    # something went wrong would be a lie that invites them to ask again, and
+    # asking again is how one request becomes two.
+    #
+    # The transaction rolled back, so the draft is still live in the database
+    # and has to be settled here.
+    reload
+    update!(status: :confirmed)
+    ServiceRequest.find_by!(dedupe_key: dedupe_key)
+  end
+
+  # The key this draft's request would carry — read by #confirm! twice (once
+  # to build, once to recover the existing row when the index says it is
+  # already there), so it is computed in one place.
+  def dedupe_key
+    ServiceRequest.dedupe_key_for(
+      conversation: conversation, category: request_category,
+      details: details, requested_for_at: requested_for_at
+    )
   end
 
   class NotConfirmable < StandardError; end
@@ -108,29 +144,17 @@ class ServiceRequestDraft < ApplicationRecord
         # Denormalized now so a later category edit does not rewrite who
         # handled this.
         department: request_category&.department,
-        summary: summary_text,
+        # The same sentence the guest agreed to. A receptionist reading a
+        # different summary from the one the guest confirmed is how "that is
+        # not what I asked for" conversations start.
+        summary: summary_for_guest.truncate(ServiceRequest::MAX_SUMMARY_LENGTH),
         details: details,
         original_locale: conversation.guest_locale,
         requested_for_at: requested_for_at,
         channel: conversation.channel,
         source: :ai,
-        dedupe_key: ServiceRequest.dedupe_key_for(
-          conversation: conversation, category: request_category,
-          details: details, requested_for_at: requested_for_at
-        )
+        dedupe_key: dedupe_key
       )
-    end
-
-    # A one-line description a receptionist can read at a glance from across
-    # the desk. The category name carries the meaning; the details qualify it.
-    def summary_text
-      qualifiers = Array(request_category&.detail_fields).filter_map do |field|
-        value = details[field.to_s]
-        "#{field}: #{value}" if value.present?
-      end
-
-      [ request_category&.name, qualifiers.presence&.join(", ") ]
-        .compact_blank.join(" — ").truncate(ServiceRequest::MAX_SUMMARY_LENGTH)
     end
 
     # Parsed from the details hash rather than stored in its own column: the
