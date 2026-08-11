@@ -170,17 +170,63 @@ class Guest::MessagesControllerTest < ActionDispatch::IntegrationTest
     end
     sign_in_guest(raw_token)
 
-    Guest::MessagesController::RATE_LIMIT_MAX.times do
+    # freeze_time, because the limit is 100 requests *within one minute* and
+    # this test makes 101 of them. On an unloaded machine that takes about a
+    # second and the window never matters; on a busy one — CI, or a laptop
+    # running the suite beside something else — those requests can span more
+    # than sixty seconds, the earliest ones fall out of the window, and the
+    # last request is then genuinely not over the limit. The test failed
+    # exactly that way in a full-suite run that took 445s while other work
+    # was competing for the machine, and passed in 2.5s alone minutes later,
+    # with no code change in between. That is a test measuring the machine
+    # rather than the rate limiter. Freezing the clock makes the burst
+    # instantaneous by definition, so what is asserted is the limit itself.
+    freeze_time do
+      Guest::MessagesController::RATE_LIMIT_MAX.times do
+        post guest_messages_path,
+          params: { message: { body: "hi", client_message_id: SecureRandom.uuid } },
+          headers: { "Accept" => TURBO_STREAM_ACCEPT }
+      end
+      assert_response :success
+
       post guest_messages_path,
-        params: { message: { body: "hi", client_message_id: SecureRandom.uuid } },
+        params: { message: { body: "one too many", client_message_id: SecureRandom.uuid } },
         headers: { "Accept" => TURBO_STREAM_ACCEPT }
+
+      assert_response :too_many_requests
     end
-    assert_response :success
+  end
 
-    post guest_messages_path,
-      params: { message: { body: "one too many", client_message_id: SecureRandom.uuid } },
-      headers: { "Accept" => TURBO_STREAM_ACCEPT }
+  # The complement, and the reason the window is worth having at all: a guest
+  # who hits the limit is not banned, only slowed. Without this, shortening
+  # `within:` to a second — or removing the window entirely and never letting
+  # anyone through again — would leave the suite green.
+  test "a rate-limited session is allowed through again once the window passes" do
+    hotel = hotels(:stari_grad)
+    raw_token = SecureRandom.urlsafe_base64(32)
+    with_tenant(hotel) do
+      hotel.guest_sessions.create!(
+        guest_name: "Recovering Guest", locale: "en", privacy_accepted_at: Time.current,
+        expires_at: 7.days.from_now, token_digest: GuestSession.digest(raw_token)
+      )
+    end
+    sign_in_guest(raw_token)
 
-    assert_response :too_many_requests
+    freeze_time do
+      (Guest::MessagesController::RATE_LIMIT_MAX + 1).times do
+        post guest_messages_path,
+          params: { message: { body: "hi", client_message_id: SecureRandom.uuid } },
+          headers: { "Accept" => TURBO_STREAM_ACCEPT }
+      end
+      assert_response :too_many_requests
+    end
+
+    travel 2.minutes do
+      post guest_messages_path,
+        params: { message: { body: "let me back in", client_message_id: SecureRandom.uuid } },
+        headers: { "Accept" => TURBO_STREAM_ACCEPT }
+
+      assert_response :success
+    end
   end
 end
