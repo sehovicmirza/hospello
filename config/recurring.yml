@@ -36,5 +36,15 @@ production:
     queue: low
     schedule: every 5 minutes
 
+  # A message left mid-translation because its job died shows the reader
+  # "translating…" forever, which is worse than showing them the original.
+  # Every minute rather than every five: the budget it enforces is fifteen
+  # seconds, and a sweep an order of magnitude slower than its own budget is
+  # not really enforcing one.
+  settle_overdue_translations:
+    class: Ai::TranslationWatchdogJob
+    queue: low
+    schedule: every minute
+
   # Later slices add more recurring entries here: escalation reminders, and
   # data-retention purges (Slice 7).

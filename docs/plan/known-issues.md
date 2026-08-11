@@ -7,7 +7,22 @@ looks like a passing test and is a hole.
 
 ## Open
 
-### What "delivered" means on the web channel — decide this before Slice 5 Task 2
+### DECIDED: what "delivered" means on the web channel
+
+**Resolved in Slice 5 Task 2, on the second reading below.** A message broadcasts the instant it is
+written; the translation lands afterwards as an overlay and the reader's page updates itself. The
+15-second budget was kept but now governs how long a reader waits before the original becomes the
+final answer, rather than how long a message is withheld. `messages.delivered_at` is still unused
+and belongs to Slice 6, where a message really is sent once.
+
+**This is reversible in about an hour** if a pilot says otherwise: hold the broadcast in
+`Conversation#post_guest_message!` / `#post_staff_message!` until `Ai::TranslateMessageJob` finishes
+or the watchdog fires, and move the claim from `translation_status` to `delivered_at`. The original
+reasoning follows, unchanged, because the argument matters more than the outcome.
+
+---
+
+#### The question as it stood
 
 The plan gives Slice 5 a "15s delivery budget with the delivery-claim column + watchdog", and the
 acceptance criterion is "translation-vs-timeout → exactly one delivery". That is unambiguous for

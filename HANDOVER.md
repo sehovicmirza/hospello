@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 4 complete · Slice 5 at 1 of 4 tasks) |
+| **Last updated** | 2026-08-10 (Slice 4 complete · Slice 5 at 2 of 4 tasks) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 785 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 804 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1–4 complete** · Slice 5 at 1 of 4 tasks |
+| **Progress** | **Slices 1–4 complete** · Slice 5 at 2 of 4 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -327,20 +327,40 @@ this is the part that decides whether translating is safe to switch on at all.
   and not allowed to break that path. Same language on both sides costs nothing at all — no call, no
   tokens.
 
+**Slice 5 Task 2 — the translation claim and the budget.** Complete. Messages are now translated in
+the background for whoever has to read them; nothing renders the result yet (that is Task 3).
+
+- **The delivery question is decided**, and the decision is written up in
+  `docs/plan/known-issues.md` along with the case for the other choice and how to reverse it. On the
+  web a message broadcasts the instant it is written and the translation arrives afterwards as an
+  overlay. Holding it would have traded a real failure — an inbox showing nothing for fifteen
+  seconds after a guest hit send — for a cosmetic one.
+- The claim therefore guards *translation* rather than delivery:
+  `Message#claim_translation!` moves `pending → translating` in one atomic statement, so a duplicate
+  enqueue, a retry, or the watchdog racing the job can never make a hotel pay twice.
+  `messages.delivered_at` is still unused and belongs to Slice 6.
+- `Ai::TranslationWatchdogJob` (every minute) settles translations that never came back, so nobody
+  is left staring at "translating…". The 15-second budget is pinned by its own test — every other
+  test is relative to the constant and would stay green if someone widened it to an hour.
+- `Message#translation_target_locale` is the single answer to "which direction, and into what": a
+  guest message goes into the hotel's staff language, a staff reply into the guest's, and system
+  notices and assistant replies are skipped (both are already in the right language). The fixtures
+  give both hotels `bs` for staff and guest, so **any test about direction must set one of them
+  explicitly** or it passes whichever way round the code has it — that caught a real swapped-
+  direction break.
+
 ---
 
 ## What to do next
 
-1. **Slice 5 Task 2 — delivery. Read the open entry in `docs/plan/known-issues.md` first.** There is
-   a genuine product decision in front of this task that I did not want to make silently: the plan's
-   "15-second delivery budget" is unambiguous for WhatsApp, where a message is really sent once, and
-   ambiguous for the web chat, where nothing is sent and both surfaces render live from the database.
-   Holding a guest's message out of the inbox for up to 15 seconds so the receptionist's *first*
-   sight of it is translated, versus showing it immediately and letting the translation land as an
-   overlay a second later, is a trade-off worth someone's thirty seconds. The known-issues entry lays
-   out both readings and recommends one with its reasoning. `Ai::Translator` is ready to be called
-   either way. Then Task 3 (both directions plus the original/translation chip) and Task 4 (the staff
-   workspace in Bosnian, and the request-summary overlay). Brief: `docs/plan/slice-5-tasks.md`.
+1. **Slice 5 Task 3 — both directions on screen, and the chip.** The translation exists in the
+   database and nothing shows it yet. `Message#readable_in(locale)` returns `[text, :original |
+   :translated]` and is the one reader both surfaces should use. What is left: render the overlay in
+   the guest bubble and the staff bubble, a control to reveal the original (in words, never a flag —
+   a flag is a country, not a language), a bubble that fell back saying so rather than looking
+   normal, and lazy translation of assistant replies when a receptionist opens the conversation.
+   Then Task 4 (the staff workspace in Bosnian, and the request-summary overlay). Brief:
+   `docs/plan/slice-5-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns

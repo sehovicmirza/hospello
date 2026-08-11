@@ -12,7 +12,14 @@ class Message < ApplicationRecord
   # (translation_status and delivery_status), which would otherwise collide
   # on the same generated `failed?` instance method.
   enum :sender_role, { guest: 0, assistant: 1, staff: 2, system: 3 }
-  enum :translation_status, { not_needed: 0, pending: 1, translated: 2, failed: 3 }, prefix: true
+  # `translating` is the claim: a message moves pending → translating in one
+  # atomic statement (see #claim_translation!), so exactly one job ever spends
+  # tokens on it however many times it is enqueued or retried. `failed` is a
+  # settled outcome, not an error — it means the reader gets the original,
+  # which is the whole design (see Ai::Translator).
+  enum :translation_status, {
+    not_needed: 0, pending: 1, translated: 2, failed: 3, translating: 4
+  }, prefix: true
   enum :delivery_status, { local: 0, queued: 1, sent: 2, delivered: 3, read: 4, failed: 5 }, prefix: true
 
   # Whether the guest may ever see this message. Internal notes (the
@@ -40,6 +47,65 @@ class Message < ApplicationRecord
 
   scope :chronological, -> { order(:id) }
   scope :after_id, ->(id) { id.present? ? where(arel_table[:id].gt(id)) : all }
+
+  # Translations in flight that have taken longer than they are worth. A
+  # message stuck in `translating` because its job died is a bubble that shows
+  # "translating…" forever, which is worse than showing the original.
+  scope :translation_overdue, ->(budget) {
+    where(translation_status: [ :pending, :translating ]).where(updated_at: ..budget.ago)
+  }
+
+  # Who this message needs translating for, and into what — nil when nobody
+  # does. This is the single answer to "which direction", so the enqueue site,
+  # the job and the watchdog cannot each have their own opinion.
+  #
+  # A guest message is read by staff, so it goes into the hotel's staff
+  # language; a staff reply is read by the guest, so it goes into theirs.
+  # System notices are already pre-translated on disk (config/locales), and an
+  # assistant reply is already in the guest's own language — translating
+  # either would be a round trip that can only make it worse. The assistant's
+  # *staff-facing* translation is done lazily, when a receptionist actually
+  # opens the conversation.
+  def translation_target_locale
+    source = body_locale.presence
+    target = { "guest" => hotel.staff_locale, "staff" => conversation.guest_locale }[sender_role]
+
+    return nil if target.blank? || source.blank? || source == target
+
+    target
+  end
+
+  # The atomic claim. Returns true for exactly one caller; everyone else gets
+  # false and does nothing. Same shape as the dedupe_key index and the
+  # one-live-draft index: the guarantee is a database statement, not a check
+  # somebody remembered to run.
+  def claim_translation!
+    claimed = self.class.where(id: id, translation_status: self.class.translation_statuses[:pending])
+                        .update_all(translation_status: self.class.translation_statuses[:translating],
+                                    updated_at: Time.current)
+    reload if claimed == 1
+    claimed == 1
+  end
+
+  # The overlay. `body` is never touched — the original is what was said, and
+  # #body_is_immutable_after_creation enforces that regardless of what any
+  # caller intends.
+  def apply_translation!(translation)
+    update!(
+      translated_body: translation.text,
+      translated_locale: translation.locale,
+      translation_status: translation.translated? ? :translated : :failed
+    )
+  end
+
+  # What a reader in `locale` should see, and whether it is the original.
+  # Falls back to the original whenever there is no usable translation, which
+  # covers every failure mode at once.
+  def readable_in(locale)
+    return [ body, :original ] if translated_body.blank? || translated_locale.to_s != locale.to_s
+
+    [ translated_body, :translated ]
+  end
 
   private
     def assign_hotel_from_conversation

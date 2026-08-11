@@ -87,44 +87,37 @@ cost the message nothing.
 
 ---
 
-### Task 2: Delivery — the claim column and the 15-second budget
+### Task 2: The translation claim and the 15-second budget — DONE
 
-**Why this is its own task:** the translate-then-deliver path has a race that produces the worst
-possible outcome — the same message delivered twice, once translated and once not. A receptionist
-seeing a guest's question appear twice, in two languages, learns not to trust the screen.
+**What this turned out to be, and why it is not quite what this section originally said.** The brief
+asked for a *delivery* claim: hold the message, translate, deliver once. That is the right shape for
+WhatsApp, where a message is genuinely sent and cannot be taken back. On the web nothing is sent —
+the message is written and both surfaces render it live — so holding it would trade a real failure
+(a reception inbox showing nothing for fifteen seconds after a guest hit send) for a cosmetic one (a
+second of the guest's own words before the translation lands). The reasoning, including the case for
+the other choice, is in `docs/plan/known-issues.md`.
 
-**Files:**
-- Create: `app/jobs/ai/translate_message_job.rb`, `app/jobs/ai/delivery_watchdog_job.rb`
-- Modify: `app/models/message.rb`, `app/models/conversation.rb`, `config/recurring.yml`
-- Create: `test/jobs/ai/translate_message_job_test.rb`, `test/jobs/ai/delivery_watchdog_job_test.rb`
-
-**The single-writer delivery claim.** Delivery is claimed with one atomic statement:
-
-```ruby
-Message.where(id: id, delivered_at: nil).update_all(delivered_at: Time.current) == 1
-```
-
-Whoever gets the `1` delivers; everyone else does nothing. Both the translate job and the watchdog
-race for it, and exactly one wins. This is the same shape as `dedupe_key` and the one-live-draft
-index: the guarantee is a database statement, not a check somebody remembered to run.
-
-- [ ] **Step 1: Write the race tests first**
+So the claim moved from delivery to **translation**, and it is the same atomic statement doing the
+same job:
 
 ```ruby
-test "a translation finishing at the same moment the watchdog fires delivers once"
-test "a message already delivered untranslated is never re-delivered translated" # the overlay lands, the message does not resend
-test "the watchdog delivers the original after the budget expires"
-test "a delivered message's translation still lands as an overlay"
+Message.where(id: id, translation_status: :pending).update_all(translation_status: :translating)
 ```
 
-- [ ] **Step 2: The 15-second budget**
+Exactly one caller gets past it — a duplicate enqueue, a retry after a crash, the watchdog racing
+the job — so a message is never paid for twice. `messages.delivered_at` is deliberately still
+unused; it belongs to Slice 6, where "delivered" means something.
 
-A guest waiting longer than this has decided the chat is broken. The watchdog (recurring, every
-minute) delivers the original for anything past its budget and marks `translation_status: :failed`.
-The translation, if it arrives later, is still written to `translated_body` — the overlay is useful
-even when it was too slow to gate delivery on.
+The watchdog changed meaning with it. It no longer delivers anything: it settles translations that
+never came back, so a reader is never left staring at "translating…" for a message whose job died.
+The budget is still fifteen seconds, and it is a product decision about how long someone is asked to
+wait — pinned by its own test, because every other test here is relative to the constant and would
+stay green if someone widened it to an hour.
 
-- [ ] **Step 3: Full suite, commit**
+**Built:** `Message#translation_target_locale` (the single answer to "which direction, and into
+what"), `#claim_translation!`, `#apply_translation!`, `#readable_in`; `Ai::TranslateMessageJob`;
+`Ai::TranslationWatchdogJob` (recurring, every minute); enqueue from both post paths;
+`translation` runs written to `ai_runs` so translation and concierge spend are one query.
 
 ---
 

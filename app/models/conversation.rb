@@ -166,6 +166,7 @@ class Conversation < ApplicationRecord
       touch_guest_activity!
     end
     broadcast_new_message(message)
+    enqueue_translation(message)
     # After the broadcast, and unconditionally. The guest's message is already
     # persisted and already in the reception inbox at this point, so whether
     # an assistant also answers is a separate question with its own four
@@ -193,12 +194,18 @@ class Conversation < ApplicationRecord
   def post_staff_message!(user:, body:)
     message = nil
     transaction do
-      message = messages.create!(hotel: hotel, sender_role: :staff, sender_user: user, body: body)
+      # body_locale is stamped here rather than left null: without it the
+      # translator has no idea what language it is reading, and "translate
+      # from unknown" is how a Bosnian reply comes back as Bosnian.
+      message = messages.create!(
+        hotel: hotel, sender_role: :staff, sender_user: user, body: body, body_locale: hotel.staff_locale
+      )
       attributes = { last_message_at: Time.current, staff_unread_count: 0 }
       attributes[:status] = :active unless live?
       update!(**attributes)
     end
     broadcast_new_message(message)
+    enqueue_translation(message)
     message
   rescue ActiveRecord::RecordNotUnique
     # Only the one-live-conversation-per-guest index can raise this here,
@@ -344,7 +351,26 @@ class Conversation < ApplicationRecord
     Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
   end
 
+  # The overlay landed. A refresh rather than a targeted replace, for the same
+  # reason every other live update here is one: the bubble, the chip and the
+  # inbox row are different DOM shapes reacting to the same event.
+  def broadcast_translation(message)
+    broadcast_to_guest(message) if message.guest_visible?
+    Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
+  end
+
   private
+    # Marked pending and handed to the queue, or left alone. The decision of
+    # *whether* is Message#translation_target_locale's, in one place, so the
+    # enqueue site cannot develop its own opinion about which direction needs
+    # translating.
+    def enqueue_translation(message)
+      return if message.translation_target_locale.blank?
+
+      message.update_column(:translation_status, Message.translation_statuses[:pending])
+      Ai::TranslateMessageJob.perform_later(message)
+    end
+
     # sender_user on a :system message is unusual (the column exists for
     # :staff messages) and deliberate here: "who took over" is the whole
     # point of the trail, and a name embedded in the body would be
