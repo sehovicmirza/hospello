@@ -375,6 +375,72 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
     assert_no_match "hotel-b-only-secret-message", response.body
   end
 
+  # The WhatsApp webhook (Slice 6 Task 3) is the newest way into this app's
+  # data and the only unauthenticated one, so it is also the newest way to get
+  # the tenant wrong. There is no hotel in the URL, no session and no user:
+  # the payload's own metadata.phone_number_id is the *entire* basis for
+  # deciding which hotel a guest's words belong to, and that decision is made
+  # by a lookup that deliberately runs with no tenant set
+  # (WhatsappChannel.route). Getting it wrong routes one hotel's guest into
+  # another's dashboard.
+  #
+  # Driven through the real signed endpoint rather than through
+  # Whatsapp::InboundRouter directly (which has its own unit tests): what is
+  # being proved here is the whole path — signature, storage, job, routing —
+  # since that is the path an attacker or a misconfigured Meta subscription
+  # actually takes.
+  test "a WhatsApp delivery on hotel B's number can never produce a row belonging to hotel A" do
+    original_secret = Rails.configuration.x.whatsapp.app_secret
+    Rails.configuration.x.whatsapp.app_secret = "test-cross-tenant-secret"
+    vrelo_channel = with_tenant(hotels(:vrelo)) { whatsapp_channels(:vrelo_whatsapp) }
+    body = whatsapp_delivery_body(vrelo_channel.phone_number_id, "hotel B's guest speaking")
+
+    perform_enqueued_jobs(only: Whatsapp::ProcessInboundJob) do
+      post webhooks_whatsapp_path, params: body, headers: {
+        "CONTENT_TYPE" => "application/json",
+        "X-Hub-Signature-256" => "sha256=" + OpenSSL::HMAC.hexdigest("SHA256", "test-cross-tenant-secret", body)
+      }
+    end
+
+    assert_response :ok
+    with_tenant(hotels(:stari_grad)) do
+      assert_equal 0, GuestSession.where(channel: :whatsapp).count,
+        "hotel A must have gained nothing from a delivery on hotel B's number"
+      assert_equal 0, Conversation.where(channel: :whatsapp).count
+      assert_not Message.exists?(body: "hotel B's guest speaking")
+    end
+    with_tenant(hotels(:vrelo)) do
+      assert Message.exists?(body: "hotel B's guest speaking"), "and hotel B must have gained it"
+    end
+    assert_equal hotels(:vrelo), WebhookEvent.order(:id).last.hotel
+  ensure
+    Rails.configuration.x.whatsapp.app_secret = original_secret
+  end
+
+  # ...and the same delivery on a number nobody owns reaches no hotel at all,
+  # so the test above cannot be passing merely because routing is broken in
+  # the safe direction.
+  test "a WhatsApp delivery on an unknown number reaches no hotel at all" do
+    original_secret = Rails.configuration.x.whatsapp.app_secret
+    Rails.configuration.x.whatsapp.app_secret = "test-cross-tenant-secret"
+    body = whatsapp_delivery_body("PHONE_NUMBER_ID_NOBODY_OWNS", "nowhere to go")
+
+    perform_enqueued_jobs(only: Whatsapp::ProcessInboundJob) do
+      post webhooks_whatsapp_path, params: body, headers: {
+        "CONTENT_TYPE" => "application/json",
+        "X-Hub-Signature-256" => "sha256=" + OpenSSL::HMAC.hexdigest("SHA256", "test-cross-tenant-secret", body)
+      }
+    end
+
+    assert_response :ok
+    [ hotels(:stari_grad), hotels(:vrelo) ].each do |hotel|
+      assert_equal 0, with_tenant(hotel) { GuestSession.where(channel: :whatsapp).count }
+    end
+    assert WebhookEvent.order(:id).last.ignored?
+  ensure
+    Rails.configuration.x.whatsapp.app_secret = original_secret
+  end
+
   # The live-update transport: even a validly-signed stream name for
   # hotel B's conversation (Turbo's signing proves it wasn't tampered
   # with — it says nothing about who is allowed to hold it) must be
@@ -394,4 +460,25 @@ class CrossTenantAccessTest < ActionDispatch::IntegrationTest
 
     assert subscription.rejected?
   end
+
+  private
+    # Meta's own documented envelope, as a raw JSON string — the signature is
+    # computed over the body bytes, so this must be the exact String that is
+    # posted, never a Hash Rails would re-serialize. `+"..."` on the literal:
+    # Rack::MockRequest mutates the body internally and warns on a chilled
+    # string under Ruby 3.4 (see HANDOVER.md).
+    def whatsapp_delivery_body(phone_number_id, text)
+      +{
+        "object" => "whatsapp_business_account",
+        "entry" => [ { "id" => "WABA_ID", "changes" => [ { "field" => "messages", "value" => {
+          "messaging_product" => "whatsapp",
+          "metadata" => { "phone_number_id" => phone_number_id },
+          "contacts" => [ { "profile" => { "name" => "Guest" }, "wa_id" => "38761234567" } ],
+          "messages" => [ {
+            "from" => "38761234567", "id" => "wamid.CROSSTENANT1", "timestamp" => "1786449600",
+            "type" => "text", "text" => { "body" => text }
+          } ]
+        } } ] } ]
+      }.to_json
+    end
 end

@@ -9,9 +9,12 @@ module Ai
   # to that must be decided at write time, not here.
   class Concierge
     # A turn that needs more rounds than this is a turn that has gone wrong.
-    # This slice ships two tools and neither takes an argument the model has
-    # to discover by trying; the cap exists so a model that loops cannot bill
-    # a hotel indefinitely while a guest watches a typing indicator.
+    # No tool here takes an argument the model has to discover by trying — the
+    # one that comes closest, set_guest_room, is answered by the guest rather
+    # than guessed at — so the cap exists to stop a model that loops from
+    # billing a hotel indefinitely while a guest watches a typing indicator,
+    # not to allow for exploration. Raising it is almost never the right
+    # response to a turn that hits it.
     MAX_TOOL_ROUNDS = 3
 
     # Our own marker, not an API feature: the last line of a reply, listing

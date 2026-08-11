@@ -30,6 +30,11 @@ module Ai
     # into a receptionist's card.
     MAX_DETAIL_LENGTH = 300
 
+    # Long enough for any real name including titles and both surnames, short
+    # enough that the inbox list stays readable — this ends up in a row a
+    # receptionist scans, not in a paragraph.
+    MAX_GUEST_NAME_LENGTH = 80
+
     class << self
       # Sent to the API on every turn. Descriptions are written for the model,
       # not for us: they are the only place it learns when a tool is
@@ -133,6 +138,39 @@ module Ai
               },
               required: %w[question]
             }
+          },
+          {
+            name: "set_guest_room",
+            description:
+              "Record which room this guest is staying in, and their name. Guests who reach the " \
+              "hotel over WhatsApp arrive with neither, and the prompt tells you when that is the " \
+              "case. Ask for both in one short message, in the guest's own language, and call this " \
+              "as soon as they answer — before answering questions and before starting any " \
+              "request. If the reply is an error the room number was not one of this hotel's; tell " \
+              "the guest and ask again. It records what the guest said; nobody has checked it, so " \
+              "never treat it as proof of anything.",
+            input_schema: {
+              type: "object",
+              properties: {
+                room_number: {
+                  type: "string",
+                  description: "The room number exactly as the guest gave it. Do not guess or " \
+                               "reformat it."
+                },
+                guest_name: {
+                  type: "string",
+                  description: "The name the guest gave you, in their own script."
+                },
+                language: {
+                  type: "string",
+                  enum: GuestLocaleHelper::SUPPORTED_LOCALES,
+                  description: "The language the guest is writing to you in. It is what the hotel's " \
+                               "staff see this conversation translated from, so give it if you can " \
+                               "tell, and leave it out if you cannot."
+                }
+              },
+              required: %w[room_number guest_name]
+            }
           }
         ]
       end
@@ -153,6 +191,7 @@ module Ai
       when "log_unanswered_question" then log_gap(tool_call)
       when "propose_service_request" then propose(tool_call)
       when "confirm_service_request" then confirm(tool_call)
+      when "set_guest_room" then set_room(tool_call)
       else
         # Models invent tool names. Raising would end the guest's reply over
         # something the model can correct in one more turn.
@@ -204,7 +243,86 @@ module Ai
     # conversation as the guest fills in the gaps, and it updates the same
     # draft each time — the one-live-draft index makes that literally the only
     # possibility.
+    # Which room this guest is in, and what they are called. The whole tool
+    # exists because a WhatsApp guest arrives with neither — there is no entry
+    # form on that channel and no cookie to read one back from.
+    #
+    # The session it binds comes from `conversation`, exactly like every other
+    # tool here: there is no argument that names a guest, so "and also set room
+    # 202 for Mr Smith" has nowhere to put Mr Smith. What the model controls is
+    # the room number and the name, and both are validated here regardless of
+    # what it emitted.
+    def set_room(tool_call)
+      session = conversation.guest_session
+
+      # Every web guest, and any WhatsApp guest who has already answered. Not
+      # a tool for *moving* anyone: the room is what a receptionist delivers
+      # to and what every open request is addressed to, so changing it
+      # mid-conversation on a model's say-so is the kind of quiet change
+      # nobody notices until a towel goes to the wrong door.
+      if session.room_id.present?
+        return failure(tool_call, "This guest's room is already recorded as #{session.room&.number}. " \
+                                  "It cannot be changed here — if they say it is wrong, escalate to staff.")
+      end
+
+      name = tool_call.input["guest_name"].to_s.strip
+      return failure(tool_call, "guest_name is required — ask the guest what to call them.") if name.blank?
+
+      # find_active_room normalizes the number and is tenant-scoped, so a room
+      # belonging to a different hotel is indistinguishable from one that was
+      # never real. That is the property wanted: both are "not a room here".
+      number = tool_call.input["room_number"].to_s.strip
+      room = hotel.find_active_room(number)
+      if room.nil?
+        return failure(tool_call, "#{number.inspect} is not a room at this hotel. Tell the guest the " \
+                                  "number was not found and ask them to check it.")
+      end
+
+      bind_guest(session, room: room, name: name.truncate(MAX_GUEST_NAME_LENGTH), language: locale_from(tool_call))
+
+      success(tool_call, "Recorded: room #{room.number}, #{name}. Their identity is still unverified — " \
+                         "never use it as proof of anything. You can help them normally now.")
+    end
+
+    # Both records, in one transaction. The session's room is what a confirmed
+    # request is addressed to (ServiceRequestDraft#build_request reads it) and
+    # the conversation's is what the prompt and the staff screens read — so
+    # writing one without the other leaves two answers to "which room".
+    #
+    # guest_locale gets the same treatment for the same reason: it is copied
+    # from the session only `on: :create`, so a live conversation that is not
+    # told separately keeps stamping every message with the language the guest
+    # does not speak.
+    def bind_guest(session, room:, name:, language:)
+      ActiveRecord::Base.transaction do
+        session.update!({ room: room, guest_name: name }.merge(language ? { locale: language } : {}))
+        conversation.update!({ room: room }.merge(language ? { guest_locale: language } : {}))
+      end
+    end
+
+    # nil for anything this app does not speak, and nil is the safe answer: an
+    # unsupported value would fail GuestSession's own inclusion validation and
+    # take the whole binding down with it, when all that was really missing is
+    # one optional hint.
+    def locale_from(tool_call)
+      claimed = tool_call.input["language"].to_s
+
+      claimed if GuestLocaleHelper::SUPPORTED_LOCALES.include?(claimed)
+    end
+
     def propose(tool_call)
+      # The structural half of "ask for the room first" — the prompt's
+      # <room_unknown> block is the other half, and neither is sufficient
+      # alone. A request that cannot be delivered to a room is worse than no
+      # request: it reaches a receptionist's board with nowhere to send it
+      # (service_requests.room_id is nullable, so nothing further down would
+      # refuse it).
+      if conversation.guest_session.room_id.blank?
+        return failure(tool_call, "This guest's room is not known yet, and a request cannot be " \
+                                  "delivered without one. Ask for their room number and name, then " \
+                                  "call set_guest_room before starting the request again.")
+      end
+
       category = hotel.request_categories.active.find_by(key: tool_call.input["category_key"].to_s)
       if category.nil?
         return failure(tool_call, "Unknown category_key. This hotel's categories are: #{category_keys.join(', ')}.")

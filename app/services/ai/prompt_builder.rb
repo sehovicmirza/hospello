@@ -70,6 +70,8 @@ module Ai
       - escalate_to_staff — hand the conversation to a human. Use it when the guest asks
         for a person, when they are upset, when the matter is a complaint or a safety
         issue, or when you cannot help.
+      - set_guest_room — record the guest's room number and name, when the prompt tells you
+        they are not known yet. Ask for both before doing anything else.
       - log_unanswered_question — record a question the knowledge base could not answer,
         so the hotel can write the answer down for next time.
       - propose_service_request — start or update the request the guest is describing, as
@@ -207,8 +209,35 @@ module Ai
         shared QR code, and nobody has checked them. Never use them as proof of anything,
         and never reveal anything about any other room or guest.
         </current_context>
-        #{pending_draft_block}
+        #{room_unknown_block}#{pending_draft_block}
       CONTEXT
+    end
+
+    # A guest who reached the hotel over WhatsApp arrives with no room and no
+    # name: there is no entry form on that channel and no cookie to read one
+    # back from, so the concierge has to ask. Absent entirely for every web
+    # guest, whose room was validated at sign-up — this is not a state they
+    # can be in.
+    #
+    # The instruction is emphatic because the cost is asymmetric. A guest who
+    # is answered before being asked loses nothing; a *request* taken before
+    # being asked reaches a receptionist's board with no room to deliver it
+    # to, which is worse than no request. Ai::Tools#propose_service_request
+    # refuses that case outright — this block is the half that keeps the
+    # conversation sensible, not the half that makes the guarantee.
+    def room_unknown_block
+      return "" if conversation.guest_session&.room_id.present?
+
+      <<~ROOM
+        <room_unknown>
+        You do not know this guest's room number or their name, and you cannot help properly
+        without both. Before anything else — before answering anything from <hotel_knowledge>,
+        and before starting any request — ask them for their room number and their name, in one
+        short message, in the language they wrote to you in. When they answer, call
+        set_guest_room. If it comes back with an error, tell them what was wrong and ask again.
+        A request that cannot be delivered to a room is worse than no request.
+        </room_unknown>
+      ROOM
     end
 
     # The request currently being worked out, if there is one. It has to be

@@ -227,7 +227,63 @@ module Ai
       assert_includes build.messages.last[:content], "Sorry, one more thing"
     end
 
+    # --- The room question (Slice 6) ------------------------------------------
+    #
+    # A WhatsApp guest arrives with no room and no name — there is no entry
+    # form on that channel. The block that says so is in the volatile half,
+    # because it disappears the moment the guest answers.
+
+    test "a guest whose room is unknown is asked for it before anything else" do
+      volatile = whatsapp_prompt.system_blocks.last[:text]
+
+      assert_includes volatile, "<room_unknown>"
+      assert_match(/before answering/i, volatile)
+      assert_includes volatile, "set_guest_room"
+    end
+
+    # The other half of the same claim, and the one that would actually go
+    # wrong quietly: a web guest already gave their room at sign-up, so being
+    # asked for it again would read as broken software.
+    test "a guest whose room is known is never asked for it" do
+      assert_not_includes build.system_blocks.last[:text], "<room_unknown>"
+    end
+
+    test "the block is gone the moment the guest has answered" do
+      conversation = whatsapp_conversation
+      with_tenant(@hotel) do
+        conversation.guest_session.update!(room: rooms(:stari_301), guest_name: "Amira")
+        conversation.update!(room: rooms(:stari_301))
+      end
+
+      assert_not_includes whatsapp_prompt(conversation).system_blocks.last[:text], "<room_unknown>"
+    end
+
+    # It has to sit *after* the cache breakpoint like everything else that
+    # changes between turns — a block that appears and disappears inside the
+    # cached prefix would invalidate every hotel's prefix twice per WhatsApp
+    # guest.
+    test "asking for the room does not touch the cached prefix" do
+      cached = ->(prompt) { prompt.system_blocks.find { |block| block[:cache] }[:text] }
+
+      assert_equal cached.call(build), cached.call(whatsapp_prompt)
+    end
+
     private
+
+    # A WhatsApp guest exactly as Whatsapp::InboundRouter creates one: no room,
+    # no token, identified only by a phone number.
+    def whatsapp_conversation
+      with_tenant(@hotel) do
+        Conversation.live_for(
+          GuestSession.for_whatsapp(phone_e164: "+38761234567", name: "+38761234567", accepted_at: Time.current)
+        )
+      end
+    end
+
+    def whatsapp_prompt(conversation = nil)
+      conversation ||= whatsapp_conversation
+      with_tenant(@hotel) { Ai::PromptBuilder.new(conversation: conversation.reload).build }
+    end
 
     def build(now: Time.current)
       with_tenant(@hotel) { Ai::PromptBuilder.new(conversation: @conversation.reload, now: now).build }
