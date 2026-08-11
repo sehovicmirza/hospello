@@ -115,7 +115,9 @@ class Staff::MessagesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to staff_conversation_path(newer)
-    assert_match "the guest has since started a new one", flash[:alert]
+    # @staff (stari_staff) reads the staff workspace in Bosnian — see
+    # fixtures. staff.messages.create.superseded, config/locales/staff.bs.yml.
+    assert_match "gost je u međuvremenu započeo novi", flash[:alert]
   end
 
   test "an over-long reply is refused with a readable message and creates nothing" do

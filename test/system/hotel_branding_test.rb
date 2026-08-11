@@ -14,7 +14,7 @@ class HotelBrandingTest < ApplicationSystemTestCase
     attach_file "Logo", file_fixture("logo.png")
     click_on "Sačuvaj izmjene"
 
-    assert_text "Hotel settings updated."
+    assert_text "Postavke hotela ažurirane."
 
     hotel = hotels(:stari_grad).reload
     assert_equal "#334455", hotel.primary_color

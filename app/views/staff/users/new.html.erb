@@ -38,6 +38,14 @@
   </div>
 
   <div>
+    <%= form.label :locale, t(".locale_label"), class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500"><%= t(".locale_hint") %></p>
+    <%= form.select :locale,
+          options_for_select([ [ t("staff.common.locales.en"), "en" ], [ t("staff.common.locales.bs"), "bs" ] ], @user.locale),
+          {}, class: field_classes %>
+  </div>
+
+  <div>
     <%= form.label :password, t(".password_label"), class: "block text-sm font-medium text-gray-700" %>
     <%= form.password_field :password, required: true, autocomplete: "new-password",
           minlength: User::MINIMUM_PASSWORD_LENGTH, maxlength: 72, class: field_classes %>

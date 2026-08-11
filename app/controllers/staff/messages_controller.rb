@@ -16,7 +16,7 @@ module Staff
       if internal_note?
         authorize @conversation, :note?
         @conversation.post_internal_note!(user: Current.user, body: message_params[:body].to_s)
-        redirect_to staff_conversation_path(@conversation), notice: "Internal note saved. The guest cannot see it."
+        redirect_to staff_conversation_path(@conversation), notice: t(".internal_note_saved")
       else
         authorize @conversation, :reply?
         @conversation.post_staff_message!(user: Current.user, body: message_params[:body].to_s)
@@ -30,9 +30,7 @@ module Staff
       # nobody would read it (see Conversation#post_staff_message!). Point
       # at the conversation the guest is actually in instead of reporting
       # a failure with no way forward — no dead ends applies to staff too.
-      redirect_to superseding_conversation_path,
-        alert: "This conversation was closed and the guest has since started a new one — your reply was not sent. " \
-               "Continue in their current conversation."
+      redirect_to superseding_conversation_path, alert: t(".superseded")
     end
 
     private

@@ -249,7 +249,9 @@ module Staff
       assert_no_difference -> { with_tenant(@hotel) { RequestEvent.count } } do
         post staff_service_request_request_events_path(request), params: { note: "  " }
       end
-      assert_match(/needs some text/i, flash[:alert])
+      # @staff reads the staff workspace in Bosnian — see fixtures.
+      # staff.request_events.create.note_blank, config/locales/staff.bs.yml.
+      assert_match(/mora sadržavati tekst/i, flash[:alert])
     end
 
     # A note attached to a transition is staff commentary too — the guest

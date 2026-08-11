@@ -17,9 +17,9 @@ module Staff
         hotel: Current.hotel, user: Current.user, kind: :note, note: params[:note]
       )
 
-      redirect_to staff_service_request_path(@request), notice: "Note added — the guest cannot see it."
+      redirect_to staff_service_request_path(@request), notice: t(".note_added")
     rescue ActiveRecord::RecordInvalid
-      redirect_to staff_service_request_path(@request), alert: "A note needs some text."
+      redirect_to staff_service_request_path(@request), alert: t(".note_blank")
     end
   end
 end

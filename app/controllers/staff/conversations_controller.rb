@@ -67,10 +67,10 @@ module Staff
 
       if @conversation.paused?
         @conversation.resume_ai!(user: Current.user)
-        redirect_to staff_conversation_path(@conversation), notice: "Returned to the assistant."
+        redirect_to staff_conversation_path(@conversation), notice: t(".returned")
       else
         @conversation.pause_ai!(user: Current.user)
-        redirect_to staff_conversation_path(@conversation), notice: "You have taken over this conversation."
+        redirect_to staff_conversation_path(@conversation), notice: t(".took_over")
       end
     end
 
@@ -81,7 +81,7 @@ module Staff
       authorize @conversation, :resolve?
 
       @conversation.update!(status: :resolved)
-      redirect_to staff_conversations_path, notice: "Conversation marked resolved."
+      redirect_to staff_conversations_path, notice: t(".resolved")
     end
 
     private

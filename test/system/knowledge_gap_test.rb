@@ -17,10 +17,9 @@ class KnowledgeGapTest < ApplicationSystemTestCase
     sign_in_as_hotel_admin
 
     # stari_admin reads the staff workspace in Bosnian — see
-    # test/fixtures/users.yml — so every staff-chrome label below is the
-    # literal Bosnian text from config/locales/staff.bs.yml. Flash notices
-    # ("saved.", "answered for guests now") are set as literal English
-    # strings in the controller, out of this task's scope, and stay English.
+    # test/fixtures/users.yml — so every staff-chrome label and flash
+    # notice below is the literal Bosnian text from
+    # config/locales/staff.bs.yml.
     click_on "Praznine u znanju"
     assert_text "Is there a swimming pool?"
     assert_text "Ima li bazen?"
@@ -38,8 +37,8 @@ class KnowledgeGapTest < ApplicationSystemTestCase
             with: "We have no pool, but the Ilidža thermal baths are 20 minutes away by tram."
     click_on "Sačuvaj stavku"
 
-    assert_text "“Swimming pool” saved."
-    assert_text "That question is answered for guests now."
+    assert_text "„Swimming pool” sačuvano."
+    assert_text "To pitanje je sada odgovoreno za goste."
 
     ActsAsTenant.with_tenant(hotels(:stari_grad)) do
       question = UnansweredQuestion.find_by!(question: "Is there a swimming pool?")
@@ -60,7 +59,7 @@ class KnowledgeGapTest < ApplicationSystemTestCase
     # staff.unanswered_questions.index.dismiss, config/locales/staff.bs.yml.
     accept_confirm_if_any { click_on "Odbaci" }
 
-    assert_text "Dismissed."
+    assert_text "Odbačeno."
     within("#settled-gaps") { assert_text "Do you sell cigarettes?" }
 
     ActsAsTenant.with_tenant(hotels(:stari_grad)) do

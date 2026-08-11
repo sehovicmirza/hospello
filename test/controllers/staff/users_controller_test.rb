@@ -219,7 +219,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     assert target.reload.active?
   end
 
-  test "updating a user cannot change their name or role — only active is editable here" do
+  # locale (Slice 5 Task 4) is the one addition to what's editable here —
+  # deliberately, and separately tested below — name and role never are.
+  test "updating a user cannot change their name or role" do
     sign_in users(:stari_admin)
     target = users(:stari_staff)
     original_name = target.name
@@ -229,6 +231,40 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     target.reload
     assert_equal original_name, target.name
     assert target.staff?
+  end
+
+  # The admin side of the way in this task adds: a hotel_admin may set a
+  # colleague's workspace language for them (e.g. onboarding someone who
+  # won't set it up themselves) — the counterpart to
+  # Staff::PreferencesController, which lets a user set only their own.
+  test "a hotel_admin can set a colleague's workspace language" do
+    sign_in users(:stari_admin)
+    target = users(:stari_staff)
+    assert_equal "bs", target.locale, "fixture assumption"
+
+    patch staff_user_path(target), params: { user: { locale: "en" } }
+
+    assert_redirected_to staff_users_path
+    assert_equal "en", target.reload.locale
+  end
+
+  test "a new staff account is created with the language the admin chose for it" do
+    sign_in users(:stari_admin)
+
+    post staff_users_path, params: { user: valid_user_params(locale: "en") }
+
+    user = User.find_by!(email_address: valid_user_params[:email_address])
+    assert_equal "en", user.locale
+  end
+
+  test "an unrecognised locale is refused when creating a staff account, same as any other invalid field" do
+    sign_in users(:stari_admin)
+
+    assert_no_difference -> { User.count } do
+      post staff_users_path, params: { user: valid_user_params(locale: "fr") }
+    end
+
+    assert_response :unprocessable_content
   end
 
   test "a hotel_admin cannot deactivate their own account" do
@@ -242,7 +278,10 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     assert admin.reload.active?
     assert_redirected_to staff_users_path
     follow_redirect!
-    assert_match "You cannot deactivate your own account", response.body
+    # admin (stari_admin) reads the staff workspace in Bosnian — see
+    # fixtures. staff.users.update.self_deactivation_blocked,
+    # config/locales/staff.bs.yml.
+    assert_match "Ne možete deaktivirati svoj vlastiti nalog", response.body
   end
 
   # The brief only requires a self-deactivation lock-out guard. A hotel_admin

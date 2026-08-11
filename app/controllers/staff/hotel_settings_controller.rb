@@ -7,7 +7,7 @@ module Staff
 
     def update
       if @hotel.update(hotel_params)
-        redirect_to edit_staff_hotel_settings_path, notice: "Hotel settings updated."
+        redirect_to edit_staff_hotel_settings_path, notice: t(".updated")
       else
         render :edit, status: :unprocessable_content
       end

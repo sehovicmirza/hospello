@@ -19,7 +19,7 @@ module Staff
       authorize @room
 
       if @room.save
-        redirect_to staff_rooms_path, notice: "Room #{@room.number} added."
+        redirect_to staff_rooms_path, notice: t(".added", number: @room.number)
       else
         @rooms = Current.hotel.rooms.ordered
         render :index, status: :unprocessable_content
@@ -36,13 +36,17 @@ module Staff
       begin
         numbers = Room.parse_bulk(bulk_numbers_param)
       rescue Room::BulkRangeTooLarge => e
+        # e.message is untranslated English — a defensive guard against a
+        # pasted list absurd enough to create tens of thousands of rows
+        # (Room::MAX_BULK_RANGE / MAX_BULK_TOTAL), not a routine confirmation
+        # a receptionist sees in the course of ordinary work. Left as a
+        # known, deliberate gap alongside Staff::ServiceRequestsController
+        # #transition's own model-exception alert — see this task's report.
         return redirect_to staff_rooms_path, alert: e.message
       end
 
       created, skipped = bulk_add(numbers)
-      redirect_to staff_rooms_path,
-        notice: "#{created} room#{"s" unless created == 1} added, " \
-                "#{skipped} skipped as duplicate#{"s" unless skipped == 1}."
+      redirect_to staff_rooms_path, notice: bulk_create_notice(created, skipped)
     end
 
     def edit
@@ -50,7 +54,7 @@ module Staff
 
     def update
       if @room.update(room_params)
-        redirect_to staff_rooms_path, notice: "Room #{@room.number} updated."
+        redirect_to staff_rooms_path, notice: t(".updated", number: @room.number)
       else
         render :edit, status: :unprocessable_content
       end
@@ -58,7 +62,7 @@ module Staff
 
     def destroy
       if @room.destroy
-        redirect_to staff_rooms_path, notice: "Room #{@room.number} deleted."
+        redirect_to staff_rooms_path, notice: t(".deleted", number: @room.number)
       else
         redirect_to staff_rooms_path, alert: @room.errors.full_messages.to_sentence
       end
@@ -104,6 +108,17 @@ module Staff
         end
 
         [ created, skipped ]
+      end
+
+      # Rails' own count-based pluralization (t(key, count:)), not string
+      # surgery ("room#{"s" unless n == 1}") — that trick only ever produced
+      # correct English, and Bosnian's plural forms don't follow English's
+      # rule at all. Two independently-pluralized clauses can't share one
+      # count, so each is its own key and this only wires them together.
+      def bulk_create_notice(created, skipped)
+        t(".summary",
+          created_phrase: t(".created_phrase", count: created),
+          skipped_phrase: t(".skipped_phrase", count: skipped))
       end
   end
 end

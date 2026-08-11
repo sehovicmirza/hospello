@@ -47,7 +47,7 @@ module Staff
 
       if save_entry_and_close_the_gap
         audit_publication_change if @entry.published?
-        redirect_to staff_kb_entries_path, notice: "“#{@entry.title}” saved.#{gap_notice}"
+        redirect_to staff_kb_entries_path, notice: [ t(".saved", title: @entry.title), gap_notice ].compact_blank.join(" ")
       else
         render :new, status: :unprocessable_content
       end
@@ -61,7 +61,7 @@ module Staff
 
       if @entry.update(entry_params)
         audit_publication_change if @entry.published? != was_published
-        redirect_to staff_kb_entries_path, notice: "“#{@entry.title}” saved."
+        redirect_to staff_kb_entries_path, notice: t(".saved", title: @entry.title)
       else
         render :edit, status: :unprocessable_content
       end
@@ -78,13 +78,13 @@ module Staff
       audit_publication_change
 
       redirect_to staff_kb_entries_path,
-        notice: @entry.published? ? "“#{@entry.title}” is now live for guests." : "“#{@entry.title}” is back to a draft."
+        notice: @entry.published? ? t(".live", title: @entry.title) : t(".draft", title: @entry.title)
     end
 
     def destroy
       title = @entry.title
       @entry.destroy
-      redirect_to staff_kb_entries_path, notice: "“#{title}” deleted."
+      redirect_to staff_kb_entries_path, notice: t(".deleted", title: title)
     end
 
     private
@@ -118,13 +118,17 @@ module Staff
         end
       end
 
+      # nil rather than "" for "no gap" — the caller joins this onto the
+      # main "saved" sentence with #compact_blank, which treats nil and ""
+      # alike, but nil never risks the pure-whitespace value the structural
+      # locale-file test (test/i18n/locale_files_test.rb) exists to reject.
       def gap_notice
-        return "" if @unanswered_question.nil?
+        return nil if @unanswered_question.nil?
 
         if @unanswered_question.status_answered?
-          " That question is answered for guests now."
+          t("staff.kb_entries.gap_notice.answered")
         else
-          " It is still a draft, so that question stays open until you publish it."
+          t("staff.kb_entries.gap_notice.still_draft")
         end
       end
 

@@ -19,7 +19,7 @@ module Staff
       authorize @category
 
       if @category.save
-        redirect_to staff_request_categories_path, notice: "#{@category.name} added."
+        redirect_to staff_request_categories_path, notice: t(".added", name: @category.name)
       else
         @categories = Current.hotel.request_categories.ordered.includes(:department)
         render :index, status: :unprocessable_content
@@ -31,7 +31,7 @@ module Staff
 
     def update
       if @category.update(request_category_params)
-        redirect_to staff_request_categories_path, notice: "#{@category.name} updated."
+        redirect_to staff_request_categories_path, notice: t(".updated", name: @category.name)
       else
         render :edit, status: :unprocessable_content
       end
@@ -44,7 +44,7 @@ module Staff
     # than leaving this a silent delete once one exists.
     def destroy
       if @category.destroy
-        redirect_to staff_request_categories_path, notice: "#{@category.name} deleted."
+        redirect_to staff_request_categories_path, notice: t(".deleted", name: @category.name)
       else
         redirect_to staff_request_categories_path, alert: @category.errors.full_messages.to_sentence
       end

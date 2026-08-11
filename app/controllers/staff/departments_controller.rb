@@ -13,7 +13,7 @@ module Staff
       authorize @department
 
       if @department.save
-        redirect_to staff_departments_path, notice: "#{@department.name} added."
+        redirect_to staff_departments_path, notice: t(".added", name: @department.name)
       else
         @departments = Current.hotel.departments.ordered
         render :index, status: :unprocessable_content
@@ -25,7 +25,7 @@ module Staff
 
     def update
       if @department.update(department_params)
-        redirect_to staff_departments_path, notice: "#{@department.name} updated."
+        redirect_to staff_departments_path, notice: t(".updated", name: @department.name)
       else
         render :edit, status: :unprocessable_content
       end
@@ -38,7 +38,7 @@ module Staff
     # the secondary "delete" affordance, only effective once unreferenced.
     def destroy
       if @department.destroy
-        redirect_to staff_departments_path, notice: "#{@department.name} deleted."
+        redirect_to staff_departments_path, notice: t(".deleted", name: @department.name)
       else
         redirect_to staff_departments_path, alert: @department.errors.full_messages.to_sentence
       end

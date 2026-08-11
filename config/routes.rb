@@ -49,6 +49,13 @@ Rails.application.routes.draw do
     root "dashboard#show"
     resource :hotel_settings, only: %i[edit update]
 
+    # A staff member's own workspace language (User#locale) — a singular
+    # resource with no id, the same shape hotel_settings above and
+    # guest/service_request_draft use for "always the current X, never one
+    # a form could name": #edit/#update always act on Current.user, so
+    # there is no request shape that could target a colleague's account.
+    resource :preferences, only: %i[edit update]
+
     # The reception inbox. Like everything else in this namespace it takes
     # no hotel from the URL — Staff::BaseController sets the tenant from
     # Current.user.hotel, and #show/#update look the conversation up

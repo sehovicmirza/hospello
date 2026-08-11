@@ -26,7 +26,7 @@ module Staff
       authorize @question, :dismiss?
 
       @question.update!(status: :dismissed)
-      redirect_to staff_unanswered_questions_path, notice: "Dismissed. It will not be shown again unless you reopen it."
+      redirect_to staff_unanswered_questions_path, notice: t(".dismissed")
     end
 
     private

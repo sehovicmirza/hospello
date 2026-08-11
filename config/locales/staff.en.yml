@@ -21,9 +21,19 @@ en:
       qr_code: "QR code"
     layout:
       signed_in_as_html: "Signed in as %{name}"
+      preferences_link: "Language"
       sign_out: "Sign out"
       coming_soon: "Coming soon"
       badge_sr: "conversations need attention"
+    preferences:
+      edit:
+        title: "Language — %{hotel_name}"
+        heading: "Language"
+        locale_label: "Staff workspace language"
+        hint: "This changes only how this workspace looks to you — not what language guest messages are translated into for the rest of the team. A hotel admin sets that separately, in Hotel settings."
+        save: "Save"
+      update:
+        updated: "Language updated."
     common:
       actions:
         edit: "Edit"
@@ -96,6 +106,11 @@ en:
         whatsapp: "WhatsApp"
       waiting: "Waiting %{time}"
     conversations:
+      ai_mode:
+        returned: "Returned to the assistant."
+        took_over: "You have taken over this conversation."
+      resolve:
+        resolved: "Conversation marked resolved."
       composer:
         reply_heading: "Reply to the guest"
         reply_destination_html: "This goes straight to %{name} in their chat."
@@ -153,6 +168,12 @@ en:
         edit_hotel_settings: "Edit hotel settings"
         placeholder: "Rooms, staff accounts, the QR code and more arrive here as the workspace grows."
     departments:
+      create:
+        added: "%{name} added."
+      update:
+        updated: "%{name} updated."
+      destroy:
+        deleted: "%{name} deleted."
       edit:
         title: "Edit %{name} — %{hotel_name}"
         heading: "Edit %{name}"
@@ -174,6 +195,8 @@ en:
         position_label: "Display order"
         delete_confirm: "Delete %{name}? This only works while no request category uses it."
     hotel_settings:
+      update:
+        updated: "Hotel settings updated."
       edit:
         title: "Hotel settings — %{hotel_name}"
         heading: "Hotel settings"
@@ -212,6 +235,15 @@ en:
         preview_default_welcome: "Your welcome message will appear here."
         preview_start_chat: "Start chat"
     kb_entries:
+      create:
+        saved: "“%{title}” saved."
+      update:
+        saved: "“%{title}” saved."
+      publish:
+        live: "“%{title}” is now live for guests."
+        draft: "“%{title}” is back to a draft."
+      destroy:
+        deleted: "“%{title}” deleted."
       starters:
         breakfast: "Breakfast"
         check_out: "Check-out"
@@ -262,6 +294,13 @@ en:
         title: "New knowledge base entry — %{hotel_name}"
         back: "← Back to the knowledge base"
         heading: "Add an entry"
+      gap_notice:
+        answered: "That question is answered for guests now."
+        still_draft: "It is still a draft, so that question stays open until you publish it."
+    messages:
+      create:
+        internal_note_saved: "Internal note saved. The guest cannot see it."
+        superseded: "This conversation was closed and the guest has since started a new one — your reply was not sent. Continue in their current conversation."
     qr_codes:
       print:
         title: "Print QR code — %{hotel_name}"
@@ -275,6 +314,12 @@ en:
         download_png: "Download PNG"
         print_sheet: "Print sheet"
     request_categories:
+      create:
+        added: "%{name} added."
+      update:
+        updated: "%{name} updated."
+      destroy:
+        deleted: "%{name} deleted."
       detail_fields_fields:
         heading: "Details the concierge must collect"
       edit:
@@ -308,7 +353,25 @@ en:
         delete_confirm: "Delete %{name}?"
         no_department: "—"
         no_details: "—"
+    request_events:
+      create:
+        note_added: "Note added — the guest cannot see it."
+        note_blank: "A note needs some text."
     rooms:
+      create:
+        added: "Room %{number} added."
+      update:
+        updated: "Room %{number} updated."
+      destroy:
+        deleted: "Room %{number} deleted."
+      bulk_create:
+        created_phrase:
+          one: "1 room added"
+          other: "%{count} rooms added"
+        skipped_phrase:
+          one: "1 skipped as duplicate"
+          other: "%{count} skipped as duplicates"
+        summary: "%{created_phrase}, %{skipped_phrase}."
       edit:
         title: "Edit room %{number} — %{hotel_name}"
         heading: "Edit room %{number}"
@@ -330,6 +393,12 @@ en:
         bulk_submit: "Bulk add"
         delete_confirm: "Delete room %{number}?"
     service_requests:
+      transition:
+        accepted: "Marked as accepted — the guest has been told someone is on it."
+        in_progress: "Marked as under way."
+        completed: "Marked as done."
+        declined: "Declined, and the guest has been told."
+        cancelled: "Cancelled."
       summary:
         see_original: "See what the guest wrote"
         hide_original: "Hide the original"
@@ -369,6 +438,8 @@ en:
         note_save: "Add note"
         note_nothing_yet: "Nothing yet."
     unanswered_questions:
+      dismiss:
+        dismissed: "Dismissed. It will not be shown again unless you reopen it."
       index:
         title: "Knowledge gaps — %{hotel_name}"
         heading: "Knowledge gaps"
@@ -387,13 +458,19 @@ en:
         dismissed: "Dismissed"
         see_entry: "See the entry"
     users:
+      create:
+        added: "Added: %{name} (%{role}). Hospello sends no email — share these credentials with them directly."
       edit:
         title: "%{name} — %{hotel_name}"
         back: "Back to staff"
         email_label: "Email"
         role_label: "Role"
         status_label: "Status"
+        locale_label: "Workspace language"
         self_notice: "You cannot deactivate your own account here — ask another hotel admin."
+      update:
+        self_deactivation_blocked: "You cannot deactivate your own account."
+        updated: "Updated: %{name}."
       index:
         title: "Staff — %{hotel_name}"
         heading: "Staff"
@@ -414,6 +491,8 @@ en:
         name_label: "Name"
         email_label: "Email address"
         role_label: "Role"
+        locale_label: "Workspace language"
+        locale_hint: "What they'll see — they can change this themselves later."
         password_label: "Password"
         password_confirmation_label: "Confirm password"
         submit: "Add staff member"

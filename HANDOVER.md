@@ -12,11 +12,11 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 5 complete — the staff workspace in Bosnian and the request-summary overlay) |
+| **Last updated** | 2026-08-11 (Slice 5 complete — the staff workspace in Bosnian, the request-summary overlay, and the way in: setting a staff member's own language) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 838 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI (see below) |
-| **CI** | ✅ Was green as of the last push (`9409b53`). This session's two commits are local only — not pushed, per instruction — so CI has not seen them yet. |
+| **Tests** | 850 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI (see below) |
+| **CI** | ✅ Was green as of the last push (`9409b53`). This session's three commits are local only — not pushed, per instruction — so CI has not seen them yet. |
 | **Progress** | **Slices 1–5 complete** |
 
 > ### The CI failure is fixed, and it was never a flake
@@ -405,12 +405,13 @@ now speaks Bosnian, per user, not per hotel. Landed as two commits, exactly as b
   render Bosnian, and rails-i18n turns out to already ship Bosnian translations for the *standard*
   ActiveRecord error vocabulary (`"Name je već zauzet"` for "has already been taken", etc.) — a
   pleasant surprise worth knowing before you go looking for where that came from.
-- **Deliberately out of scope, left English:** controller-generated flash messages, ActiveRecord
-  *attribute names* inside composed validation errors (rails-i18n translates the error text, not the
-  field name — see above), and the QR print sheet's guest-facing four-language card content (that
-  page is guest signage that happens to render from a staff route, not staff chrome).
+- **Deliberately out of scope, left English:** ActiveRecord *attribute names* inside composed
+  validation errors (rails-i18n translates the error text, not the field name — see above), and the
+  QR print sheet's guest-facing four-language card content (that page is guest signage that happens
+  to render from a staff route, not staff chrome). Controller-generated flash messages were
+  *originally* left out of scope here too — see Piece 3 below for why that changed.
 
-*Piece 2 — the request summary overlay* (this commit — the one carrying this HANDOVER.md update):
+*Piece 2 — the request summary overlay* (commit `ddc7d45`):
 
 - `service_requests.details_original` (the guest's own words, exactly what `ServiceRequestDraft
   #build_request` shows the guest to confirm) is now actually populated — the brief's premise that it
@@ -443,23 +444,103 @@ now speaks Bosnian, per user, not per hotel. Landed as two commits, exactly as b
   bearing rather than accidentally green. Restored immediately after.
 - 838 unit/integration + 41 system tests green, rubocop and brakeman clean.
 
+*Piece 3 — the way in, and the flash messages* (this commit): a coordinator review of the first two
+pieces found two of the three "deliberately out of scope" calls above drawn in the wrong place. Both
+are fixed here, as their own commit, on the same working agreement as the first two (literal strings
+in tests, break-and-restore evidence, full suite before committing).
+
+- **`User#locale` was validated and fully wired into rendering, and nothing in the application could
+  ever set it.** `Staff::UsersController` permitted `:name, :email_address, :password,
+  :password_confirmation` on create and `:active` alone on update — no route, form, or `permit` call
+  anywhere touched `locale`. A hotel could turn the whole workspace Bosnian in the fixtures and the
+  seed data and still have no way to give a real receptionist that language short of a Rails console
+  on the production box. Fixed with two ways in:
+  - `Staff::PreferencesController` (new) + `resource :preferences, only: %i[edit update]` (new route,
+    singular, no id) — any active staff member's own way to change their own language, gated by
+    nothing but `Staff::BaseController`'s existing "signed in and active" check (no Pundit policy: the
+    same reasoning `Staff::DashboardController` already needs none for "may I see my own dashboard").
+    Linked from the layout header, next to "Signed in as ... / Sign out".
+  - `Staff::UsersController#user_params`/`#user_update_params` now also permit `:locale`, and
+    `staff/users/new.html.erb` / `edit.html.erb` each carry their own field for it — a hotel_admin
+    setting it when creating an account, or changing a colleague's afterwards. The edit form's locale
+    field is its **own** `form_with`, separate from the existing activate/deactivate button, the same
+    "two forms, not one with a toggle" reasoning `staff/conversations/_composer.html.erb` already
+    documents — so a language change can never carry a stray `active` value along with it.
+  - The guarantee that matters most — a staff member cannot touch anyone else's account through the
+    self-service route — is structural (no id anywhere in `resource :preferences`'s path or params),
+    not just a check that could be forgotten on a future action. Proved empirically anyway:
+    `test/controllers/staff/preferences_controller_test.rb` signs in as one user, changes their
+    language, and asserts a *second* user's row is untouched; a smuggled `user_id`/`id` in the POST
+    body is asserted to have no effect. Verified load-bearing by temporarily making the controller
+    honor a smuggled `user_id` and watching that exact test go red.
+  - The post-change confirmation is built under the **new** locale, not the one the request started
+    under (`I18n.with_locale(Current.user.locale) { t(".updated") }` — read only after the update
+    already succeeded) — otherwise a user switching Bosnian→English would see one leftover Bosnian
+    sentence on the English page the redirect lands them on. Tested in both directions.
+  - Rule 8 stays intact: `Hotel::STAFF_LOCALES` is still the only list either path validates against
+    or offers in a `<select>` — nothing here widened staff locale to the guest four.
+- **~23 controller-generated `notice:`/`alert:` strings across all 10 staff controllers**, moved into
+  `config/locales/staff.{bs,en}.yml` the same way the view layer was in Piece 1. Two kept the shape of
+  the reasoning already used for view strings: `Staff::MessagesController`'s superseded-conversation
+  alert and `Staff::KbEntriesController`'s `gap_notice` (now returns `nil`, not `""`, for "nothing to
+  say" — joined in Ruby with `Array#compact_blank`, not baked into the YAML as a leading-space string,
+  which would have risked the structural locale test's blank-value check).
+  - **The one with real pluralization** — `Staff::RoomsController#bulk_create`'s "N room(s) added, M
+    skipped as duplicate(s)" — was English-only string surgery (`"room#{"s" unless n == 1}"`), which
+    only ever produces correct *English* and says nothing about Bosnian's own plural rules. Rebuilt on
+    Rails' own `t(key, count:)`, as two independently-pluralized phrases (`created_phrase`,
+    `skipped_phrase`) wired together, because one `count:` can't drive two different numbers in the
+    same sentence. Verified load-bearing by reverting to the old string-surgery version and watching
+    both the original test and a new complementary one (created: 1/skipped: 2, the inverse count
+    combination) go red.
+  - **Note on Bosnian pluralization's own limit, stated rather than hidden:** I18n's default backend
+    (no custom rule registered for `:bs`) only distinguishes `one` from `other`, the same English-shaped
+    split every other `count:` key in this file already uses (Piece 1's "Asked N times", also
+    unchanged here). Bosnian actually has three plural forms (1 / 2–4 / 5+); `other` here is the 5+
+    form, so a count of 2–4 reads slightly less naturally than a full CLDR pluralization rule would
+    produce. This never affects *correctness* — the number itself is always right — only how natural
+    2–4 sounds. Registering a real three-form Bosnian pluralization rule for `I18n::Backend::Pluralization`
+    would fix this properly across every `count:` key in the app at once; flagged here rather than
+    solved as a proportionate, separate piece of work, not bundled into a review fix-round.
+  - **Still deliberately English, and said so in the code** (`Staff::RoomsController#bulk_create`'s
+    `Room::BulkRangeTooLarge` rescue, `Staff::ServiceRequestsController#transition`'s
+    `ServiceRequest::InvalidTransition` rescue): both relay a raw Ruby exception message from a model,
+    not a routine confirmation — a defensive guard against an absurd bulk paste, and a race between two
+    staff members on the same request in two tabs. Translating these means the model deciding what
+    language to speak, or the controller mapping exception classes to i18n keys — a real, separate
+    design question, not a mechanical string move, and out of scope for a same-day fix round.
+  - ActiveRecord's own `.errors.full_messages.to_sentence` relays (four of them, unchanged) continue to
+    read partially in Bosnian via rails-i18n's own vocabulary, same as Piece 1.
+- A transient system-test run mid-session errored on all 41 tests at once with `Errno::ECONNREFUSED`
+  connecting to chromedriver — diagnosed before treating it as a regression (no chromedriver process
+  was actually holding the port; ~111 already-open Chrome tabs were the likely resource contention). An
+  immediate clean re-run passed all 41 with no changes. Recorded per the "diagnose, don't guess"
+  house rule, not silently reran-until-green.
+- 850 unit/integration + 41 system tests green, rubocop and brakeman clean.
+
 ---
 
 ## What to do next
 
 **Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
 
-1. **Push this session's two commits and confirm CI is still green.** Both were verified locally
+1. **Push this session's three commits and confirm CI is still green.** All were verified locally
    (unit/integration, system, rubocop, brakeman all clean) but, per instruction, never pushed —
    nobody has seen them run on GitHub Actions yet. Do this before trusting the "Progress" line above.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 6–7 (WhatsApp, analytics/hardening) — specified in the plan, task breakdowns not yet written.
-4. **Two known, deliberate gaps left by Slice 5 Task 4**, worth a decision before a pilot rather than
-   fixing on a hunch: staff-side controller flash messages (`"Hotel settings updated."` and the like)
-   and ActiveRecord attribute names inside composed validation errors are still hardcoded English even
-   for a Bosnian-reading user — see that task's own section above for exactly what's covered and what
-   isn't, and why.
+4. **Small, deliberate gaps left by Slice 5 Task 4**, worth a decision before a pilot rather than
+   fixing on a hunch: ActiveRecord attribute names inside composed validation errors are still
+   hardcoded English (rails-i18n translates the error text itself, not the field name — a Bosnian
+   reader sees `"Name je već zauzet"`), and two exception-relayed alerts
+   (`Staff::RoomsController#bulk_create`'s absurd-bulk-paste guard,
+   `Staff::ServiceRequestsController#transition`'s two-tabs-racing-a-status-change guard) are still
+   raw English `e.message` — both are defensive edge cases rather than routine confirmations. See
+   Task 4's Piece 3 section above for the full reasoning. If a pilot ever shows Bosnian pluralization's
+   two-form (`one`/`other`) approximation reading awkwardly for counts of 2–4, that's the other one —
+   also flagged there, with the actual fix (a registered three-form `I18n::Backend::Pluralization`
+   rule for `:bs`).
 
 Still open, and now a real product question rather than a hypothetical one: the takeover notice
 `pause_ai!` records is an **internal** note, so a guest whose conversation moves from the assistant

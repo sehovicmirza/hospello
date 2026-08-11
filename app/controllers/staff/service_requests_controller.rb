@@ -56,6 +56,12 @@ module Staff
       @request.transition!(to: params[:to], by: Current.user, note: params[:note].presence)
       redirect_back_or_to staff_service_request_path(@request), notice: transition_notice
     rescue ServiceRequest::InvalidTransition => e
+      # e.message is untranslated English — this fires only when two staff
+      # members race the same request in two tabs, or a stale page offers a
+      # button the request can no longer legally take; not a routine
+      # confirmation. Left as a known, deliberate gap alongside
+      # Staff::RoomsController#bulk_create's own model-exception alert —
+      # see this task's report.
       redirect_back_or_to staff_service_request_path(@request), alert: e.message.capitalize
     end
 
@@ -75,11 +81,11 @@ module Staff
 
       def transition_notice
         case @request.status
-        when "accepted" then "Marked as accepted — the guest has been told someone is on it."
-        when "in_progress" then "Marked as under way."
-        when "completed" then "Marked as done."
-        when "declined" then "Declined, and the guest has been told."
-        when "cancelled" then "Cancelled."
+        when "accepted" then t(".accepted")
+        when "in_progress" then t(".in_progress")
+        when "completed" then t(".completed")
+        when "declined" then t(".declined")
+        when "cancelled" then t(".cancelled")
         end
       end
   end

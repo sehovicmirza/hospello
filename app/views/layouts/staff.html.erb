@@ -67,6 +67,12 @@
             <% if authenticated? %>
               <div class="flex items-center gap-4 text-sm text-gray-600">
                 <span><%= t("staff.layout.signed_in_as_html", name: content_tag(:span, Current.user.name, class: "font-medium text-gray-900")) %></span>
+                <%# Every active staff member's own way in — not gated by
+                    any policy, only by Staff::BaseController's own
+                    "signed in and active" check, the same one this whole
+                    header already required to render at all. %>
+                <%= link_to t("staff.layout.preferences_link"), edit_staff_preferences_path,
+                      class: "font-medium text-gray-700 hover:text-gray-900" %>
                 <%= button_to t("staff.layout.sign_out"), session_path, method: :delete,
                       class: "rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-100 cursor-pointer" %>
               </div>

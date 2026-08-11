@@ -16,9 +16,19 @@ bs:
       qr_code: "QR kod"
     layout:
       signed_in_as_html: "Prijavljeni ste kao %{name}"
+      preferences_link: "Jezik"
       sign_out: "Odjava"
       coming_soon: "Uskoro dostupno"
       badge_sr: "razgovora zahtijeva pažnju"
+    preferences:
+      edit:
+        title: "Jezik — %{hotel_name}"
+        heading: "Jezik"
+        locale_label: "Jezik radnog prostora osoblja"
+        hint: "Ovo mijenja samo kako ovaj radni prostor izgleda vama — ne i na koji jezik se prevode poruke gostiju za ostatak tima. To hotelski administrator postavlja posebno, u Postavkama hotela."
+        save: "Sačuvaj"
+      update:
+        updated: "Jezik ažuriran."
     common:
       actions:
         edit: "Uredi"
@@ -91,6 +101,11 @@ bs:
         whatsapp: "WhatsApp"
       waiting: "Čeka %{time}"
     conversations:
+      ai_mode:
+        returned: "Vraćeno asistentu."
+        took_over: "Preuzeli ste ovaj razgovor."
+      resolve:
+        resolved: "Razgovor označen kao riješen."
       composer:
         reply_heading: "Odgovori gostu"
         reply_destination_html: "Ovo ide direktno gostu %{name} u njegov/njen razgovor."
@@ -148,6 +163,12 @@ bs:
         edit_hotel_settings: "Uredi postavke hotela"
         placeholder: "Sobe, nalozi osoblja, QR kod i još mnogo toga pojavit će se ovdje kako radni prostor raste."
     departments:
+      create:
+        added: "Dodano: %{name}."
+      update:
+        updated: "Ažurirano: %{name}."
+      destroy:
+        deleted: "Obrisano: %{name}."
       edit:
         title: "Uredi %{name} — %{hotel_name}"
         heading: "Uredi %{name}"
@@ -169,6 +190,8 @@ bs:
         position_label: "Redoslijed prikaza"
         delete_confirm: "Obrisati %{name}? Ovo radi samo dok nijedna kategorija zahtjeva ne koristi ovo odjeljenje."
     hotel_settings:
+      update:
+        updated: "Postavke hotela ažurirane."
       edit:
         title: "Postavke hotela — %{hotel_name}"
         heading: "Postavke hotela"
@@ -207,6 +230,15 @@ bs:
         preview_default_welcome: "Vaša poruka dobrodošlice će se prikazati ovdje."
         preview_start_chat: "Započni razgovor"
     kb_entries:
+      create:
+        saved: "„%{title}” sačuvano."
+      update:
+        saved: "„%{title}” sačuvano."
+      publish:
+        live: "„%{title}” je sada vidljivo gostima."
+        draft: "„%{title}” je ponovo nacrt."
+      destroy:
+        deleted: "„%{title}” obrisano."
       starters:
         breakfast: "Doručak"
         check_out: "Odjava"
@@ -257,6 +289,13 @@ bs:
         title: "Nova stavka baze znanja — %{hotel_name}"
         back: "← Nazad na bazu znanja"
         heading: "Dodaj stavku"
+      gap_notice:
+        answered: "To pitanje je sada odgovoreno za goste."
+        still_draft: "I dalje je u nacrtu, pa to pitanje ostaje otvoreno dok ga ne objavite."
+    messages:
+      create:
+        internal_note_saved: "Interna napomena sačuvana. Gost je ne može vidjeti."
+        superseded: "Ovaj razgovor je zatvoren i gost je u međuvremenu započeo novi — vaš odgovor nije poslan. Nastavite u njihovom trenutnom razgovoru."
     qr_codes:
       print:
         title: "Štampaj QR kod — %{hotel_name}"
@@ -270,6 +309,12 @@ bs:
         download_png: "Preuzmi PNG"
         print_sheet: "Štampaj karticu"
     request_categories:
+      create:
+        added: "Dodano: %{name}."
+      update:
+        updated: "Ažurirano: %{name}."
+      destroy:
+        deleted: "Obrisano: %{name}."
       detail_fields_fields:
         heading: "Detalji koje asistent mora prikupiti"
       edit:
@@ -303,7 +348,34 @@ bs:
         delete_confirm: "Obrisati %{name}?"
         no_department: "—"
         no_details: "—"
+    request_events:
+      create:
+        note_added: "Napomena dodana — gost je ne može vidjeti."
+        note_blank: "Napomena mora sadržavati tekst."
     rooms:
+      create:
+        added: "Soba %{number} dodana."
+      update:
+        updated: "Soba %{number} ažurirana."
+      destroy:
+        deleted: "Soba %{number} obrisana."
+      # Two independently-pluralized clauses, each driven by its own count
+      # rather than string surgery — see Staff::RoomsController
+      # #bulk_create_notice. Bosnian properly distinguishes three plural
+      # forms (1 / 2-4 / 5+), and I18n's default backend, same as every
+      # other count: key in this file, only distinguishes "one" vs "other"
+      # — so "2 sobe dodano" is closer to correct than "2 soba dodano"
+      # would be, but "other" here is deliberately the 5+ form rather than
+      # a fully accurate 2-4 form. Correctness (never a wrong number) does
+      # not depend on this; only how natural counts of 2-4 read do.
+      bulk_create:
+        created_phrase:
+          one: "1 soba dodana"
+          other: "%{count} soba dodano"
+        skipped_phrase:
+          one: "1 preskočena kao duplikat"
+          other: "%{count} preskočeno kao duplikat"
+        summary: "%{created_phrase}, %{skipped_phrase}."
       edit:
         title: "Uredi sobu %{number} — %{hotel_name}"
         heading: "Uredi sobu %{number}"
@@ -325,6 +397,12 @@ bs:
         bulk_submit: "Grupno dodaj"
         delete_confirm: "Obrisati sobu %{number}?"
     service_requests:
+      transition:
+        accepted: "Označeno kao prihvaćeno — gost je obaviješten da neko radi na tome."
+        in_progress: "Označeno kao u toku."
+        completed: "Označeno kao završeno."
+        declined: "Odbijeno, a gost je obaviješten."
+        cancelled: "Otkazano."
       summary:
         see_original: "Vidi šta je gost napisao"
         hide_original: "Sakrij original"
@@ -364,6 +442,8 @@ bs:
         note_save: "Dodaj napomenu"
         note_nothing_yet: "Još ništa."
     unanswered_questions:
+      dismiss:
+        dismissed: "Odbačeno. Neće se ponovo prikazati osim ako ga ne otvorite ponovo."
       index:
         title: "Praznine u znanju — %{hotel_name}"
         heading: "Praznine u znanju"
@@ -382,13 +462,19 @@ bs:
         dismissed: "Odbačeno"
         see_entry: "Pogledaj stavku"
     users:
+      create:
+        added: "Dodano: %{name} (%{role}). Hospello ne šalje email — ove podatke predajte direktno, uživo ili telefonom."
       edit:
         title: "%{name} — %{hotel_name}"
         back: "Nazad na osoblje"
         email_label: "Email"
         role_label: "Uloga"
         status_label: "Status"
+        locale_label: "Jezik radnog prostora"
         self_notice: "Ovdje ne možete deaktivirati svoj vlastiti nalog — zamolite drugog administratora hotela."
+      update:
+        self_deactivation_blocked: "Ne možete deaktivirati svoj vlastiti nalog."
+        updated: "Ažurirano: %{name}."
       index:
         title: "Osoblje — %{hotel_name}"
         heading: "Osoblje"
@@ -409,6 +495,8 @@ bs:
         name_label: "Ime"
         email_label: "Email adresa"
         role_label: "Uloga"
+        locale_label: "Jezik radnog prostora"
+        locale_hint: "Šta će ova osoba vidjeti — kasnije to može sama promijeniti."
         password_label: "Lozinka"
         password_confirmation_label: "Potvrdi lozinku"
         submit: "Dodaj člana osoblja"

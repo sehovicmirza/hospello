@@ -5,11 +5,9 @@ require "application_system_test_case"
 class KnowledgeBaseTest < ApplicationSystemTestCase
   # Both fixture staff members here (stari_admin, stari_staff) read the
   # staff workspace in Bosnian — see test/fixtures/users.yml — so every
-  # staff-chrome label below is the literal Bosnian text from
-  # config/locales/staff.bs.yml. Flash notices ("saved.", "is now live for
-  # guests") are set as literal English strings in the controller, out of
-  # this task's scope, and stay English; "Wi-Fi" is a loanword that reads
-  # the same in both locale files.
+  # staff-chrome label and flash notice below is the literal Bosnian text
+  # from config/locales/staff.bs.yml; "Wi-Fi" is a loanword that reads the
+  # same in both locale files.
   test "a hotel admin writes an entry and publishes it" do
     sign_in_as_hotel_admin
 
@@ -21,7 +19,7 @@ class KnowledgeBaseTest < ApplicationSystemTestCase
     fill_in "Šta asistent smije reći gostima", with: "Room service runs 07:00-23:00 — dial 9 from the room phone."
     click_on "Sačuvaj stavku"
 
-    assert_text "“Room service” saved."
+    assert_text "„Room service” sačuvano."
 
     # Scoped to this entry's own row: the fixtures carry other drafts, so an
     # unscoped click would be ambiguous — and, worse, could publish somebody
@@ -35,7 +33,7 @@ class KnowledgeBaseTest < ApplicationSystemTestCase
       click_on "Objavi"
     end
 
-    assert_text "“Room service” is now live for guests."
+    assert_text "„Room service” je sada vidljivo gostima."
     within("##{ActionView::RecordIdentifier.dom_id(entry)}") { assert_text "Objavljeno" }
     assert entry.reload.published?
   end

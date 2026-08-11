@@ -120,12 +120,33 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to staff_rooms_path
     follow_redirect!
-    assert_match "2 rooms added, 1 skipped as duplicate.", response.body
+    # stari_admin reads the staff workspace in Bosnian — see fixtures.
+    # staff.rooms.bulk_create (config/locales/staff.bs.yml): count: 2 is
+    # "other" ("%{count} soba dodano"), count: 1 is "one"
+    # ("1 preskočena kao duplikat").
+    assert_match "2 soba dodano, 1 preskočena kao duplikat.", response.body
 
     with_tenant(hotels(:stari_grad)) do
       assert hotels(:stari_grad).rooms.exists?(number: "601")
       assert hotels(:stari_grad).rooms.exists?(number: "602")
     end
+  end
+
+  # The inverse count combination from the test above — "one" for created,
+  # "other" for skipped, rather than the other way round — so between the
+  # two tests, both of staff.rooms.bulk_create's independently pluralized
+  # phrases (config/locales/staff.bs.yml) are exercised in both their
+  # "one" and "other" form, not just one each.
+  test "the bulk-add summary correctly pluralizes the created and skipped counts independently" do
+    sign_in users(:stari_admin)
+
+    assert_difference -> { Room.unscoped.count }, 1 do
+      post bulk_create_staff_rooms_path,
+        params: { bulk: { numbers: "603, #{rooms(:stari_301).number}, #{rooms(:stari_302).number}" } }
+    end
+
+    follow_redirect!
+    assert_match "1 soba dodana, 2 preskočeno kao duplikat.", response.body
   end
 
   test "bulk-add refuses an absurd range instead of creating thousands of rooms" do
