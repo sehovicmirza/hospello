@@ -325,6 +325,9 @@ bs:
         bulk_submit: "Grupno dodaj"
         delete_confirm: "Obrisati sobu %{number}?"
     service_requests:
+      summary:
+        see_original: "Vidi šta je gost napisao"
+        hide_original: "Sakrij original"
       card:
         no_room: "Soba nije navedena"
         open: "Otvori"

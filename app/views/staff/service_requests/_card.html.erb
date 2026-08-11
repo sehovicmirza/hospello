@@ -26,7 +26,7 @@
     </div>
   </div>
 
-  <p class="mt-2 text-sm text-gray-800" dir="auto"><%= request.summary %></p>
+  <p class="mt-2 text-sm text-gray-800" dir="auto"><%= render "staff/service_requests/summary", request: request %></p>
 
   <p class="mt-2 text-xs text-gray-500">
     <%= request.request_category.name %>

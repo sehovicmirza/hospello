@@ -330,6 +330,9 @@ en:
         bulk_submit: "Bulk add"
         delete_confirm: "Delete room %{number}?"
     service_requests:
+      summary:
+        see_original: "See what the guest wrote"
+        hide_original: "Hide the original"
       card:
         no_room: "No room given"
         open: "Open"

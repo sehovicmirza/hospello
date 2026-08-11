@@ -48,6 +48,13 @@ class ServiceRequest < ApplicationRecord
 
   validates :summary, presence: true, length: { maximum: MAX_SUMMARY_LENGTH }
   validates :dedupe_key, presence: true
+  # The "Originals are immutable" guarantee, enforced rather than merely
+  # observed — same shape and the same reasoning as
+  # Message#body_is_immutable_after_creation. Nothing today calls
+  # `update(details_original: ...)` (Ai::TranslateServiceRequestSummaryJob
+  # only ever writes `summary`), but "nothing calls it" is not itself a
+  # guarantee.
+  validate :details_original_is_immutable_after_creation, on: :update
 
   scope :open_requests, -> { where(status: OPEN_STATUSES) }
   scope :settled, -> { where.not(status: OPEN_STATUSES) }
@@ -138,6 +145,45 @@ class ServiceRequest < ApplicationRecord
     created_at < hotel.overdue_after_minutes.minutes.ago
   end
 
+  # What a reader in `locale` should see, and whether it is the original —
+  # the request-summary counterpart of Message#readable_in, and the same
+  # overlay rule: a receptionist reads a translation of what the guest
+  # confirmed, with the guest's own words one tap away, and falls back to
+  # the original whenever there is no usable translation.
+  #
+  # There is no separate translated_summary/translation_status column pair
+  # here the way Message has: `summary` starts out equal to
+  # `details_original` (see ServiceRequestDraft#build_request) and
+  # Ai::TranslateServiceRequestSummaryJob overwrites it in place — but only
+  # ever with a translation that already passed the digit guard inside
+  # Ai::Translator, so `summary != details_original` *is* the "successfully
+  # translated" signal. A translation that failed, timed out, refused, or
+  # mismatched a number simply never gets here, and `summary` quietly stays
+  # the original — the same "readability suffers, correctness never does"
+  # trade the digit guard itself makes.
+  def readable_in(locale)
+    return [ summary, :original ] if details_original.blank?
+    return [ summary, :translated ] if summary != details_original && locale.to_s == hotel.staff_locale.to_s
+
+    [ details_original, :original ]
+  end
+
+  # The single answer to "does this request's summary need translating, and
+  # into what" — read by both the enqueue site (ServiceRequestDraft#confirm!)
+  # and the job itself (Ai::TranslateServiceRequestSummaryJob), the same way
+  # Message#translation_target_locale is the one answer both a message's
+  # enqueue site and its job read. Nil for the same reasons a message's
+  # translation is skipped: nothing to translate, or the guest and the
+  # hotel's staff already share a language — which must cost nothing at
+  # all, no call, no tokens, no queued job.
+  def summary_translation_target_locale
+    target = hotel.staff_locale
+    return nil if target.blank? || original_locale.blank? || original_locale.to_s == target.to_s
+    return nil if details_original.blank?
+
+    target
+  end
+
   private
     # A morphing page refresh to [hotel, :requests], not a targeted replace:
     # the board's cards and its counts are different DOM shapes reacting to
@@ -174,5 +220,9 @@ class ServiceRequest < ApplicationRecord
       attributes[:acknowledged_at] = Time.current if to == "accepted" && acknowledged_at.nil?
       attributes[:completed_at] = Time.current if to == "completed"
       attributes
+    end
+
+    def details_original_is_immutable_after_creation
+      errors.add(:details_original, "cannot be changed after creation") if details_original_changed?
     end
 end

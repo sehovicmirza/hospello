@@ -80,6 +80,28 @@ class ServiceRequestDraftTest < ActiveSupport::TestCase
     assert ready.reload.status_confirmed?
   end
 
+  # Slice 5 Task 4: details_original is the guest's own words, immutable,
+  # and what the staff-facing overlay (ServiceRequest#readable_in) falls
+  # back to whenever there is nothing safe to translate. It starts out
+  # identical to `summary` — a receptionist who opens the board before the
+  # translation job runs simply reads the original, which is never wrong,
+  # only not yet translated.
+  test "confirm! records the guest's own words as details_original, identical to the starting summary" do
+    ready = draft(status: :awaiting_confirmation, details: { "quantity" => "2", "description" => "bath towels" })
+
+    request = ready.confirm!
+
+    assert_equal request.summary, request.details_original
+    assert_includes request.details_original, @category.name
+    assert_includes request.details_original, "bath towels"
+  end
+
+  # confirm! also queues a translation of the summary when the guest's
+  # language differs from the hotel's, and queues nothing when it already
+  # matches — see test/jobs/ai/translate_service_request_summary_job_test.rb
+  # for both (ActiveJob::TestHelper's assert_enqueued_with is only
+  # available in an ActiveJob::TestCase, not here).
+
   test "confirm! refuses a draft that is still gathering" do
     gathering = draft(status: :gathering, details: { "quantity" => "2" })
 

@@ -5,7 +5,7 @@
 
 <div class="mt-3 mb-6 flex flex-wrap items-start justify-between gap-4">
   <div>
-    <h1 class="text-2xl font-semibold text-gray-900" dir="auto"><%= @request.summary %></h1>
+    <h1 class="text-2xl font-semibold text-gray-900" dir="auto"><%= render "staff/service_requests/summary", request: @request %></h1>
     <p class="mt-1 text-sm text-gray-600">
       <%= t(".room_line", number: @request.room&.number || t(".no_room")) %> ·
       <%= @request.guest_session&.guest_name %>

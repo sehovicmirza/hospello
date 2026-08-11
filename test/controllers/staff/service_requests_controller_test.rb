@@ -27,6 +27,53 @@ module Staff
       assert_select "*", text: /#{@category.name}/
     end
 
+    # --- The request-summary overlay (Slice 5 Task 4) -----------------------
+    #
+    # The same overlay rule messages already follow: a receptionist reads a
+    # translation, with the guest's own words one tap away. Digit-guard
+    # coverage (a mangled number never reaches `summary` in the first place)
+    # lives in test/jobs/ai/translate_service_request_summary_job_test.rb —
+    # these prove the *rendering* half, on the actual board a receptionist
+    # works from.
+
+    test "a translated request summary shows the translation, with the guest's own words one tap away" do
+      request = create_translated_request(
+        summary: "Extra towels — quantity: 2",
+        details_original: "Zusätzliche Handtücher — Menge: 2", original_locale: "de"
+      )
+      sign_in @staff
+
+      get staff_service_requests_path
+
+      assert_response :success
+      assert_select "##{dom_id(request)}" do
+        assert_select "[data-translation-toggle-target='translated']", text: "Extra towels — quantity: 2"
+        # hidden, not absent: the original must be in the DOM either way —
+        # findable by selection, by a screen reader, with JavaScript off —
+        # the same reasoning shared/_translated_body.html.erb documents.
+        assert_select "[data-translation-toggle-target='original']", text: "Zusätzliche Handtücher — Menge: 2"
+        assert_select "[data-action='click->translation-toggle#toggle']"
+      end
+    end
+
+    # Not a failure state — this is the ordinary, honest gap between a
+    # request landing on the board and Ai::TranslateServiceRequestSummaryJob
+    # actually completing (or a same-language hotel, where nothing is ever
+    # queued at all). Either way there is nothing to reveal, so there must
+    # be no toggle offering to reveal it.
+    test "a request summary not yet translated shows the original with no toggle at all" do
+      request = create_request
+      sign_in @staff
+
+      get staff_service_requests_path
+
+      assert_response :success
+      assert_select "##{dom_id(request)}" do
+        assert_select "*", text: request.summary
+        assert_select "[data-controller='translation-toggle']", count: 0
+      end
+    end
+
     test "the open filter hides finished requests, and the finished one shows them" do
       open_one = create_request
       done = create_request(quantity: "9")
@@ -275,6 +322,27 @@ module Staff
           summary: "#{category.name} — quantity: #{quantity}, description: bath towels",
           details: details, channel: :web,
           dedupe_key: ServiceRequest.dedupe_key_for(conversation: @conversation, category: category, details: details)
+        )
+      end
+    end
+
+    # A request as it looks once Ai::TranslateServiceRequestSummaryJob has
+    # already run and won: `summary` holds the translation, `details_original`
+    # the guest's own words it was translated from — the two are only ever
+    # allowed to differ after a translation genuinely succeeded (see
+    # ServiceRequest#readable_in), which is exactly the state this builds
+    # directly rather than by actually calling the job.
+    def create_translated_request(summary:, details_original:, original_locale:)
+      with_tenant(@hotel) do
+        details = { "quantity" => "2", "description" => "bath towels" }
+        ServiceRequest.create!(
+          hotel: @hotel, conversation: @conversation, guest_session: @conversation.guest_session,
+          room: @conversation.guest_session.room, request_category: @category, department: @category.department,
+          summary: summary, details_original: details_original, original_locale: original_locale,
+          details: details, channel: :web,
+          dedupe_key: ServiceRequest.dedupe_key_for(
+            conversation: @conversation, category: @category, details: details, requested_for_at: Time.current
+          )
         )
       end
     end

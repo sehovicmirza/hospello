@@ -1,0 +1,37 @@
+<%# The overlay for a request summary — the same rule
+    shared/_translated_body.html.erb follows for messages: a receptionist
+    reads a translation of what the guest confirmed, with the guest's own
+    words one tap away, and the original is always in the DOM (findable by
+    selection, by a screen reader, with JavaScript off) rather than
+    fetched on demand. See ServiceRequest#readable_in for how "translated"
+    is decided — it is already digit-guard-safe by construction, because
+    it only ever holds text Ai::Translator itself judged safe to show.
+
+    Every element here is phrasing content (span, never p/div): this
+    partial renders inside both a small paragraph (the board card) and an
+    <h1> (the request's own page), and only phrasing content nests validly
+    inside a heading. No text size is forced on the translated span either,
+    for the same reason — it inherits whichever of those two contexts it
+    is in, exactly as request.summary itself did before this partial
+    existed.
+
+    Local: request. %>
+<% text, source = request.readable_in(Current.hotel.staff_locale) %>
+
+<% if source == :translated %>
+  <span data-controller="translation-toggle"
+        data-translation-toggle-show-label-value="<%= t("staff.service_requests.summary.see_original") %>"
+        data-translation-toggle-hide-label-value="<%= t("staff.service_requests.summary.hide_original") %>">
+    <span data-translation-toggle-target="translated" dir="auto"><%= text %></span>
+    <span data-translation-toggle-target="original" dir="auto" hidden
+          class="block text-sm font-normal text-gray-600"><%= request.details_original %></span>
+    <button type="button" data-translation-toggle-target="button"
+            data-action="click->translation-toggle#toggle"
+            aria-expanded="false"
+            class="ml-1 cursor-pointer align-middle text-xs font-medium text-blue-600 underline">
+      <%= t("staff.service_requests.summary.see_original") %>
+    </button>
+  </span>
+<% else %>
+  <span dir="auto"><%= text %></span>
+<% end %>

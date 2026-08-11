@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 5 at 3 of 4 tasks — translation works end to end) |
+| **Last updated** | 2026-08-11 (Slice 5 complete — the staff workspace in Bosnian and the request-summary overlay) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 817 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
-| **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1–4 complete** · Slice 5 at 3 of 4 tasks |
+| **Tests** | 838 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI (see below) |
+| **CI** | ✅ Was green as of the last push (`9409b53`). This session's two commits are local only — not pushed, per instruction — so CI has not seen them yet. |
+| **Progress** | **Slices 1–5 complete** |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -369,23 +369,97 @@ away.
   is what the translator aims at. Set only one and the test reads as though it passed —
   `#speaking_german` in `test/controllers/translation_rendering_test.rb` sets both.
 
+**Slice 5 Task 4 — the staff workspace in Bosnian, and the request-summary overlay.** Complete.
+**Slice 5 is done**: an Arabic-speaking guest and a Bosnian-speaking receptionist hold a conversation
+each reading their own language; a request the guest confirmed in Arabic shows the receptionist a
+summary in *their* language with the guest's own words one tap away; and the staff workspace itself
+now speaks Bosnian, per user, not per hotel. Landed as two commits, exactly as briefed.
+
+*Piece 1 — the staff workspace in Bosnian* (commit `e31fa04`):
+
+- Every hardcoded English string across the 28 templates in `app/views/staff/**`, the staff layout,
+  and `StaffHelper` moved into `config/locales/staff.{bs,en}.yml`. Purely mechanical — no behavioural
+  change beyond the locale switch itself.
+- `StaffLocalization` (new controller concern, mirroring `GuestLocalization`), included in
+  `Staff::BaseController`: `I18n.locale` for a staff request follows **`Current.user.locale`**, never
+  `Hotel#staff_locale` — a different axis entirely, the translation target for guest↔staff overlays,
+  one fixed language per hotel. A Bosnian receptionist and an English-speaking manager now correctly
+  see their own language at the same hotel. `User#locale` gets the same `inclusion` validation
+  `Hotel#staff_locale` already had, against the same `Hotel::STAFF_LOCALES`.
+- **A real bug found and fixed along the way:** the nav badge's DOM id was derived from the
+  (now-translated) label text via `.parameterize`, so `#knowledge-gaps-badge` silently became
+  `#praznine-u-znanju-badge` the moment the label was Bosnian. Nav items now carry a stable,
+  locale-independent `:id` (`app/helpers/staff_helper.rb#staff_nav_items`).
+- `test/i18n/guest_locale_files_test.rb` renamed to `locale_files_test.rb` and reworked from one
+  shared `LOCALES` constant to a per-family `FAMILY_LOCALES` hash — staff speaks `bs`/`en`, the
+  guest-facing families speak `bs`/`en`/`de`/`ar`. Still reads every file straight off disk, not
+  through `I18n.t`, for the same fallback-absorption reason the original test existed.
+- **The trap the brief called out, made concrete:** every other staff fixture (`stari_admin`/
+  `stari_staff` vs `vrelo_admin`/`vrelo_staff`) happens to have its `user.locale` agree with its own
+  hotel's `staff_locale` — so keying the render off the hotel instead of the user would have passed
+  the *entire* existing suite. `test/controllers/staff/localization_test.rb` deliberately creates a
+  user whose locale disagrees with their hotel's, and is the one test that actually catches that
+  mistake — verified by temporarily keying `StaffLocalization` off `Current.hotel.staff_locale` and
+  watching all three of its tests go red.
+- ~20 existing controller/system tests updated: their fixture actors (`locale: bs`) now correctly
+  render Bosnian, and rails-i18n turns out to already ship Bosnian translations for the *standard*
+  ActiveRecord error vocabulary (`"Name je već zauzet"` for "has already been taken", etc.) — a
+  pleasant surprise worth knowing before you go looking for where that came from.
+- **Deliberately out of scope, left English:** controller-generated flash messages, ActiveRecord
+  *attribute names* inside composed validation errors (rails-i18n translates the error text, not the
+  field name — see above), and the QR print sheet's guest-facing four-language card content (that
+  page is guest signage that happens to render from a staff route, not staff chrome).
+
+*Piece 2 — the request summary overlay* (this commit — the one carrying this HANDOVER.md update):
+
+- `service_requests.details_original` (the guest's own words, exactly what `ServiceRequestDraft
+  #build_request` shows the guest to confirm) is now actually populated — the brief's premise that it
+  already was turned out to be slightly ahead of the code; verified by grep before assuming otherwise.
+  `summary` starts out identical to it and stays that way — a receptionist who opens the board before
+  translation lands simply reads the original, never wrong, only not yet translated.
+- `Ai::TranslateServiceRequestSummaryJob`, the request-summary counterpart of `Ai::TranslateMessageJob`,
+  reusing `Ai::Translator` directly (no second translation path, no second digit-guard implementation).
+  Enqueued once from `ServiceRequestDraft#confirm!` — **never synchronously in the guest's own
+  confirm request/response cycle**, the same reasoning Task 2 already established for messages. On
+  success it overwrites `summary` in place with a translation into the hotel's `staff_locale`; on any
+  failure (timeout, refusal, or the digit guard itself) `Ai::Translator`'s own fallback already hands
+  back the original, so `summary` is simply left untouched.
+- No new `translated_summary`/`translation_status` columns: `summary != details_original` **is** the
+  "translated successfully" signal, because nothing else is ever allowed to make them differ
+  (`ServiceRequest#details_original_is_immutable_after_creation`, same shape as `Message#body`'s own
+  guard). `ServiceRequest#readable_in(locale)` and `#summary_translation_target_locale` are the model
+  half of the overlay, mirroring `Message#readable_in` / `#translation_target_locale` deliberately.
+- `app/views/staff/service_requests/_summary.html.erb` — a new, small overlay partial (not a change to
+  the existing `shared/_translated_body.html.erb`, which Task 3 already shipped and tested for
+  messages; reusing it would have meant changing its interface and re-risking already-working code for
+  a caller with a different, simpler state shape). Reuses the same generic `translation-toggle`
+  Stimulus controller as-is. Every element is phrasing content (`span`, never `p`/`div`): it renders
+  inside both the board card's `<p>` and the request page's `<h1>`, and only phrasing content nests
+  validly inside a heading.
+- **The digit guard, proven where it actually matters this time:** a dedicated job test feeds the
+  translator a summary that changes "2" to "20" and asserts the board still shows the guest's original
+  numbers — then, to make sure that test isn't a decoration, `Ai::DigitGuard.safe?` was temporarily
+  hard-coded to `true` and the mangled translation *did* reach `summary`, confirming the test is load-
+  bearing rather than accidentally green. Restored immediately after.
+- 838 unit/integration + 41 system tests green, rubocop and brakeman clean.
+
 ---
 
 ## What to do next
 
-1. **Slice 5 Task 4 — the staff workspace in Bosnian, and the request-summary overlay.** The last
-   task in the slice and the biggest mechanical change in it: every hardcoded English string in
-   `app/views/staff/**` moves into `config/locales/staff.{bs,en}.yml`. Do it as its own commit,
-   separate from anything behavioural, so the diff is reviewable. Two things to know before starting:
-   the locale is **per user** (`User#locale`, `Hotel::STAFF_LOCALES` is `bs`/`en`) because a Bosnian
-   receptionist and an English manager work the same hotel, and the structural locale test needs a
-   per-family locale set — the staff family has two languages where the guest family has four.
-   Then the request-summary overlay: `service_requests.details_original` and `original_locale` are
-   populated and nothing reads them. Brief: `docs/plan/slice-5-tasks.md`.
+**Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
+
+1. **Push this session's two commits and confirm CI is still green.** Both were verified locally
+   (unit/integration, system, rubocop, brakeman all clean) but, per instruction, never pushed —
+   nobody has seen them run on GitHub Actions yet. Do this before trusting the "Progress" line above.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
-3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns
-   not yet written.
+3. Slices 6–7 (WhatsApp, analytics/hardening) — specified in the plan, task breakdowns not yet written.
+4. **Two known, deliberate gaps left by Slice 5 Task 4**, worth a decision before a pilot rather than
+   fixing on a hunch: staff-side controller flash messages (`"Hotel settings updated."` and the like)
+   and ActiveRecord attribute names inside composed validation errors are still hardcoded English even
+   for a Bosnian-reading user — see that task's own section above for exactly what's covered and what
+   isn't, and why.
 
 Still open, and now a real product question rather than a hypothetical one: the takeover notice
 `pause_ai!` records is an **internal** note, so a guest whose conversation moves from the assistant
@@ -424,6 +498,14 @@ far, so the seam is verified against WebMock only.
 - **Don't remove the leak-detection settings** in `test/application_system_test_case.rb`. They look
   like belt-and-braces and they are not: without them every system test that signs in and then
   clicks fails on CI, and passes locally, which is the worst possible failure shape.
+- **rails-i18n (already a dependency) ships its own Bosnian translations for standard Rails/
+  ActiveRecord strings** — validation messages ("has already been taken" → "je već zauzet"),
+  `time_ago_in_words`, pluralization — the moment `I18n.locale` is `:bs`, with zero work from this
+  app. Discovered while making the staff workspace speak Bosnian (Slice 5 Task 4): a receptionist now
+  sees composed messages like `"Name je već zauzet"` — the error text translated, the attribute name
+  not (this app has no `activerecord.attributes.*` translations; see that task's write-up above for
+  the deliberate scope line). Don't mistake the mixed-language result for a bug before checking which
+  half is which.
 - **Internal notes and guest-visible messages live in the same table.** Any new read of `messages` on
   a guest-facing path must carry `.guest_visible` — there are exactly **four** such reads today and
   each has a test that goes red without it. `Message#visibility` documents the rule. The fourth is

@@ -151,9 +151,76 @@ class ServiceRequestTest < ActiveSupport::TestCase
     assert_includes ServiceRequest.settled, settled
   end
 
+  # --- The request-summary overlay ------------------------------------------
+  #
+  # readable_in is the model half of the overlay rule the request-summary
+  # translation job (Ai::TranslateServiceRequestSummaryJob) and the digit
+  # guard sit behind: a receptionist reads a translation, with the guest's
+  # own words one tap away, and the original whenever there is nothing safe
+  # to show instead. Full end-to-end coverage, including the digit guard
+  # itself, lives in test/jobs/ai/translate_service_request_summary_job_test.rb
+  # — these are the model's own contract in isolation.
+
+  test "readable_in shows the original when nothing has been translated yet" do
+    # ServiceRequestDraft#build_request is what actually keeps summary and
+    # details_original equal at creation (asserted directly in
+    # service_request_draft_test.rb); this constructs that same starting
+    # state explicitly, because ServiceRequest.create! here does not.
+    original = "Dodatni peškiri — količina: 3"
+    request = create_request(quantity: "3", details_original: original, original_locale: "bs")
+    request.update!(summary: original)
+
+    text, source = request.readable_in(@hotel.staff_locale)
+
+    assert_equal original, text
+    assert_equal :original, source
+  end
+
+  test "readable_in shows the original when there was never one to translate (legacy rows)" do
+    request = create_request(quantity: "4") # details_original blank, as every request created before this task's own
+
+    text, source = request.readable_in(@hotel.staff_locale)
+
+    assert_equal request.summary, text
+    assert_equal :original, source
+  end
+
+  test "readable_in shows the translation once the job has actually overwritten summary" do
+    request = create_request(quantity: "5", details_original: "Dodatni peškiri — količina: 5", original_locale: "bs")
+    request.update!(summary: "Extra towels — quantity: 5") # what the translation job itself does on success
+
+    text, source = request.readable_in(@hotel.staff_locale)
+
+    assert_equal "Extra towels — quantity: 5", text
+    assert_equal :translated, source
+  end
+
+  test "readable_in falls back to the original for a reader in a different locale than the translation" do
+    request = create_request(quantity: "6", details_original: "Dodatni peškiri — količina: 6", original_locale: "bs")
+    request.update!(summary: "Extra towels — quantity: 6") # translated into the hotel's own staff_locale (bs)
+
+    text, source = request.readable_in("de")
+
+    assert_equal request.details_original, text
+    assert_equal :original, source
+  end
+
+  # The immutability guarantee, enforced rather than merely observed — same
+  # shape as Message#body_is_immutable_after_creation. Broken and restored
+  # to prove it actually fires: temporarily removing this validation left
+  # this exact test red with "expected request.valid? to be false".
+  test "details_original cannot be changed after creation" do
+    request = create_request(quantity: "7", details_original: "Dodatni peškiri — količina: 7", original_locale: "bs")
+
+    request.details_original = "something else entirely"
+
+    assert_not request.valid?
+    assert_includes request.errors[:details_original], "cannot be changed after creation"
+  end
+
   private
 
-  def create_request(quantity: "2")
+  def create_request(quantity: "2", details_original: nil, original_locale: nil)
     details = { "quantity" => quantity }
     conversation = conversations(:stari_conversation)
     category = request_categories(:stari_towels)
@@ -162,6 +229,7 @@ class ServiceRequestTest < ActiveSupport::TestCase
       hotel: @hotel, conversation: conversation, guest_session: conversation.guest_session,
       room: conversation.guest_session.room, request_category: category, department: category.department,
       summary: "Extra towels — quantity: #{quantity}", details: details, channel: :web,
+      details_original: details_original, original_locale: original_locale,
       dedupe_key: ServiceRequest.dedupe_key_for(conversation: conversation, category: category, details: details)
     )
   end

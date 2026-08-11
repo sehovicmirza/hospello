@@ -112,6 +112,15 @@ class ServiceRequestDraft < ApplicationRecord
     # A new request is the one board event that does not come from a
     # transition, so it broadcasts here.
     Turbo::StreamsChannel.broadcast_refresh_to(hotel, :requests)
+    # Never on the RecordNotUnique recovery path below: that path recovers
+    # an *existing* request, which already had this enqueued once at its
+    # own creation — enqueueing again would spend tokens translating
+    # something already translated for no reader who is waiting on it.
+    # #summary_translation_target_locale is the same guard the job itself
+    # re-checks, so a same-language hotel never even gets a queued job.
+    if request.summary_translation_target_locale.present?
+      Ai::TranslateServiceRequestSummaryJob.perform_later(request)
+    end
     request
   rescue ActiveRecord::RecordNotUnique
     # The same request already exists — the dedupe_key index caught it. This
@@ -174,8 +183,16 @@ class ServiceRequestDraft < ApplicationRecord
         department: request_category&.department,
         # The same sentence the guest agreed to. A receptionist reading a
         # different summary from the one the guest confirmed is how "that is
-        # not what I asked for" conversations start.
+        # not what I asked for" conversations start. `summary` starts out
+        # identical to `details_original` and stays that way — a graceful,
+        # honest fallback — unless Ai::TranslateServiceRequestSummaryJob
+        # later overwrites it with a translation into the hotel's staff
+        # language; `details_original` never changes (enforced by
+        # ServiceRequest's own immutability validation), so the guest's
+        # actual words are always one tap away regardless of what `summary`
+        # holds by the time a receptionist reads it.
         summary: summary_for_guest.truncate(ServiceRequest::MAX_SUMMARY_LENGTH),
+        details_original: summary_for_guest,
         details: details,
         original_locale: conversation.guest_locale,
         requested_for_at: requested_for_at,
