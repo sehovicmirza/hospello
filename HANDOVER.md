@@ -15,8 +15,8 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-08-11 (Slice 5 complete — the staff workspace in Bosnian, the request-summary overlay, and the way in: setting a staff member's own language) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 850 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI (see below) |
-| **CI** | ✅ Was green as of the last push (`9409b53`). This session's three commits are local only — not pushed, per instruction — so CI has not seen them yet. |
+| **Tests** | 850 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI for the newest commit (see below) |
+| **CI** | ⚠️ Unconfirmed for the newest commit. This session made three commits and pushed none of them itself (instructed not to) — but `origin/main` was found already at the second commit (`ddc7d45`) partway through the session, apparently pushed by another actor with access to this repo, not by this session. The third commit (`722364e`) is genuinely local-only. Check the Actions tab before trusting any of this is CI-green. |
 | **Progress** | **Slices 1–5 complete** |
 
 > ### The CI failure is fixed, and it was never a flake
@@ -524,9 +524,10 @@ in tests, break-and-restore evidence, full suite before committing).
 
 **Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
 
-1. **Push this session's three commits and confirm CI is still green.** All were verified locally
-   (unit/integration, system, rubocop, brakeman all clean) but, per instruction, never pushed —
-   nobody has seen them run on GitHub Actions yet. Do this before trusting the "Progress" line above.
+1. **Push the third commit (`722364e`) and confirm CI is green for all three.** All three were
+   verified locally (unit/integration, system, rubocop, brakeman all clean). This session pushed none
+   of them itself, but `origin/main` was already at the second commit partway through — see the CI
+   row above. Check the Actions tab; do not assume green from a local run.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 6–7 (WhatsApp, analytics/hardening) — specified in the plan, task breakdowns not yet written.
