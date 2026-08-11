@@ -14,6 +14,21 @@ Rails.application.routes.draw do
   get "/h/:hotel_slug", to: "guest/entries#show", as: :hotel_landing
   post "/h/:hotel_slug", to: "guest/entries#create"
 
+  # Slice 6's front door for every hotel's WhatsApp channel at once — the
+  # only unauthenticated, publicly reachable endpoint in this app that
+  # accepts a body (see app/controllers/webhooks/whatsapp_controller.rb for
+  # the full reasoning, including why it deliberately does not inherit
+  # ApplicationController). Top-level, not nested under guest/staff/platform,
+  # because it belongs to none of them: there is no guest cookie, no staff
+  # session, and no hotel in the URL — the payload's own
+  # metadata.phone_number_id is what eventually decides which hotel a
+  # delivery belongs to (Slice 6 Task 3). GET is Meta's one-time webhook
+  # subscription handshake; POST is a real delivery.
+  namespace :webhooks do
+    get "whatsapp", to: "whatsapp#verify"
+    post "whatsapp", to: "whatsapp#receive"
+  end
+
   namespace :guest do
     # Guest::BaseController (every controller in this namespace) resolves
     # Current.hotel from the guest's cookie, never a URL parameter.
