@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 6 Task 3 complete — inbound WhatsApp, end to end) |
+| **Last updated** | 2026-08-11 (Slice 6 Task 4 step 1 — outbound sending; the loop is closed) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1003 unit/integration green (930 + 73 new) · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1024 unit/integration green (930 + 94 new) · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 next |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 one step of four |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -758,6 +758,45 @@ concierge, same grounding, same confirm-before-create request flow, same request
   distinction on `channel`, flattening the delivery ladder, and moving `<room_unknown>` into the
   cached prefix.
 
+**Slice 6 Task 4 step 1 — outbound.** The loop is closed: a WhatsApp guest now receives replies.
+Until this, everything the app wrote stayed inside the building.
+
+- `Whatsapp::SendMessageJob`, on the `critical` queue, serialized per conversation (two replies
+  racing each other would reach a phone in whatever order the network settled, and on this channel
+  that order is final).
+- **It waits for the translation, and that is the whole design decision.** On the web the overlay
+  lands a second later into a page already showing the words, which is why
+  `Ai::TranslateMessageJob` deliberately does not block (see `known-issues.md`). There is no overlay
+  on WhatsApp: sending the receptionist's Bosnian and then the guest's German means the guest gets
+  two messages, one unreadable. So the job re-enqueues itself while `Message#translation_in_flight?`,
+  bounded by `MAX_ATTEMPTS`, which is **derived from `Ai::TranslationWatchdogJob::BUDGET`** rather
+  than typed — the watchdog is what guarantees the wait ends, so widening one must not strand the
+  other. When the wait runs out the original goes, because the original always beats silence.
+- **It never sends anything the guest cannot already see.** The guard is `guest_visible?` — the same
+  condition `broadcast_to_guest` uses — and it lives in `Conversation#broadcast_new_message`
+  alongside it rather than in each of the six methods that post a message. That is the fifth
+  guest-facing read of `messages` in the app and the only one where a mistake cannot be taken back:
+  an internal note on the web is a wrong render, on WhatsApp it is on the guest's phone forever.
+- Wired for **every** guest-visible non-guest message, not just staff replies — the concierge's own
+  answers, the degraded notice and the request receipts are equally invisible until something sends
+  them. A guest asked for their room by a reply that never arrives is the first thing a demo hits.
+- `Message#claim_delivery!` (`local → queued`, one atomic statement) is the outbound counterpart of
+  `#claim_translation!`, and exists for a sharper reason: a duplicate send cannot be recalled, and
+  the guest simply sees the hotel say the same thing twice.
+- Failures are told to the receptionist **in words**, on the transcript, and only on this channel:
+  `WindowClosedError` (Meta's rule, not a fault — the guest must message first) marks the message
+  `failed` and renders a red line saying exactly that; a hard `ApiError` does the same and reports to
+  Sentry; a `RateLimitedError` is **re-raised** so the queue retries rather than dropping a reply.
+- `FakeWhatsappProvider` (`test/support/`) subclasses the real port, the same way `FakeClaude` does
+  around `Ai::Client`. What goes out on the wire is still asserted against WebMock in
+  `meta_cloud_provider_test.rb`; this is for testing what the *job* decides to hand it.
+- **Two more tests that passed for the wrong reason, both found by breaking the code.** Deleting the
+  `conversation.whatsapp?` guard from the job left everything green, because no fixture guest session
+  carries a `phone_e164` and the send was really being stopped by "no recipient" — the web guest in
+  that test now has a phone. Deleting the same guard from the view left everything green too,
+  because nothing writes a delivery status on the web, so the notice had nothing to render — that
+  test now forces `failed` on a web message. Both are red without their guard now.
+
 ---
 
 ## What to do next
@@ -783,26 +822,30 @@ concierge, same grounding, same confirm-before-create request flow, same request
    its write-up above; `test/services/whatsapp/inbound_flow_test.rb` is the file that shows the whole
    thing working.
 
-   **Task 4 is next, and it is what makes the slice demoable** — everything inbound works, and
-   nothing this app writes ever leaves the building yet, so a WhatsApp guest currently gets silence.
-   Its four steps are specified in `docs/plan/slice-6-tasks.md`. Three things it must not miss:
-   - **`render.yaml`** finally has to carry `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_API_VERSION`,
-     `WHATSAPP_APP_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Nothing reads them in production
-     today, which is why Tasks 1–3 deliberately left them out; the moment a send or the webhook goes
-     live, a missing secret is a silent outage. They are already in `.env.example` and `README.md`.
-   - **Assistant and system messages need sending too, not just staff replies.** The brief's Step 1
-     names `Conversation#post_staff_message!`, but on WhatsApp the concierge's own answers
-     (`#post_assistant_reply!`), the degraded notice (`#post_degraded_notice!`) and the request
-     receipts (`#post_system_notice!`) are equally invisible to the guest until something sends them.
-     A guest asked for their room by a reply that never arrives is the *first* thing a demo would hit.
-   - **`Message#external_id` is where a send's provider id belongs** — that is the anchor every
-     delivery callback already matches on (Task 3 built the whole receiving half and it is proved by
-     tests; it simply finds nothing today because nothing writes those ids yet).
+   **Task 4 is in progress: step 1 (outbound sending) is done, steps 2–4 are not.** See its write-up
+   above; `docs/plan/slice-6-tasks.md` has the full breakdown. What is left:
+   - **Step 2 — the template registry** (`whatsapp_templates`: hotel, name, locale, category, status,
+     body). Meta must approve each one, and the registry is how a hotel knows whether its welcome
+     message is usable yet. The brief is explicit that this slice must **not** build a bulk-send UI:
+     an un-opted-in send risks the hotel's number, which is the hotel's asset and not ours.
+   - **Step 3 — the channel settings screen** (`/staff/whatsapp_channels/edit`: number, status,
+     display-name status, last inbound, last error, a link to the onboarding runbook) and the
+     landing page's "Chat on WhatsApp" button — `wa.me/<number>` with a prefilled greeting, rendered
+     **only** when the hotel has an `active` channel, and with no token in the link.
+   - **Step 4 — `docs/whatsapp-onboarding.md`**, separating our steps from Meta's and the BSP's, and
+     saying plainly which waits are outside anyone's control here.
+   - **`render.yaml` still has none of the four WhatsApp env vars**, and this is now the sharp edge:
+     as of step 1 an outbound send really does read `WHATSAPP_ACCESS_TOKEN` in production. Add
+     `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_API_VERSION`, `WHATSAPP_APP_SECRET` and
+     `WHATSAPP_WEBHOOK_VERIFY_TOKEN` before anyone points a real number at this. They are already in
+     `.env.example` and `README.md`. Nothing breaks without them — `MetaCloudProvider#post` raises a
+     named `ApiError` and the message is marked `failed` with a line the receptionist can read —
+     but every WhatsApp reply fails until they are set.
 
-   Also worth revisiting once replies can actually leave: the non-text-inbound gap recorded in
-   `docs/plan/known-issues.md` (a guest who sends a photo currently gets silence, which stops being
-   free the moment everything else stops being silent). Meta's free test number still covers all of
-   this — no BSP business decision needed yet.
+   Also worth revisiting now that replies really do leave: the non-text-inbound gap recorded in
+   `docs/plan/known-issues.md` (a guest who sends a photo gets silence — which was free while
+   *everything* was silent, and is not any more). Meta's free test number still covers all of this —
+   no BSP business decision needed yet.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the

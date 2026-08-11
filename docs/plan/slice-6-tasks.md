@@ -232,12 +232,24 @@ callbacks are normal — a `read` arriving before its `delivered` must not move 
 - Create: `test/system/whatsapp_channel_settings_test.rb`
 - Modify: `app/models/conversation.rb`, `app/views/guest/entries/show.html.erb`, `docs/whatsapp-onboarding.md`
 
-- [ ] **Step 1: Staff replies go out over the right channel**
+- [x] **Step 1: Staff replies go out over the right channel**
 
 `Conversation#post_staff_message!` already exists and is channel-agnostic. Its `after_commit` enqueues
 `Whatsapp::SendMessageJob` **only** when `channel == :whatsapp`. On `WindowClosedError`, mark the
 message `failed` and show the receptionist something true and actionable — "WhatsApp couldn't deliver
 this: the guest has to message first" — not a stack trace and not silence.
+
+> **As built, wider than the heading and one decision the brief does not mention:**
+> - Wired from `Conversation#broadcast_new_message`, sharing `broadcast_to_guest`'s own
+>   `guest_visible?` condition, rather than from `#post_staff_message!`'s `after_commit`. On this
+>   channel the concierge's own replies, the degraded notice and the request receipts are equally
+>   invisible until something sends them — a guest asked for their room by a reply that never
+>   arrives is the first thing a demo hits. One rule, one guard, in one place.
+> - **The send waits for the translation.** Not in the brief, and it is the decision that matters
+>   most here: there is no overlay on WhatsApp, so sending the original and translating afterwards
+>   delivers two messages, one of which the guest cannot read. Bounded by
+>   `Ai::TranslationWatchdogJob::BUDGET` so it always terminates, and the original goes when the
+>   wait runs out.
 
 - [ ] **Step 2: The template registry**
 

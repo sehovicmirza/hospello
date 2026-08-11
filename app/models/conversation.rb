@@ -377,6 +377,16 @@ class Conversation < ApplicationRecord
     Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
   end
 
+  # A delivery mark changed — sent, or failed and now needing a receptionist
+  # to do something about it (Whatsapp::SendMessageJob). Staff-side only: this
+  # is about whether the hotel's own words left the building, which is not a
+  # thing the guest is shown. A morphing refresh for the same reason every
+  # other live update here is one — it re-renders from the server rather than
+  # nudging a mark client-side.
+  def broadcast_delivery(_message)
+    Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
+  end
+
   private
     # The two ways a guest's send can arrive twice, and the two indexes that
     # make each impossible — checked up front for the common sequential
@@ -439,7 +449,16 @@ class Conversation < ApplicationRecord
     end
 
     def broadcast_new_message(message)
-      broadcast_to_guest(message) if message.guest_visible?
+      if message.guest_visible?
+        broadcast_to_guest(message)
+        # Deliberately here, sharing broadcast_to_guest's own condition rather
+        # than living in each of the six methods that post a message. "What
+        # reaches the guest's browser also reaches their phone" is one rule
+        # with one guard, and that guard is `guest_visible?` — the same one
+        # four existing tests already protect. Six copies of it would be six
+        # chances to omit the one that matters.
+        deliver_to_whatsapp(message)
+      end
 
       # [hotel, :inbox] — the reception inbox's stream (HotelInboxChannel).
       # A refresh rather than a targeted append: the inbox list and the
@@ -450,6 +469,19 @@ class Conversation < ApplicationRecord
       # Internal notes broadcast here too — the staff side is exactly who
       # they are for.
       Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
+    end
+
+    # A guest reading this conversation on WhatsApp has no browser to update:
+    # the only way anything reaches them is a real outbound send. Their own
+    # messages are skipped — they already have those — and everything else
+    # (staff replies, the concierge's answers, the degraded notice, request
+    # receipts) goes, because on this channel a message nobody sends is a
+    # message nobody receives.
+    def deliver_to_whatsapp(message)
+      return unless whatsapp?
+      return if message.guest?
+
+      Whatsapp::SendMessageJob.perform_later(message)
     end
 
     # The [conversation] stream is the *guest's* browser, so nothing that

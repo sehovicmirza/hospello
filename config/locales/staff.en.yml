@@ -131,6 +131,8 @@ en:
         internal_note_banner: "Internal note — the guest cannot see this"
         see_original: "See what the guest wrote"
         hide_original: "Hide the original"
+        not_delivered: "Not delivered on WhatsApp — the guest has to message the hotel first before a reply can be sent."
+        delivered_pending: "Sending on WhatsApp…"
       index:
         title: "Inbox — %{hotel_name}"
         heading: "Inbox"

@@ -107,6 +107,27 @@ class Message < ApplicationRecord
     )
   end
 
+  # The outbound counterpart of #claim_translation!, and it exists for a
+  # sharper reason: a WhatsApp message that goes out twice cannot be recalled,
+  # and the guest simply sees the hotel say the same thing twice. `local` is
+  # every message's starting state (on the web it is also its final one —
+  # nothing is ever *sent* there), so this moves local → queued in one atomic
+  # statement and exactly one caller gets past it, however many times the job
+  # is enqueued or retried.
+  def claim_delivery!
+    claimed = self.class.where(id: id, delivery_status: self.class.delivery_statuses[:local])
+                        .update_all(delivery_status: self.class.delivery_statuses[:queued],
+                                    updated_at: Time.current)
+    reload if claimed == 1
+    claimed == 1
+  end
+
+  # A translation that has been asked for and has not settled yet. Only the
+  # WhatsApp send path waits on this: on the web the translation lands as an
+  # overlay in a page that is already showing the message, so there is nothing
+  # to wait for.
+  def translation_in_flight? = translation_status_pending? || translation_status_translating?
+
   # How far along the delivery ladder each status is. Out-of-order callbacks
   # are ordinary on WhatsApp — a `read` really can arrive before its
   # `delivered` — so arrival order is not trustworthy and a callback is

@@ -126,6 +126,8 @@ bs:
         internal_note_banner: "Interna napomena — gost ovo ne može vidjeti"
         see_original: "Vidi šta je gost napisao"
         hide_original: "Sakrij original"
+        not_delivered: "Nije dostavljeno na WhatsApp — gost mora prvo poslati poruku hotelu da bismo mogli odgovoriti."
+        delivered_pending: "Šalje se na WhatsApp…"
       index:
         title: "Razgovori — %{hotel_name}"
         heading: "Razgovori"

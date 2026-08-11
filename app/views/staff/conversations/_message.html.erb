@@ -43,6 +43,23 @@
       <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
         <%= staff_time(message.created_at).strftime("%d %b %H:%M") %>
       </time>
+      <%# On the web a reply is delivered the moment it is written — the
+          guest's page re-renders from the database. On WhatsApp it is really
+          *sent*, and it can fail: outside Meta's 24-hour window a hotel may
+          not write freely, and from a receptionist's side the reply otherwise
+          looks exactly like one that arrived. Said in words, never as a colour
+          or an icon alone, and only on this channel — a web message's
+          `local` status is not a delivery claim at all. %>
+      <% if message.conversation.whatsapp? && !message.delivery_status_local? %>
+        <% if message.delivery_status_failed? %>
+          <p id="<%= dom_id(message, :undelivered) %>" role="status"
+             class="max-w-[85%] rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-800">
+            <%= t(".not_delivered") %>
+          </p>
+        <% elsif message.delivery_status_queued? %>
+          <span class="px-1 text-xs text-gray-400"><%= t(".delivered_pending") %></span>
+        <% end %>
+      <% end %>
     </div>
   <% end %>
 </div>

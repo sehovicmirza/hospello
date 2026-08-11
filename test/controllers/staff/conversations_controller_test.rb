@@ -293,7 +293,76 @@ class Staff::ConversationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  # --- WhatsApp delivery marks (Slice 6 Task 4) -------------------------------
+  #
+  # A reply that never left the building looks, from a receptionist's side,
+  # exactly like one that arrived — they typed it and it is in the transcript.
+  # On the web that is true (the guest's page re-renders from the database); on
+  # WhatsApp a send really can fail, and the most common reason is not a fault
+  # at all: outside Meta's 24-hour window a hotel may not write freely until
+  # the guest messages in again.
+
+  test "a reply that WhatsApp refused says so, in words, on the transcript" do
+    message = whatsapp_message(delivery_status: :failed)
+    sign_in @staff
+
+    get staff_conversation_path(message.conversation)
+
+    assert_response :success
+    # The literal Bosnian from config/locales/staff.bs.yml — stari_staff reads
+    # the workspace in Bosnian (test/fixtures/users.yml), and deriving the
+    # expected string from the same file the view reads would pass however
+    # empty that key became (engineering rule 2).
+    assert_select "##{dom_id(message, :undelivered)}",
+                  text: /gost mora prvo poslati poruku hotelu/
+  end
+
+  test "a reply that went out carries no delivery warning at all" do
+    message = whatsapp_message(delivery_status: :sent)
+    sign_in @staff
+
+    get staff_conversation_path(message.conversation)
+
+    assert_response :success
+    assert_select "##{dom_id(message, :undelivered)}", count: 0
+  end
+
+  # The same `local` status every web message carries is not a delivery claim
+  # and must never be rendered as one — otherwise every conversation in the
+  # inbox would sprout a WhatsApp notice.
+  #
+  # `failed` is forced on deliberately rather than left at the column default.
+  # Nothing writes a delivery status on the web today, so with the default this
+  # test passed even with the channel check deleted — measured. Forcing the one
+  # value that *would* render the notice makes the channel the only thing
+  # standing, which is what the test claims.
+  test "a web reply is never marked undelivered, whatever its delivery_status" do
+    message = with_tenant(@hotel) do
+      posted = conversations(:stari_conversation).post_staff_message!(user: @staff, body: "On the web.")
+      posted.update_columns(delivery_status: Message.delivery_statuses[:failed])
+      posted
+    end
+    sign_in @staff
+
+    get staff_conversation_path(message.conversation)
+
+    assert_response :success
+    assert_select "##{dom_id(message, :undelivered)}", count: 0
+  end
+
   private
+    def whatsapp_message(delivery_status:)
+      with_tenant(@hotel) do
+        session = GuestSession.for_whatsapp(
+          phone_e164: "+38761234567", name: "Amira", accepted_at: Time.current
+        )
+        session.update!(room: rooms(:stari_301))
+        message = Conversation.live_for(session).post_staff_message!(user: @staff, body: "Peškiri stižu.")
+        message.update_columns(delivery_status: Message.delivery_statuses[delivery_status])
+        message
+      end
+    end
+
     def fresh_guest_session(name:, room: nil)
       @hotel.guest_sessions.create!(
         guest_name: name, room: room, locale: "en", privacy_accepted_at: Time.current,
