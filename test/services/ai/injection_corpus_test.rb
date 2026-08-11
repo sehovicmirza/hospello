@@ -225,7 +225,9 @@ module Ai
       assert real_but_theirs[:is_error]
       assert never_existed[:is_error]
       assert_nil roomless.guest_session.reload.room_id
-      assert_equal rooms(:vrelo_401).id, with_tenant(hotels(:vrelo)) { rooms(:vrelo_401).reload.id }
+      # The other hotel's own guest keeps the room, so "refused" means refused
+      # rather than reassigned out from under them.
+      assert_equal rooms(:vrelo_401), with_tenant(hotels(:vrelo)) { guest_sessions(:vrelo_guest).reload.room }
     end
 
     # The structural half of "ask for the room first": whatever the model is

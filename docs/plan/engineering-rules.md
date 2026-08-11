@@ -99,8 +99,16 @@ mitigations. An honest open issue is worth more than a confident wrong fix.
 returning every hotel's rows. Do not defeat this. The escape hatches (`without_tenant`, `unscoped`,
 `default_tenant =`, `find_by_sql`, raw `connection.execute`) are grep-tested by
 `test/tenancy/without_tenant_grep_test.rb` and allowed **only** in `app/controllers/platform/`, plus
-one narrowly allow-listed call in `app/models/guest_session.rb` (a guest's cookie carries no hotel
-context, so the session must be found before its tenant is known).
+two narrowly allow-listed calls, both of the same shape — a lookup whose *result* is what decides the
+tenant, so it cannot itself run inside one:
+
+- `GuestSession.authenticate_by_token` — a guest's cookie carries no hotel context.
+- `WhatsappChannel.route` — an inbound webhook carries only Meta's `phone_number_id`, and that is
+  what picks the hotel. Safe additionally because `phone_number_id` is globally unique, so exactly
+  one row can come back.
+
+Both use `find_by_sql`, which never touches `default_scope` at all, so it needs no escape hatch and
+sets no tenant anywhere. Neither is a licence for a general cross-tenant query.
 
 If you genuinely need a new exception, add it to the allowlist **narrowly** — by that specific
 pattern at that specific path — and explain why in a comment. Never widen the allowlist to a whole

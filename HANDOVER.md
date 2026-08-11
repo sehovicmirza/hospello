@@ -16,7 +16,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 1003 unit/integration green (930 + 73 new) · 41 system green · rubocop and brakeman clean |
-| **CI** | Check the Actions tab after this push. Locally: `bin/rails test`, `bin/rails test:system`, `bin/rubocop`, `bin/brakeman --no-pager` all clean. **`bin/rails test:system` needs a chromedriver matching the container's Chrome** — see "What will bite you". |
+| **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
 | **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 next |
 
 > ### The CI failure is fixed, and it was never a flake

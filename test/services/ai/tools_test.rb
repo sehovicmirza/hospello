@@ -233,7 +233,14 @@ module Ai
 
       assert result[:is_error]
       assert_nil roomless.guest_session.reload.room_id
-      assert_equal foreign.reload.id, with_tenant(hotels(:vrelo)) { rooms(:vrelo_401).id }
+      # And the refusal is about the *hotel*, not about the number being
+      # unusual: the same digits belonging to this hotel are accepted. Without
+      # this the test above would still pass if find_active_room were simply
+      # broken for every four-digit number.
+      with_tenant(@hotel) { @hotel.rooms.create!(number: foreign.number) }
+      assert_not execute_on(roomless, "set_guest_room", { room_number: foreign.number, guest_name: "Amira" })[:is_error]
+      assert_equal foreign.number, roomless.guest_session.reload.room.number
+      assert_equal @hotel, roomless.guest_session.room.hotel
     end
 
     # A guest whose room is already known — every web guest, and any WhatsApp
