@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_11_090000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_11_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -466,6 +466,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_090000) do
     t.index ["hotel_id", "role"], name: "index_users_on_hotel_id_and_role"
   end
 
+  create_table "webhook_events", force: :cascade do |t|
+    t.integer "provider", null: false
+    t.string "external_id", null: false
+    t.jsonb "payload", null: false
+    t.bigint "hotel_id"
+    t.integer "status", default: 0, null: false
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id"], name: "index_webhook_events_on_hotel_id"
+    t.index ["provider", "external_id"], name: "index_webhook_events_on_provider_and_external_id", unique: true
+  end
+
   create_table "whatsapp_channels", force: :cascade do |t|
     t.bigint "hotel_id", null: false
     t.string "phone_number_e164", null: false
@@ -529,5 +542,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_090000) do
   add_foreign_key "unanswered_questions", "hotels", on_delete: :cascade
   add_foreign_key "unanswered_questions", "kb_entries", on_delete: :nullify
   add_foreign_key "users", "hotels"
+  add_foreign_key "webhook_events", "hotels", on_delete: :nullify
   add_foreign_key "whatsapp_channels", "hotels", on_delete: :cascade
 end

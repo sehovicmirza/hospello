@@ -13,7 +13,15 @@ class TenantDeclarationTest < ActiveSupport::TestCase
                   "User.for_hotel(hotel) — User.all crosses hotels and will not raise.",
     "AuditLog" => "records platform-level actions that may have no hotel. " \
                   "In a hotel context read entries only via AuditLog.for_hotel(hotel) — " \
-                  "AuditLog.all crosses hotels and will not raise."
+                  "AuditLog.all crosses hotels and will not raise.",
+    "WebhookEvent" => "written by Webhooks::WhatsappController before any tenant can possibly be " \
+                  "known — hotel_id is nil until Slice 6 Task 3's Whatsapp::InboundRouter resolves " \
+                  "one, and that resolution has to read this very row to do its job, so " \
+                  "acts_as_tenant's require_tenant guard would make the lookup impossible, not just " \
+                  "inconvenient. Not guest- or staff-facing data: it is an operational record of the " \
+                  "webhook boundary itself, read by id (Whatsapp::ProcessInboundJob) rather than " \
+                  "through any hotel-scoped listing, so no WebhookEvent.for_hotel scope exists — add " \
+                  "one the day something actually needs to list a hotel's webhook history."
   }.freeze
 
   # A throwaway tenant-scoped model over an existing table, so the fail-closed
