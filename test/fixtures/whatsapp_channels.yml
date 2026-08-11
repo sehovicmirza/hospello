@@ -1,0 +1,23 @@
+# One channel per hotel, deliberately in different states (stari_grad:
+# active and verified; vrelo: still pending) so a test can tell the two
+# apart without constructing its own — see test/fixtures/rooms.yml's header
+# for why the values are deliberately distinctive rather than parallel.
+# phone_number_id values below are fixture-only fakes, never real Meta ids.
+stari_grad_whatsapp:
+  hotel: stari_grad
+  phone_number_e164: "+38761100100"
+  phone_number_id: "fixture-phone-number-id-stari"
+  waba_id: "fixture-waba-id-stari"
+  provider: 0
+  status: 1
+  display_name_status: APPROVED
+  verified_at: <%= 3.days.ago.iso8601 %>
+  last_inbound_at: <%= 1.hour.ago.iso8601 %>
+
+vrelo_whatsapp:
+  hotel: vrelo
+  phone_number_e164: "+38761200200"
+  phone_number_id: "fixture-phone-number-id-vrelo"
+  waba_id: "fixture-waba-id-vrelo"
+  provider: 0
+  status: 0

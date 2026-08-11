@@ -36,6 +36,7 @@ class Hotel < ApplicationRecord
   has_many :unanswered_questions
   has_many :service_requests
   has_many :service_request_drafts
+  has_one :whatsapp_channel
 
   has_one_attached :logo
   has_one_attached :welcome_image
