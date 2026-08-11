@@ -126,6 +126,13 @@ Rails.application.routes.draw do
       member { patch :dismiss }
     end
 
+    # The hotel's own WhatsApp number. Singular and id-less for the same
+    # reason hotel_settings and preferences are — there is exactly one per
+    # hotel, and no request shape here can name another hotel's. No #new or
+    # #create: #edit renders the form whether or not a row exists yet and
+    # #update creates it on first save (see the controller).
+    resource :whatsapp_channel, only: %i[edit update]
+
     resources :departments, only: %i[index create edit update destroy]
     resources :request_categories, only: %i[index create edit update destroy]
 

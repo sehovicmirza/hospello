@@ -105,6 +105,12 @@ module StaffHelper
     end
     items << { id: "hotel-settings", label: t("staff.nav.hotel_settings"), path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
     items << { id: "rooms", label: t("staff.nav.rooms"), path: staff_rooms_path } if policy(Room).index?
+    # Next to the QR code at the bottom, not next to the inbox: this is the
+    # hotel's *other* front door, configured once and then looked at only
+    # when something is wrong with it.
+    if policy(Current.hotel.whatsapp_channel || WhatsappChannel.new).show?
+      items << { id: "whatsapp", label: t("staff.nav.whatsapp"), path: edit_staff_whatsapp_channel_path }
+    end
     items << { id: "departments", label: t("staff.nav.departments"), path: staff_departments_path } if policy(Department).index?
     items << { id: "staff", label: t("staff.nav.staff"), path: staff_users_path } if policy(User).index?
     items << { id: "qr-code", label: t("staff.nav.qr_code"), path: staff_qr_code_path } if QrCodePolicy.new(Current.user, Current.hotel).show?

@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 6 Task 4 step 1 — outbound sending; the loop is closed) |
+| **Last updated** | 2026-08-11 (Slice 6 Task 4 — outbound sending, and the channel settings screen) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1024 unit/integration green (930 + 94 new) · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1036 unit/integration green (930 + 106 new) · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 one step of four |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 steps 1 and 3a of four |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -797,6 +797,28 @@ Until this, everything the app wrote stayed inside the building.
   because nothing writes a delivery status on the web, so the notice had nothing to render — that
   test now forces `failed` on a web message. Both are red without their guard now.
 
+**Slice 6 Task 4 step 3, first half — the channel settings screen.** `/staff/whatsapp_channel/edit`.
+Until this, a `whatsapp_channels` row could only be created by hand on the production box, which is
+the "hidden manual step" this project's own rules forbid — onboarding a hotel was an engineering
+task. Now it is a hotel-admin one.
+
+- Singular and id-less, the shape `hotel_settings` and `preferences` already use: there is no
+  request that could name another hotel's channel. No `#new`/`#create` — `#edit` renders the form
+  whether or not a row exists and `#update` creates it on first save, so the permitted-parameter
+  list lives in one place.
+- **`#edit` is authorized as a read (`:show?`), and the form is gated separately on
+  `policy(@channel).update?`.** A receptionist at 23:00 has to be able to answer "I messaged you on
+  WhatsApp and nobody replied" — is the number live, did anything ever arrive — which is a shift
+  question. Changing the hotel's own published number is not. They get the state panel and no
+  fields, rather than an editable form that refuses them on submit.
+- `verified_at`, `last_inbound_at` and `last_error` are deliberately **not** permitted: they are
+  written by what actually happens on the channel (`Whatsapp::InboundRouter` stamps `last_inbound_at`
+  on every real delivery), and a form that could set them would let a hotel tell itself a number is
+  working when nothing has ever arrived on it.
+- The `phone_number_id` field carries a hint saying what it really is, because nobody would guess
+  from the name that it is the routing key and that a wrong value means guest messages reach nobody.
+  Another hotel's value is refused by the global unique index and surfaces as a readable error.
+
 ---
 
 ## What to do next
@@ -828,10 +850,12 @@ Until this, everything the app wrote stayed inside the building.
      body). Meta must approve each one, and the registry is how a hotel knows whether its welcome
      message is usable yet. The brief is explicit that this slice must **not** build a bulk-send UI:
      an un-opted-in send risks the hotel's number, which is the hotel's asset and not ours.
-   - **Step 3 — the channel settings screen** (`/staff/whatsapp_channels/edit`: number, status,
-     display-name status, last inbound, last error, a link to the onboarding runbook) and the
-     landing page's "Chat on WhatsApp" button — `wa.me/<number>` with a prefilled greeting, rendered
-     **only** when the hotel has an `active` channel, and with no token in the link.
+   - **Step 3 — half done.** The staff settings screen exists (see its write-up above). What is
+     left is the **guest-facing half**: the landing page's "Chat on WhatsApp" button —
+     `wa.me/<number>` with a prefilled greeting, rendered **only** when the hotel has an `active`
+     channel, and with no token in the link. That needs guest-facing copy in **all four** locales
+     (`bs/en/de/ar`, unlike the staff family's two) — `test/i18n/locale_files_test.rb` enforces the
+     difference, so add the key to every one of them or the suite goes red.
    - **Step 4 — `docs/whatsapp-onboarding.md`**, separating our steps from Meta's and the BSP's, and
      saying plainly which waits are outside anyone's control here.
    - **`render.yaml` still has none of the four WhatsApp env vars**, and this is now the sharp edge:

@@ -19,6 +19,7 @@ en:
       departments: "Departments & categories"
       staff: "Staff"
       qr_code: "QR code"
+      whatsapp: "WhatsApp"
     layout:
       signed_in_as_html: "Signed in as %{name}"
       preferences_link: "Language"
@@ -35,6 +36,14 @@ en:
       update:
         updated: "Language updated."
     common:
+      whatsapp_status:
+        pending: "Not confirmed yet"
+        active: "Live"
+        disabled: "Switched off"
+      whatsapp_provider:
+        meta_cloud: "Meta Cloud API (direct)"
+        three_sixty_dialog: "360dialog"
+        twilio: "Twilio"
       actions:
         edit: "Edit"
         delete: "Delete"
@@ -498,3 +507,34 @@ en:
         password_label: "Password"
         password_confirmation_label: "Confirm password"
         submit: "Add staff member"
+    whatsapp_channels:
+      edit:
+        title: "WhatsApp — %{hotel_name}"
+        heading: "WhatsApp"
+        intro: "Your hotel's own WhatsApp number, alongside the QR code. Guests message it directly and their conversation lands in the same inbox."
+        errors_heading:
+          one: "1 problem stopped this from being saved"
+          other: "%{count} problems stopped this from being saved"
+        number_legend: "The number"
+        phone_number_label: "Phone number"
+        phone_number_hint: "In full international form, starting with +."
+        phone_number_id_label: "Phone number ID"
+        phone_number_id_hint: "Meta's own ID for this number, from the WhatsApp Manager — not the number itself. Incoming messages are matched to your hotel by this, so a wrong value means guest messages reach nobody."
+        waba_id_label: "WhatsApp Business Account ID"
+        state_legend: "How it is being used"
+        status_label: "Status"
+        status_hint: "Switch this off to stop using the number without deleting its settings."
+        provider_label: "Connected through"
+        provider_hint: "Only the direct Meta Cloud API is supported today."
+        save: "Save WhatsApp settings"
+        state_heading: "Current state"
+        state_status: "Status"
+        state_display_name: "Display name"
+        state_last_inbound: "Last message received"
+        state_ago: "%{time} ago"
+        state_never: "Nothing has arrived yet"
+        state_unknown: "Not known yet"
+        help_heading: "Setting this up"
+        help_body: "The IDs come from Meta's WhatsApp Manager. Approval times are Meta's, not ours — see docs/whatsapp-onboarding.md for what to expect and in what order."
+      update:
+        updated: "WhatsApp settings saved."

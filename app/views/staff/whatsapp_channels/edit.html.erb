@@ -1,0 +1,119 @@
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
+<% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+
+<h1 class="mb-2 text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
+<p class="mb-6 max-w-2xl text-sm text-gray-600"><%= t(".intro") %></p>
+
+<div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
+  <%# The form is gated on update?, not on reaching the page: a receptionist
+      may read this screen (see the controller) but changing the hotel's own
+      published number is a hotel_admin decision. Showing them fields that
+      would be refused on submit is worse than showing none. %>
+  <div class="lg:col-span-2">
+    <% if policy(@channel).update? %>
+      <%= form_with model: @channel, url: staff_whatsapp_channel_path, method: :patch, class: "space-y-6" do |form| %>
+        <% if @channel.errors.any? %>
+          <div class="rounded-lg bg-red-50 p-4">
+            <p class="font-medium text-red-700"><%= t(".errors_heading", count: @channel.errors.count) %></p>
+            <ul class="mt-2 list-inside list-disc text-sm text-red-700">
+              <% @channel.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+          <legend class="px-1 text-sm font-medium text-gray-700"><%= t(".number_legend") %></legend>
+
+          <div>
+            <%= form.label :phone_number_e164, t(".phone_number_label"), class: "block text-sm font-medium text-gray-700" %>
+            <p class="text-xs text-gray-500"><%= t(".phone_number_hint") %></p>
+            <%= form.text_field :phone_number_e164, required: true, placeholder: "+38761234567",
+                  class: field_classes %>
+          </div>
+
+          <div>
+            <%= form.label :phone_number_id, t(".phone_number_id_label"), class: "block text-sm font-medium text-gray-700" %>
+            <%# The single most consequential field on this screen, and the one
+                nobody would guess the importance of from its name: it is what
+                an inbound webhook routes on, so a wrong value sends this
+                hotel's guests nowhere (and is refused outright if it belongs
+                to another hotel — a global unique index, see WhatsappChannel). %>
+            <p class="text-xs text-gray-500"><%= t(".phone_number_id_hint") %></p>
+            <%= form.text_field :phone_number_id, required: true, class: field_classes %>
+          </div>
+
+          <div>
+            <%= form.label :waba_id, t(".waba_id_label"), class: "block text-sm font-medium text-gray-700" %>
+            <%= form.text_field :waba_id, class: field_classes %>
+          </div>
+        </fieldset>
+
+        <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
+          <legend class="px-1 text-sm font-medium text-gray-700"><%= t(".state_legend") %></legend>
+
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div>
+              <%= form.label :status, t(".status_label"), class: "block text-sm font-medium text-gray-700" %>
+              <p class="text-xs text-gray-500"><%= t(".status_hint") %></p>
+              <%= form.select :status,
+                    WhatsappChannel.statuses.keys.map { |status| [ t("staff.common.whatsapp_status.#{status}"), status ] },
+                    {}, class: field_classes %>
+            </div>
+
+            <div>
+              <%= form.label :provider, t(".provider_label"), class: "block text-sm font-medium text-gray-700" %>
+              <p class="text-xs text-gray-500"><%= t(".provider_hint") %></p>
+              <%= form.select :provider,
+                    WhatsappChannel.providers.keys.map { |provider| [ t("staff.common.whatsapp_provider.#{provider}"), provider ] },
+                    {}, class: field_classes %>
+            </div>
+          </div>
+        </fieldset>
+
+        <%= form.submit t(".save"), class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700" %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <aside class="space-y-4">
+    <%# What a receptionist actually needs at 23:00 when a guest says "I
+        messaged you and nobody answered": is the number live, and did
+        anything ever arrive on it. Read-only and server-computed — none of
+        these are settable from the form above, because a hotel that could
+        type "verified" into its own record would be telling itself
+        something no delivery had confirmed. %>
+    <div id="whatsapp-channel-state" class="rounded-lg border border-gray-200 bg-white p-4 text-sm">
+      <h2 class="mb-3 font-medium text-gray-900"><%= t(".state_heading") %></h2>
+
+      <dl class="space-y-2 text-gray-700">
+        <div class="flex justify-between gap-4">
+          <dt><%= t(".state_status") %></dt>
+          <dd class="font-medium"><%= t("staff.common.whatsapp_status.#{@channel.status || 'pending'}") %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt><%= t(".state_display_name") %></dt>
+          <dd class="font-medium"><%= @channel.display_name_status.presence || t(".state_unknown") %></dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt><%= t(".state_last_inbound") %></dt>
+          <dd id="whatsapp-last-inbound" class="font-medium">
+            <%= @channel.last_inbound_at ? t(".state_ago", time: time_ago_in_words(@channel.last_inbound_at)) : t(".state_never") %>
+          </dd>
+        </div>
+      </dl>
+
+      <% if @channel.last_error.present? %>
+        <p id="whatsapp-last-error" class="mt-3 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-800">
+          <%= @channel.last_error %>
+        </p>
+      <% end %>
+    </div>
+
+    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+      <h2 class="mb-2 font-medium text-gray-900"><%= t(".help_heading") %></h2>
+      <p><%= t(".help_body") %></p>
+    </div>
+  </aside>
+</div>

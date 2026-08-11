@@ -14,6 +14,7 @@ bs:
       departments: "Odjeljenja i kategorije"
       staff: "Osoblje"
       qr_code: "QR kod"
+      whatsapp: "WhatsApp"
     layout:
       signed_in_as_html: "Prijavljeni ste kao %{name}"
       preferences_link: "Jezik"
@@ -30,6 +31,14 @@ bs:
       update:
         updated: "Jezik ažuriran."
     common:
+      whatsapp_status:
+        pending: "Još nije potvrđeno"
+        active: "Aktivno"
+        disabled: "Isključeno"
+      whatsapp_provider:
+        meta_cloud: "Meta Cloud API (direktno)"
+        three_sixty_dialog: "360dialog"
+        twilio: "Twilio"
       actions:
         edit: "Uredi"
         delete: "Obriši"
@@ -509,3 +518,35 @@ bs:
         password_label: "Lozinka"
         password_confirmation_label: "Potvrdi lozinku"
         submit: "Dodaj člana osoblja"
+    whatsapp_channels:
+      edit:
+        title: "WhatsApp — %{hotel_name}"
+        heading: "WhatsApp"
+        intro: "Vlastiti WhatsApp broj vašeg hotela, uz QR kod. Gosti pišu direktno na njega, a razgovor stiže u isti inbox."
+        errors_heading:
+          one: "1 problem je spriječio spašavanje"
+          few: "%{count} problema su spriječila spašavanje"
+          other: "%{count} problema je spriječilo spašavanje"
+        number_legend: "Broj"
+        phone_number_label: "Broj telefona"
+        phone_number_hint: "U punom međunarodnom obliku, počinje sa +."
+        phone_number_id_label: "ID broja telefona"
+        phone_number_id_hint: "Metin vlastiti ID za ovaj broj, iz WhatsApp Managera — nije sam broj. Dolazne poruke se po njemu povezuju s vašim hotelom, pa pogrešna vrijednost znači da poruke gostiju ne stižu nikome."
+        waba_id_label: "ID WhatsApp Business naloga"
+        state_legend: "Kako se koristi"
+        status_label: "Status"
+        status_hint: "Isključite da prestanete koristiti broj bez brisanja postavki."
+        provider_label: "Povezano preko"
+        provider_hint: "Trenutno je podržan samo direktni Meta Cloud API."
+        save: "Sačuvaj WhatsApp postavke"
+        state_heading: "Trenutno stanje"
+        state_status: "Status"
+        state_display_name: "Prikazano ime"
+        state_last_inbound: "Zadnja primljena poruka"
+        state_ago: "prije %{time}"
+        state_never: "Još ništa nije stiglo"
+        state_unknown: "Još nije poznato"
+        help_heading: "Postavljanje"
+        help_body: "ID-evi se nalaze u Metinom WhatsApp Manageru. Rokovi odobrenja su Metini, ne naši — pogledajte docs/whatsapp-onboarding.md za redoslijed i šta očekivati."
+      update:
+        updated: "WhatsApp postavke sačuvane."
