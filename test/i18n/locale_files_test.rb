@@ -31,9 +31,25 @@ class LocaleFilesTest < ActiveSupport::TestCase
     "staff" => Hotel::STAFF_LOCALES
   }.freeze
 
+  # A pluralised key is one key, not one key per grammatical form. Bosnian
+  # needs three forms where English needs two (1 soba, 2 sobe, 5 soba), so
+  # comparing raw leaf paths across a family would demand English grow a
+  # `few` it has no use for — and the only way to satisfy that is to write
+  # English twice and call it a translation. Plural groups collapse to the
+  # group path here; the forms inside them are checked, per locale and
+  # against that locale's own rule, by the test below this one.
+  PLURAL_FORMS = %w[zero one two few many other].freeze
+
+  # `other` on its own does not make a group plural — `staff.common.kb_categories`
+  # is a list of knowledge-base categories, one of which is literally called
+  # "other", and reading that as a pluralisation would demand Bosnian forms of
+  # a category name. A group counts as plural only when every leaf is a plural
+  # form AND at least one of them is count-specific.
+  COUNT_SPECIFIC_FORMS = %w[zero one two few many].freeze
+
   test "every locale file declares exactly the same set of translation keys as its own family" do
     FAMILY_LOCALES.each do |family, locales|
-      key_sets = locales.index_with { |locale| flattened_translations(family, locale).keys.to_set }
+      key_sets = locales.index_with { |locale| translation_keys_collapsing_plurals(family, locale) }
 
       reference_locale = locales.first
       reference_keys = key_sets.fetch(reference_locale)
@@ -52,10 +68,40 @@ class LocaleFilesTest < ActiveSupport::TestCase
     end
   end
 
+  # The only thing standing between a missing Bosnian plural form and a hotel.
+  #
+  # config/initializers/pluralization.rb gives each locale its real rule, so
+  # I18n asks Bosnian for `few` at count 2. A key that carries only
+  # `one`/`other` does not raise — measured, not assumed: I18n falls back to
+  # `other` and renders "2 soba dodano" where the language wants "2 sobe
+  # dodane". Nothing in the app ever reports that, which is exactly why it
+  # needs a test rather than a runtime guard. Checked per locale against that
+  # locale's own declared forms, because the families disagree: Bosnian needs
+  # three, English two.
+  test "every pluralised key carries exactly the forms its own language's rule asks for" do
+    FAMILY_LOCALES.each do |family, locales|
+      locales.each do |locale|
+        required = I18n.t("i18n.plural.keys", locale: locale, default: nil)&.map(&:to_s) || %w[one other]
+
+        plural_groups(family, locale).each do |group, forms|
+          missing = required - forms
+          extra = forms - required
+
+          assert_empty missing,
+            "#{family}.#{locale}.yml: #{group} is missing #{missing.join(', ')} — " \
+            "#{locale} pluralisation asks for #{required.join('/')}, so this raises at those counts"
+          assert_empty extra,
+            "#{family}.#{locale}.yml: #{group} has #{extra.join(', ')}, which #{locale} never asks for"
+        end
+      end
+    end
+  end
+
   test "every locale file uses the same %{interpolation} variables for a given key" do
     FAMILY_LOCALES.each do |family, locales|
       translations_by_locale = locales.index_with { |locale| flattened_translations(family, locale) }
       all_keys = translations_by_locale.values.flat_map(&:keys).uniq
+        .reject { |key| PLURAL_FORMS.include?(key.split(".").last) }
 
       mismatches = all_keys.filter_map do |key|
         variables_by_locale = locales.index_with do |locale|
@@ -115,6 +161,32 @@ class LocaleFilesTest < ActiveSupport::TestCase
   end
 
   private
+    # Every leaf path, with a plural group's forms folded back into the group
+    # itself — so `…created_phrase.one` and `…created_phrase.few` both read as
+    # `…created_phrase`, one key that every language in the family must carry.
+    def translation_keys_collapsing_plurals(family, locale)
+      groups = plural_groups(family, locale)
+
+      flattened_translations(family, locale).keys.map { |key|
+        parent = key.split(".")[0..-2].join(".")
+        groups.key?(parent) ? parent : key
+      }.to_set
+    end
+
+    # group path => the plural forms it actually declares on disk, for the
+    # groups that really are pluralisations (see COUNT_SPECIFIC_FORMS).
+    def plural_groups(family, locale)
+      by_parent = flattened_translations(family, locale).keys.group_by { |key| key.split(".")[0..-2].join(".") }
+
+      by_parent.each_with_object({}) do |(parent, keys), groups|
+        leaves = keys.map { |key| key.split(".").last }
+        next unless leaves.all? { |leaf| PLURAL_FORMS.include?(leaf) }
+        next unless leaves.any? { |leaf| COUNT_SPECIFIC_FORMS.include?(leaf) }
+
+        groups[parent] = leaves
+      end
+    end
+
     def flattened_translations(family, locale, hash = nil, prefix = nil)
       hash ||= load_locale_yaml(family, locale)
 

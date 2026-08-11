@@ -197,6 +197,7 @@ bs:
         heading: "Postavke hotela"
         errors_heading:
           one: "1 greška je spriječila spremanje ovih postavki:"
+          few: "%{count} greške su spriječile spremanje ovih postavki:"
           other: "%{count} grešaka je spriječilo spremanje ovih postavki:"
         identity_legend: "Identitet"
         name_label: "Naziv"
@@ -267,6 +268,7 @@ bs:
         answering_gap: "Odgovarate na pitanje koje je gost zaista postavio."
         asked_count_question_html:
           one: "Postavljeno 1 put: „%{question}”"
+          few: "Postavljeno %{count} puta: „%{question}”"
           other: "Postavljeno %{count} puta: „%{question}”"
         asked_original_html: "Gostovim vlastitim riječima: „%{question}”"
       edit:
@@ -280,6 +282,7 @@ bs:
         add: "Dodaj stavku"
         draft_notice:
           one: "1 stavka je još u nacrtu — gosti je ne mogu vidjeti dok je ne objavite."
+          few: "%{count} stavke su još u nacrtu — gosti ih ne mogu vidjeti dok ih ne objavite."
           other: "%{count} stavki je još u nacrtu — gosti ih ne mogu vidjeti dok ih ne objavite."
         category_all: "Sve"
         empty_in_category: "Pod kategorijom %{category} još ništa nije zapisano."
@@ -371,9 +374,11 @@ bs:
       bulk_create:
         created_phrase:
           one: "1 soba dodana"
+          few: "%{count} sobe dodane"
           other: "%{count} soba dodano"
         skipped_phrase:
           one: "1 preskočena kao duplikat"
+          few: "%{count} preskočene kao duplikati"
           other: "%{count} preskočeno kao duplikat"
         summary: "%{created_phrase}, %{skipped_phrase}."
       edit:
@@ -451,6 +456,7 @@ bs:
         asked_as_html: "Postavljeno kao: „%{question}”"
         asked_count:
           one: "Postavljeno 1 put"
+          few: "Postavljeno %{count} puta"
           other: "Postavljeno %{count} puta"
         first_asked: "prvi put postavljeno %{time}"
         answer_action: "Odgovori i dodaj u bazu znanja"
@@ -491,6 +497,7 @@ bs:
         description: "Sada unesite ime, email i lozinku — Hospello u ovoj verziji ne šalje email, pa ove podatke predajte osobi direktno, uživo ili telefonom."
         errors_heading:
           one: "1 greška je spriječila kreiranje ovog naloga:"
+          few: "%{count} greške su spriječile kreiranje ovog naloga:"
           other: "%{count} grešaka je spriječilo kreiranje ovog naloga:"
         name_label: "Ime"
         email_label: "Email adresa"

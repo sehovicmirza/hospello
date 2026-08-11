@@ -121,10 +121,11 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to staff_rooms_path
     follow_redirect!
     # stari_admin reads the staff workspace in Bosnian — see fixtures.
-    # staff.rooms.bulk_create (config/locales/staff.bs.yml): count: 2 is
-    # "other" ("%{count} soba dodano"), count: 1 is "one"
-    # ("1 preskočena kao duplikat").
-    assert_match "2 soba dodano, 1 preskočena kao duplikat.", response.body
+    # staff.rooms.bulk_create (config/locales/staff.bs.yml): Bosnian takes
+    # three forms, so count: 2 is "few" ("%{count} sobe dodane" — NOT the
+    # "soba dodano" that English-shaped one/other pluralisation would give)
+    # and count: 1 is "one" ("1 preskočena kao duplikat").
+    assert_match "2 sobe dodane, 1 preskočena kao duplikat.", response.body
 
     with_tenant(hotels(:stari_grad)) do
       assert hotels(:stari_grad).rooms.exists?(number: "601")
@@ -133,10 +134,10 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # The inverse count combination from the test above — "one" for created,
-  # "other" for skipped, rather than the other way round — so between the
-  # two tests, both of staff.rooms.bulk_create's independently pluralized
-  # phrases (config/locales/staff.bs.yml) are exercised in both their
-  # "one" and "other" form, not just one each.
+  # "few" for skipped, rather than the other way round — so between the two,
+  # both of staff.rooms.bulk_create's independently pluralized phrases
+  # (config/locales/staff.bs.yml) are exercised in both forms, not just one
+  # each.
   test "the bulk-add summary correctly pluralizes the created and skipped counts independently" do
     sign_in users(:stari_admin)
 
@@ -146,7 +147,22 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     end
 
     follow_redirect!
-    assert_match "1 soba dodana, 2 preskočeno kao duplikat.", response.body
+    assert_match "1 soba dodana, 2 preskočene kao duplikati.", response.body
+  end
+
+  # Bosnian's third form, which English does not have and which the two tests
+  # above cannot reach: counts of five and up take "other", not "few". Without
+  # this, `few` and `other` could be swapped in the locale file and the suite
+  # would stay green — the two tests above only ever ask for 1 and 2.
+  test "the bulk-add summary uses Bosnian's third plural form for larger counts" do
+    sign_in users(:stari_admin)
+
+    assert_difference -> { Room.unscoped.count }, 5 do
+      post bulk_create_staff_rooms_path, params: { bulk: { numbers: "701-705" } }
+    end
+
+    follow_redirect!
+    assert_match "5 soba dodano", response.body
   end
 
   test "bulk-add refuses an absurd range instead of creating thousands of rooms" do
