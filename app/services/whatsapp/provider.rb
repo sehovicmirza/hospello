@@ -25,6 +25,37 @@ module Whatsapp
       end
     end
 
+    # The inbound counterpart of .for, and deliberately keyed on something
+    # else: parsing happens *before* any channel is known, because the
+    # payload's own phone_number_id is what finds one. The webhook boundary
+    # records which BSP delivered the request (WebhookEvent#provider), and
+    # that is the only thing available at this point — so it is what picks
+    # the parser.
+    #
+    # Returns the adapter *class*, not an instance: parsing needs no access
+    # token, no API version and no network, so requiring a configured
+    # provider to read a payload would make inbound processing fail for a
+    # reason that has nothing to do with inbound processing.
+    def self.parser_for(provider)
+      case provider.to_s
+      when "meta_cloud"
+        MetaCloudProvider
+      else
+        raise ArgumentError, "no Whatsapp::Provider adapter can parse #{provider.inspect} webhooks yet"
+      end
+    end
+
+    # @param payload [Hash] the provider's own webhook body, already parsed
+    #   from JSON and signature-verified (Webhooks::WhatsappController).
+    # @return [Array<Whatsapp::InboundBatch>] one per (entry, change) this
+    #   adapter understands — never nil, never an exception for a shape it
+    #   does not recognise. Everything reaching here has already been stored
+    #   and answered 200; raising would turn an unhandled payload shape into
+    #   a failure on a guest's message path.
+    def self.parse_webhook(payload)
+      raise NotImplementedError, "#{name} must implement .parse_webhook"
+    end
+
     # @param channel [WhatsappChannel] whose phone_number_id sends.
     # @param to [String] the recipient's phone number, E.164.
     # @param body [String] the free-form message text.

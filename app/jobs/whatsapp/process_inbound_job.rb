@@ -27,13 +27,20 @@ module Whatsapp
 
     queue_as :critical
 
-    # Deliberately a no-op until Slice 6 Task 3 builds Whatsapp::InboundRouter
-    # and gives this a real body. Nothing is lost by leaving a webhook_event
-    # row `received` in the meantime: Webhooks::WhatsappController::receive
-    # only ever calls this after the row is already durably committed, so
-    # there is no work in flight here that a currently-empty #perform could
-    # drop.
+    # Takes an id rather than the record itself: ActiveJob would have to
+    # serialize a WebhookEvent through GlobalID, and this row is written by
+    # insert_all (bypassing every Rails callback) at the one moment the app
+    # must be fastest — see Webhooks::WhatsappController#enqueue_processing_for,
+    # which resolves the id and nothing else.
+    #
+    # A row that has vanished is not an error worth raising over: the only
+    # thing that deletes one is a retention sweep, and a job for a delivery
+    # nobody keeps records of any more has nothing to do.
     def perform(webhook_event_id)
+      event = WebhookEvent.find_by(id: webhook_event_id)
+      return if event.nil?
+
+      InboundRouter.new(event).route!
     end
   end
 end

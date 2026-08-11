@@ -39,7 +39,16 @@ class WithoutTenantGrepTest < ActiveSupport::TestCase
   # added to the same file (e.g. `.unscoped` sneaked into guest_session.rb)
   # still trips the test below.
   ALLOWLIST = {
-    "app/models/guest_session.rb" => [ /\bfind_by_sql\b/ ]
+    "app/models/guest_session.rb" => [ /\bfind_by_sql\b/ ],
+    # Slice 6 Task 3: WhatsappChannel.route is the inbound webhook's routing
+    # lookup, and it has the same shape of problem GuestSession
+    # .authenticate_by_token does — it must find a row *before* a tenant is
+    # known, because the row it finds is what picks the tenant. Same
+    # reasoning, same mechanism (find_by_sql never touches the default_scope
+    # at all, so it needs no escape hatch and sets no tenant), and safe for
+    # one additional reason of its own: phone_number_id is globally unique,
+    # so this can only ever return the single row that owns it.
+    "app/models/whatsapp_channel.rb" => [ /\bfind_by_sql\b/ ]
   }.freeze
 
   # config/ is scanned as well as the reviewed app/lib/db set: an initializer is
@@ -69,22 +78,30 @@ class WithoutTenantGrepTest < ActiveSupport::TestCase
       "tenant-scope escapes found outside #{ALLOWED_PREFIX} with no allowlist entry:\n  #{offenders.join("\n  ")}"
   end
 
-  # The allowlist above exempts guest_session.rb from the find_by_sql
-  # pattern specifically — this pins that the exemption still matches
-  # reality (the file really does use find_by_sql, so the entry isn't stale)
-  # and, more importantly, that being allowlisted for find_by_sql does NOT
-  # quietly exempt that same file from every *other* escape in ESCAPES.
-  test "the guest_session.rb allowlist entry covers exactly find_by_sql, nothing broader" do
-    source = File.read(Rails.root.join("app/models/guest_session.rb"))
-    allowed_patterns = ALLOWLIST.fetch("app/models/guest_session.rb")
+  # Each allowlist entry exempts one file from named patterns — this pins
+  # that every entry still matches reality (the file really does use what it
+  # was exempted for, so the entry isn't stale) and, more importantly, that
+  # being allowlisted for one escape does NOT quietly exempt that same file
+  # from every *other* escape in ESCAPES.
+  #
+  # Written as a loop over ALLOWLIST rather than one test per file on
+  # purpose: a second entry was added in Slice 6 (whatsapp_channel.rb), and
+  # an allowlist whose guard has to be hand-copied for each new entry is an
+  # allowlist that will eventually gain an unguarded one.
+  test "every allowlist entry is still needed, and covers exactly what it names" do
+    ALLOWLIST.each do |path, allowed_patterns|
+      source = File.read(Rails.root.join(path))
 
-    assert source.match?(/\bfind_by_sql\b/),
-      "guest_session.rb no longer uses find_by_sql — remove the now-stale allowlist entry"
+      allowed_patterns.each do |pattern|
+        assert source.match?(pattern),
+          "#{path} no longer trips #{pattern.inspect} — remove the now-stale allowlist entry"
+      end
 
-    (ESCAPES.keys - allowed_patterns).each do |pattern|
-      assert_not source.match?(pattern),
-        "guest_session.rb now trips #{pattern.inspect}, which is not covered by its allowlist entry — " \
-        "this needs the same review any other new escape would, not a silent pass"
+      (ESCAPES.keys - allowed_patterns).each do |pattern|
+        assert_not source.match?(pattern),
+          "#{path} now trips #{pattern.inspect}, which is not covered by its allowlist entry — " \
+          "this needs the same review any other new escape would, not a silent pass"
+      end
     end
   end
 

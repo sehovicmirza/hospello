@@ -54,12 +54,68 @@ class GuestSession < ApplicationRecord
   validates :expires_at, presence: true
   validate :room_must_belong_to_the_same_hotel
 
+  # How long a WhatsApp identity stays a single stay. The same span
+  # Guest::EntriesController::SESSION_LIFETIME gives a web session, and for a
+  # different reason: on the web it bounds how long a cookie left on a shared
+  # phone stays valid, and here there is no cookie at all — the identity *is*
+  # the phone number. What it bounds instead is how long "this guest is in
+  # room 301" is believed, which is exactly a stay.
+  WHATSAPP_LIFETIME = 21.days
+
   class << self
     # Digest, never the raw token — the cookie carries the raw value, only
     # its digest is ever written to the database, so a database leak does
     # not hand over live guest sessions.
     def digest(raw_token)
       Digest::SHA256.hexdigest(raw_token.to_s)
+    end
+
+    # The WhatsApp guest's identity: their phone number, and nothing else.
+    # Called only by Whatsapp::InboundRouter, inside the routed hotel's own
+    # tenant — which is what makes the lookup below hotel-scoped without
+    # naming a hotel.
+    #
+    # Race-safe against the partial unique index that already exists on
+    # [hotel_id, phone_e164] WHERE channel = 1: two deliveries from the same
+    # guest arriving at once is ordinary, and the loser of that race re-finds
+    # rather than surfacing a 500 — the same shape, and the same reasoning,
+    # as Conversation.live_for.
+    #
+    # A returning guest whose session has *expired* is renewed rather than
+    # refused. The web's answer to an expired session is the entry form, and
+    # there is no form on this channel; refusing would also be unfixable,
+    # since that unique index forbids a second row for the same number.
+    # Renewing clears the room — see #renew_for_whatsapp! — because an
+    # expired session means a new stay, and the room from the last one is the
+    # single most dangerous thing to keep believing.
+    def for_whatsapp(phone_e164:, name:, accepted_at:)
+      existing = find_by(phone_e164: phone_e164, channel: :whatsapp)
+      return existing.renew_for_whatsapp! if existing
+
+      create!(
+        channel: :whatsapp,
+        phone_e164: phone_e164,
+        guest_name: name,
+        # There is no language to detect here: no Accept-Language header, no
+        # form. The concierge reports the guest's own language on its first
+        # turn (Ai::Tools#set_guest_room), which is the first moment anyone
+        # actually knows it.
+        locale: I18n.default_locale.to_s,
+        # No checkbox, and there cannot be one — the guest chose to write to
+        # a number the hotel published, which is the consent event itself.
+        # Recorded with the moment they wrote, not the moment this row
+        # happened to be created, so it stays true if the webhook was
+        # delayed. Without this a nil here would read like a validation
+        # somebody skipped.
+        privacy_accepted_at: accepted_at || Time.current,
+        expires_at: WHATSAPP_LIFETIME.from_now
+        # room: deliberately absent. A WhatsApp guest starts roomless and the
+        # concierge asks — see Ai::Tools#set_guest_room.
+      )
+    rescue ActiveRecord::RecordNotUnique
+      # The partial unique index guarantees a row exists at this point — this
+      # lost the race, not the guest's message.
+      find_by(phone_e164: phone_e164, channel: :whatsapp)&.renew_for_whatsapp! || raise
     end
 
     # A guest's cookie carries only the raw token — no hotel context — so
@@ -112,6 +168,29 @@ class GuestSession < ApplicationRecord
   def touch_activity!
     now = Time.current
     update_columns(last_seen_at: now, expires_at: [ now + 7.days, created_at + 21.days ].min)
+  end
+
+  # A WhatsApp guest coming back. While the session is still live this is
+  # #touch_activity! and nothing more. Once it has expired it is a *new
+  # stay*, and the room recorded during the last one is now a guess about
+  # somebody else's — so it is cleared, which is what makes the concierge ask
+  # for it again (Ai::PromptBuilder shows the "ask for the room first" block
+  # for exactly this state).
+  #
+  # update_columns, like #touch_activity! and for the same reason: this runs
+  # on every inbound WhatsApp message, and re-running the whole record's
+  # validations to move two timestamps would drag in
+  # #room_must_belong_to_the_same_hotel, which needs an ambient tenant a
+  # bookkeeping call has no business requiring.
+  def renew_for_whatsapp!
+    if expired?
+      now = Time.current
+      update_columns(room_id: nil, last_seen_at: now, expires_at: now + WHATSAPP_LIFETIME)
+    else
+      touch_activity!
+    end
+
+    self
   end
 
   private

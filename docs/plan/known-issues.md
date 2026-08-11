@@ -7,6 +7,27 @@ looks like a passing test and is a hole.
 
 ## Open
 
+### DEFERRED: a WhatsApp guest who sends a photo gets silence (Slice 6 Task 3)
+
+Meta's inbound webhook carries `image`, `location`, `audio`, `document`, `sticker` and `contacts`
+messages alongside `text`. Slice 6 handles **text only** — that scope line was drawn in Task 1
+(`Whatsapp::InboundMessage`'s own class comment) and Task 3 implements it: a non-text message is
+parsed, logged, and its `webhook_events` row settles as `ignored`. Nothing is written to the
+transcript, so a receptionist never learns the guest sent anything.
+
+**Why it was not "just" written in with a placeholder body.** `messages.body` is what a receptionist
+reads, what the translator translates, and what the concierge sees as history. Inventing
+`"[the guest sent a photo]"` means choosing that sentence in bs/en/de/ar, deciding whether the
+concierge should try to answer it, and deciding whether it counts as an escalation — a copy and
+product decision, not a mechanical addition.
+
+**Why it costs nothing extra today:** there is no outbound path at all until Task 4, so a WhatsApp
+guest receives silence whether or not this is handled. It becomes a real gap the moment Task 4 makes
+replies send. The cheapest honest fix at that point is probably: persist the message with a
+pre-translated system-notice body (the `degraded.*`/`requests.*` pattern this app already uses for
+copy no model is allowed to write) and escalate rather than let the concierge answer a photo it
+cannot see.
+
 ### WATCH: a mass browser-launch failure in CI (seen once, 2026-08-11)
 
 CI run 31489460738 — a **docs-only commit** — failed with **38 errors out of 41 system tests**, every

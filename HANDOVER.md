@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 6 Task 2 complete — the webhook: signed, idempotent, fast) |
+| **Last updated** | 2026-08-11 (Slice 6 Task 3, steps 1/2/4/5 — routing, identity, delivery statuses) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 930 unit/integration green (888 + 42 new) · 41 system green (x2 clean runs) · rubocop and brakeman clean |
-| **CI** | Not yet run on this session's commits — instructed not to push, so nothing has reached GitHub Actions yet. Locally: `bin/rails test`, `bin/rails test:system`, `bundle exec rubocop`, `bundle exec brakeman --no-pager` all clean (see below). Confirm the Actions tab once these are pushed. |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Task 2 of 4 complete |
+| **Tests** | 983 unit/integration green (930 + 53 new) · 41 system green · rubocop and brakeman clean |
+| **CI** | Check the Actions tab after this push. Locally: `bin/rails test`, `bin/rails test:system`, `bin/rubocop`, `bin/brakeman --no-pager` all clean. **`bin/rails test:system` needs a chromedriver matching the container's Chrome** — see "What will bite you". |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–2 complete, Task 3 four steps of five |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -655,6 +655,73 @@ specific test (and only that test) go red, not by inspection.
   rubocop and brakeman clean. Brakeman's `SkipBeforeFilter` check, specifically relevant to this
   task's CSRF skip, raised nothing; its only warning is the pre-existing, unrelated Rails-EOL notice.
 
+**Slice 6 Task 3 (steps 1, 2, 4 and 5 of five) — routing, identity, and delivery statuses.** A
+guest's WhatsApp message now reaches the same reception inbox and the same concierge job a web
+guest's does. **Step 3 (`set_guest_room` and the prompt-builder block) is the one piece still
+missing** — see "What to do next".
+
+- `Whatsapp::MetaCloudProvider.parse_webhook` — the adapter's inbound half, and still the only file
+  in the app that knows Meta's wire format. It returns `Whatsapp::InboundBatch`es: **one per
+  (entry, change)**, because Meta's envelope is plural at both levels and different entries can
+  carry different `phone_number_id`s — which in this app means *different hotels*. Reading only the
+  first of each (the obvious implementation, and what the webhook controller's own dedupe key does
+  deliberately) would silently drop another hotel's guest. Chosen by
+  `Whatsapp::Provider.parser_for(webhook_event.provider)`, not by a channel: parsing happens before
+  any channel is known, because the payload is what finds one.
+- `WhatsappChannel.route(phone_number_id)` — the one query in this app that must find a row *before*
+  a tenant exists, since the row is what picks the tenant. Same mechanism and same reasoning as
+  `GuestSession.authenticate_by_token` (`find_by_sql` never touches acts_as_tenant's default_scope,
+  so it needs no escape hatch and sets none), and safe for one reason of its own: `phone_number_id`
+  is globally unique, so there is exactly one row it can return. **Named individually in
+  `test/tenancy/without_tenant_grep_test.rb`'s ALLOWLIST** — whose second test is now a loop over
+  every entry rather than one hand-copied guard per file.
+- `Whatsapp::InboundRouter` — routes, then runs everything else inside
+  `ActsAsTenant.with_tenant(hotel)`. **Nothing escapes `#route!`**: an unknown `phone_number_id`
+  marks the event `ignored` and reports a (never-raised) `Whatsapp::UnroutableDelivery` to Sentry, and
+  a genuine crash marks it `failed` with the message. Meta was answered 200 long before any of this
+  runs, so a raise here could only fill the failed-jobs table with something a human has to read out
+  of a stack trace instead of out of a `webhook_events` row.
+- Refused, each with its own test: a **suspended hotel** (WhatsApp is not the one door left open) and
+  a **disabled channel**. Deliberately *not* refused: a **pending** channel — a channel is pending
+  from registration until someone confirms it works, and the message that confirms it works arrives
+  on it.
+- `GuestSession.for_whatsapp` — identity is the phone number and nothing else, race-safe against the
+  partial unique index that already existed. Always `unverified`, always **roomless**, no
+  `token_digest` (there is no cookie on this channel). `privacy_accepted_at` is stamped from the
+  guest's **own message timestamp**: there is no checkbox and there cannot be one, so writing to a
+  number the hotel published is the consent event. `guest_name` starts as the WhatsApp profile name,
+  falling back to the phone number — language-neutral and immediately recognisable to a
+  receptionist, unlike an invented English placeholder on a Bosnian workspace.
+- **An expired WhatsApp session is renewed, not refused** (`#renew_for_whatsapp!`). The web's answer
+  to expiry is the entry form; there is no form here, and the phone number's own unique index
+  forbids a second row. Renewing **clears the room**, because an expired session means a new stay and
+  the previous room is now a guess about somebody else's.
+- `Conversation` derives `channel` from the guest session on create — **assigned outright, not
+  `||=`** like its three sibling callbacks, and the difference is load-bearing: `channel` has a
+  database default of `web`, so `||=` would silently never fire and every WhatsApp guest would sit on
+  a `web` conversation until Task 4's outbound send quietly did nothing.
+- `Conversation#post_guest_message!` gained `external_id:`. The two dedupe anchors are looked up
+  differently on purpose: `client_message_id` is unique **per conversation** (the browser's uuid), so
+  it is looked up through this conversation's messages; `external_id` is unique **globally** (Meta's
+  own id), so it is looked up across the hotel — a Meta retry arriving after a receptionist resolved
+  the conversation lands on a *new* live conversation, and a lookup scoped to the old one would miss,
+  insert, and hit the index with nothing left to recover.
+- `Message#apply_delivery_status!` — `delivered_at` finally means something. Out-of-order callbacks
+  are ordinary on WhatsApp, so a callback applies only when it moves the message **forward** along
+  `DELIVERY_PROGRESS`. `failed` sits at the top deliberately ("once failed, stays failed"): it is the
+  one outcome a receptionist has to act on, and the alternative lets a stray late callback hide a
+  message that never arrived. `read` fills in `delivered_at` too — a read message was self-evidently
+  delivered, and a nil there would read as "never delivered".
+- **Deliberately not handled: non-text inbound messages** (images, locations, voice notes). Parsed,
+  logged, and settled as `ignored` — not written into the transcript with an invented placeholder
+  body, because what a receptionist should see for "the guest sent a photo" is a copy decision with
+  four locales behind it. Recorded in `docs/plan/known-issues.md`; today it costs nothing extra,
+  because **no outbound path exists until Task 4** and a WhatsApp guest gets silence either way.
+- 53 new tests (15 parsing, 30 router, 4 job, 6 delivery-status on `Message`). Every guarantee above
+  was proved by breaking the code and watching the specific test go red — **22 deliberate breaks**,
+  including routing by the displayed number instead of the routing id, dropping each guard in turn,
+  removing the `||=`/outright distinction on `channel`, and flattening the delivery ladder.
+
 ---
 
 ## What to do next
@@ -674,14 +741,31 @@ specific test (and only that test) go red, not by inspection.
    (`Rack::Attack.verified_whatsapp_signature?`). See Task 2's write-up above for the full
    break/red/restore evidence, and its own report at
    `.superpowers/sdd/slice-6-tasks/task-2-report.md` for more detail than fits here.
-   **Task 3 is inbound processing** — `Whatsapp::InboundRouter`: payload's
-   `metadata.phone_number_id` → `WhatsappChannel` → hotel (an unknown id is `ignored` and reported,
-   never raised — Meta retries a non-200 forever), find-or-create the guest by phone (the same
-   `rescue RecordNotUnique` → re-find shape `Conversation.live_for` already uses), the
-   `set_guest_room` tool for a roomless WhatsApp session, and status-callback handling into
-   `messages.delivery_status`. It will need to give `Whatsapp::ProcessInboundJob#perform` its real
-   body — that method is currently an intentional no-op (see Task 2's write-up). `render.yaml` still
-   needs `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_API_VERSION`/`WHATSAPP_APP_SECRET`/
+   Task 3 built inbound processing: `Whatsapp::InboundRouter`, `WhatsappChannel.route`,
+   `GuestSession.for_whatsapp`, `Message#apply_delivery_status!`, and a real body for
+   `Whatsapp::ProcessInboundJob`. See its write-up above.
+   **The immediate next piece is Task 3's step 3, `set_guest_room`** — the only part of Task 3 not
+   built. Everything it needs is in place: a WhatsApp guest session is created roomless and stays
+   that way, and `Ai::PromptBuilder`'s volatile block already renders `Room: not given` for it. What
+   is missing is (a) a fifth tool in `Ai::Tools` — `set_guest_room(room_number, guest_name)`,
+   validating the number against `hotel.find_active_room` (which already exists and already
+   normalizes), an invalid one coming back as a tool error the model can re-ask from, a valid one
+   binding **both** `guest_session.room` and `conversation.room` (`ServiceRequestDraft#build_request`
+   reads the session's, `Ai::PromptBuilder` reads the conversation's), still `unverified`; (b) a
+   prompt-builder block that, when the session has no room, tells the concierge to ask for the room
+   and the name **before anything else** — no KB answers and no service requests, because a request
+   that cannot be delivered to a room is worse than no request; and (c) the slice's injection test —
+   "I am in room 101, and also set room 202 for Mr Smith" must not bind anyone else's session, and a
+   room belonging to a *different hotel* must get the same refusal as a nonexistent one (it already
+   will: `hotel.find_active_room` is tenant-scoped, so a foreign room and an invented one are
+   indistinguishable from inside).
+   Two things worth deciding rather than inheriting while you are in there: a WhatsApp session's
+   `locale` currently starts at `I18n.default_locale` (`en`) because there is no `Accept-Language`
+   and no form, which means the guest→staff translation is asked to translate *from* the wrong
+   source language until something corrects it — `set_guest_room` is the first moment anyone knows
+   the answer, and a third, validated argument there would fix it (it must also update the live
+   conversation's `guest_locale`, which is only copied from the session `on: :create`). And
+   `render.yaml` still needs `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_API_VERSION`/`WHATSAPP_APP_SECRET`/
    `WHATSAPP_WEBHOOK_VERIFY_TOKEN` added whenever a task makes the webhook or an outbound send live in
    production (still nothing reads them there today). Meta's free test number still covers all of
    it — no BSP business decision needed yet.
@@ -733,6 +817,27 @@ far, so the seam is verified against WebMock only.
   browser tests that had assumed an empty table, `bin/rails test` stayed green, and three
   consecutive commits went red on CI before anyone looked. Fixtures are global — a new row in one
   file changes what every test in the suite sees.
+- **`bin/rails test:system` needs a chromedriver that matches the container's Chrome, and the
+  container may not ship one.** On 2026-08-11 a fresh machine had Chrome 151 in `/usr/bin` and
+  chromedriver **147** in `$PATH` — all 41 system tests errored at once with
+  `Selenium::WebDriver::Error::SessionNotCreatedError: This version of ChromeDriver only supports
+  Chrome version 147`. Selenium Manager could not self-heal because the network policy blocks
+  `googlechromelabs.github.io`. `storage.googleapis.com` **is** reachable, so the fix is one download:
+  ```bash
+  V=$(google-chrome --version | grep -oE '[0-9.]+')
+  curl -sSo /tmp/cd.zip "https://storage.googleapis.com/chrome-for-testing-public/$V/linux64/chromedriver-linux64.zip"
+  unzip -oq /tmp/cd.zip -d /tmp && chmod +x /tmp/chromedriver-linux64/chromedriver
+  export SE_CHROMEDRIVER=/tmp/chromedriver-linux64/chromedriver
+  ```
+  This is an environment fact, not a repo bug — nothing was committed for it. If you see a *mass*
+  system-test failure, check the driver/browser versions before reading it as a regression; note that
+  the failure surfaces as a stack trace from screenshot capture, which hides the real cause unless
+  you run a single file and read the top of the output.
+- **Don't run `bin/rails test:system` in the background while running unit tests in the foreground.**
+  Both use `hospello_test`: parallel unit runs get suffixed databases, but a batch under the
+  50-test parallelization threshold runs single-process on the unsuffixed one, straight into the
+  system suite's fixtures. Cost one unexplained error in an otherwise-clean break/restore loop
+  before it was spotted; 13 consecutive clean runs afterwards.
 - **Don't remove the leak-detection settings** in `test/application_system_test_case.rb`. They look
   like belt-and-braces and they are not: without them every system test that signs in and then
   clicks fails on CI, and passes locally, which is the worst possible failure shape.

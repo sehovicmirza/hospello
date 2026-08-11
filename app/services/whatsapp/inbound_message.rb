@@ -16,16 +16,26 @@ module Whatsapp
   # timestamp — when Meta says the guest sent it.
   # provider_message_id — Meta's own id for this specific message, the
   #   dedupe anchor (messages.external_id).
+  # profile_name — the guest's own WhatsApp display name, when Meta sends a
+  #   matching contacts[] entry. Self-chosen and therefore exactly as
+  #   unverified as the name a web guest types into the entry form; it is
+  #   only ever a placeholder until the concierge asks for a real one (see
+  #   Ai::Tools#set_guest_room), and nil is perfectly normal.
   class InboundMessage
-    attr_reader :phone_number_id, :wa_id, :type, :text, :timestamp, :provider_message_id
+    attr_reader :phone_number_id, :wa_id, :type, :text, :timestamp, :provider_message_id, :profile_name
 
-    def initialize(phone_number_id:, wa_id:, type:, timestamp:, provider_message_id:, text: nil)
+    def initialize(phone_number_id:, wa_id:, type:, timestamp:, provider_message_id:, text: nil, profile_name: nil)
       @phone_number_id = phone_number_id
       @wa_id = wa_id
       @type = type
       @text = text
       @timestamp = timestamp
       @provider_message_id = provider_message_id
+      @profile_name = profile_name
     end
+
+    # The only inbound type this slice can turn into a transcript line. See
+    # Whatsapp::InboundRouter for what happens to the rest.
+    def text? = type.to_s == "text" && text.present?
   end
 end

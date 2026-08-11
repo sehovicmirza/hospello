@@ -107,6 +107,48 @@ class Message < ApplicationRecord
     )
   end
 
+  # How far along the delivery ladder each status is. Out-of-order callbacks
+  # are ordinary on WhatsApp — a `read` really can arrive before its
+  # `delivered` — so arrival order is not trustworthy and a callback is
+  # applied only when it moves the message *forward*.
+  #
+  # `failed` sits at the top deliberately: it is the one outcome a
+  # receptionist has to act on, and once a send has failed no later success
+  # callback for that same id can be true. The practical effect is "once
+  # failed, stays failed", which is the conservative direction — the
+  # alternative would let a stray late callback quietly hide a message that
+  # never arrived.
+  DELIVERY_PROGRESS = {
+    "local" => 0, "queued" => 1, "sent" => 2, "delivered" => 3, "read" => 4, "failed" => 5
+  }.freeze
+
+  # @param status [Whatsapp::DeliveryStatus]
+  # @return [Boolean] whether anything actually changed.
+  def apply_delivery_status!(status)
+    reached = DELIVERY_PROGRESS[status.status.to_s]
+    # A status vocabulary this app does not model. Dropped rather than
+    # guessed at: writing an unknown value into an enum column raises, and
+    # mapping it to the nearest neighbour would invent a fact about a
+    # message somebody is reading.
+    return false if reached.nil?
+    return false if reached <= DELIVERY_PROGRESS.fetch(delivery_status, 0)
+
+    attributes = { delivery_status: status.status }
+    # A read message was self-evidently delivered, whether or not that
+    # callback ever arrived — so `read` fills this in too rather than leaving
+    # a hole that reads as "never delivered".
+    attributes[:delivered_at] = status.timestamp || Time.current if
+      delivered_at.nil? && %w[delivered read].include?(status.status.to_s)
+
+    # update_columns, like #claim_translation!'s own write: this is delivery
+    # bookkeeping arriving several times per sent message, and re-running the
+    # whole record's validations — including the immutability guards, which
+    # exist to police *content* — to move a status one notch would be
+    # spending a lot to protect nothing.
+    update_columns(**attributes, updated_at: Time.current)
+    true
+  end
+
   # What a reader in `locale` should see, and whether it is the original.
   # Falls back to the original whenever there is no usable translation, which
   # covers every failure mode at once.

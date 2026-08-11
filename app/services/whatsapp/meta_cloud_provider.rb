@@ -26,6 +26,122 @@ module Whatsapp
     OPEN_TIMEOUT = 10
     READ_TIMEOUT = 15
 
+    # --- Inbound: Meta's webhook envelope, normalized -------------------------
+    #
+    # https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
+    #
+    #   entry[].changes[].value.metadata.phone_number_id  — routes to a hotel
+    #   entry[].changes[].value.messages[]                — inbound messages
+    #   entry[].changes[].value.contacts[]                — profile names, by wa_id
+    #   entry[].changes[].value.statuses[]                — delivery callbacks
+    #
+    # Both `entry` and `changes` are plural in Meta's own schema and really
+    # can carry more than one — including for different phone_number_ids,
+    # which in this app means different *hotels*. Reading only the first of
+    # each would silently drop another hotel's guest, so every one is parsed
+    # into its own Whatsapp::InboundBatch.
+    #
+    # Nothing in here raises. A payload shape this app has never seen simply
+    # produces fewer batches (or an empty one) — see Whatsapp::Provider
+    # .parse_webhook for why that is a requirement and not merely defensive.
+    class << self
+      def parse_webhook(payload)
+        Array(payload.try(:[], "entry")).flat_map do |entry|
+          Array(entry.try(:[], "changes")).filter_map { |change| batch_from(change) }
+        end
+      end
+
+      private
+        def batch_from(change)
+          value = change.try(:[], "value")
+          return nil unless value.is_a?(Hash)
+
+          phone_number_id = value.dig("metadata", "phone_number_id").presence
+          # Nothing to route it by. Meta always sends this on the
+          # subscriptions this app registers for; a change without it is a
+          # shape we have no answer for, and guessing a hotel is the single
+          # worst thing this file could do.
+          return nil if phone_number_id.blank?
+
+          InboundBatch.new(
+            phone_number_id: phone_number_id,
+            messages: messages_from(value, phone_number_id),
+            statuses: statuses_from(value)
+          )
+        end
+
+        def messages_from(value, phone_number_id)
+          names = profile_names_from(value)
+
+          Array(value["messages"]).filter_map do |message|
+            next unless message.is_a?(Hash)
+
+            wa_id = message["from"].presence
+            provider_message_id = message["id"].presence
+            # No id means nothing to dedupe on, and messages.external_id's
+            # unique index is the only thing standing between a Meta retry
+            # and a guest's message appearing twice in their own transcript.
+            next if wa_id.blank? || provider_message_id.blank?
+
+            InboundMessage.new(
+              phone_number_id: phone_number_id,
+              wa_id: wa_id,
+              type: message["type"].to_s,
+              text: message.dig("text", "body"),
+              timestamp: time_from(message["timestamp"]),
+              provider_message_id: provider_message_id,
+              profile_name: names[wa_id]
+            )
+          end
+        end
+
+        # contacts[] is a *sibling* of messages[], not nested inside it —
+        # matched back to a message by wa_id.
+        def profile_names_from(value)
+          Array(value["contacts"]).each_with_object({}) do |contact, names|
+            next unless contact.is_a?(Hash)
+
+            wa_id = contact["wa_id"].presence
+            names[wa_id] = contact.dig("profile", "name").presence if wa_id
+          end
+        end
+
+        def statuses_from(value)
+          Array(value["statuses"]).filter_map do |status|
+            next unless status.is_a?(Hash)
+
+            provider_message_id = status["id"].presence
+            next if provider_message_id.blank?
+
+            DeliveryStatus.new(
+              provider_message_id: provider_message_id,
+              status: status["status"].to_s,
+              timestamp: time_from(status["timestamp"]),
+              error: error_from(status)
+            )
+          end
+        end
+
+        # Meta's own errors[] on a failed status: {"code": 131047, "title":
+        # "Re-engagement message"}. Kept as one readable line because its
+        # only consumer is a receptionist being told why a reply did not
+        # arrive — see Slice 6 Task 4.
+        def error_from(status)
+          error = Array(status["errors"]).first
+          return nil unless error.is_a?(Hash)
+
+          [ error["code"], error["title"].presence || error["message"].presence ].compact.join(": ").presence
+        end
+
+        # Unix seconds, sent as a String. Anything else (absent, empty, not a
+        # number) becomes nil rather than 1970 — a caller reading nil knows
+        # it has no time; a caller reading the epoch believes a wrong one.
+        def time_from(raw)
+          seconds = Integer(raw.to_s, exception: false)
+          seconds && Time.zone.at(seconds)
+        end
+    end
+
     def initialize(
       access_token: Rails.configuration.x.whatsapp.access_token,
       api_version: Rails.configuration.x.whatsapp.api_version

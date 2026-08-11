@@ -195,4 +195,92 @@ class MessageTest < ActiveSupport::TestCase
       assert note.reload.internal?
     end
   end
+
+  # --- Delivery statuses (Slice 6) ------------------------------------------
+  #
+  # On the web nothing is truly *sent* — every message is `local` and
+  # delivered_at was deliberately unused (see docs/plan/known-issues.md's
+  # "what delivered means" entry). On WhatsApp a message really is sent once
+  # and cannot be recalled, and Meta reports back on it several times.
+  #
+  # The only hard rule is that a message never moves *backwards*: out-of-order
+  # callbacks are ordinary on WhatsApp, so arrival order is not evidence of
+  # anything. Whatsapp::InboundRouter is what feeds these in; these are the
+  # model's own contract in isolation.
+
+  test "a delivery callback moves the message forward" do
+    message = sent_message
+
+    assert message.apply_delivery_status!(delivery_status("delivered"))
+
+    assert message.reload.delivery_status_delivered?
+    assert_equal Time.utc(2026, 8, 11, 12), message.delivered_at
+  end
+
+  # The case the timestamp on Whatsapp::DeliveryStatus exists for. A `read`
+  # genuinely can arrive before its own `delivered` — applying that later
+  # `delivered` would tell a receptionist a message that has been read has
+  # merely been delivered.
+  test "a delivered callback arriving after read does not move the message backwards" do
+    message = sent_message
+    message.apply_delivery_status!(delivery_status("read"))
+
+    assert_not message.apply_delivery_status!(delivery_status("delivered")), "nothing should have changed"
+    assert message.reload.delivery_status_read?
+  end
+
+  # A read message was self-evidently delivered, whether or not that callback
+  # ever arrived. Leaving the column nil would read as "never delivered".
+  test "read fills in delivered_at when the delivered callback never arrived" do
+    message = sent_message
+
+    message.apply_delivery_status!(delivery_status("read"))
+
+    assert_equal Time.utc(2026, 8, 11, 12), message.reload.delivered_at
+  end
+
+  # Once failed, stays failed: it is the one outcome a receptionist has to act
+  # on, and no later success callback for the same id can be true. The
+  # conservative direction — the alternative lets a stray late callback hide a
+  # message that never arrived.
+  test "a failed send is never overwritten by a later success callback" do
+    message = sent_message
+    message.apply_delivery_status!(delivery_status("failed"))
+
+    assert_not message.apply_delivery_status!(delivery_status("read"))
+    assert message.reload.delivery_status_failed?
+  end
+
+  test "a status this app does not model is dropped rather than guessed at" do
+    message = sent_message
+
+    assert_not message.apply_delivery_status!(delivery_status("deleted"))
+    assert message.reload.delivery_status_sent?
+  end
+
+  # body is never touched by any of this — the immutability guarantee holds
+  # through a write path that deliberately uses update_columns.
+  test "applying a delivery status leaves the message's own words alone" do
+    message = sent_message
+
+    message.apply_delivery_status!(delivery_status("delivered"))
+
+    assert_equal "Your towels are on the way.", message.reload.body
+  end
+
+  private
+    def sent_message
+      with_tenant(hotels(:stari_grad)) do
+        conversations(:stari_conversation).messages.create!(
+          sender_role: :staff, sender_user: users(:stari_staff), body: "Your towels are on the way.",
+          external_id: "wamid.OUT#{SecureRandom.hex(4)}", delivery_status: :sent
+        )
+      end
+    end
+
+    def delivery_status(status)
+      Whatsapp::DeliveryStatus.new(
+        provider_message_id: "wamid.OUT", status: status, timestamp: Time.utc(2026, 8, 11, 12)
+      )
+    end
 end

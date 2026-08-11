@@ -28,6 +28,35 @@ class WhatsappChannel < ApplicationRecord
   # (sending and receiving), disabled: 2 (deliberately turned off).
   enum :status, { pending: 0, active: 1, disabled: 2 }
 
+  # The inbound routing lookup, and the one query in this app that has to
+  # find a WhatsappChannel *before* a tenant is known — because the answer is
+  # what picks the tenant. Called by Whatsapp::InboundRouter, which runs from
+  # a TenantFree job with no ambient hotel at all.
+  #
+  # Deliberately none of the four blanket tenant-scope escape hatches this
+  # codebase reserves for app/controllers/platform/ (see the ESCAPES list in
+  # test/tenancy/without_tenant_grep_test.rb — each is a "stop enforcing the
+  # tenant scope here" switch, and reaching for one casually outside that
+  # namespace is exactly what that tripwire exists to prevent). find_by_sql
+  # never touches acts_as_tenant's default_scope at all — it builds records
+  # straight from a raw SQL row, bypassing Relation/scope construction —
+  # so it needs no escape hatch and sets no tenant anywhere. The same
+  # reasoning, and the same shape, as GuestSession.authenticate_by_token,
+  # which is the only other query in this app with the same problem; both are
+  # named individually in that test's ALLOWLIST rather than exempted by file.
+  #
+  # Safe to do unscoped precisely because phone_number_id is globally unique
+  # (a plain, non-partial index — see the migration): there is exactly one
+  # row this can return, so "which hotel" has one answer and the caller
+  # cannot be handed a near-miss belonging to somebody else.
+  def self.route(phone_number_id)
+    return nil if phone_number_id.blank?
+
+    find_by_sql(
+      [ "SELECT * FROM whatsapp_channels WHERE phone_number_id = ? LIMIT 1", phone_number_id ]
+    ).first
+  end
+
   validates :phone_number_e164, presence: true, uniqueness: true
   validates :phone_number_id, presence: true, uniqueness: true
   # The has_one side of the association: at most one channel per hotel.

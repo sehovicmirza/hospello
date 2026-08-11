@@ -25,6 +25,7 @@ class Conversation < ApplicationRecord
   before_validation :assign_hotel_from_guest_session
   before_validation :assign_room_from_guest_session, on: :create
   before_validation :assign_guest_locale_from_guest_session, on: :create
+  before_validation :assign_channel_from_guest_session, on: :create
 
   validate :guest_session_must_belong_to_the_same_hotel
 
@@ -152,8 +153,8 @@ class Conversation < ApplicationRecord
   # (db/migrate/*_create_messages.rb) is what actually guarantees this
   # under a genuine concurrent race, which the rescue below covers the
   # same way .live_for's rescue does.
-  def post_guest_message!(body:, client_message_id:)
-    if client_message_id.present? && (existing = messages.find_by(client_message_id: client_message_id))
+  def post_guest_message!(body:, client_message_id: nil, external_id: nil)
+    if (existing = existing_guest_message(client_message_id: client_message_id, external_id: external_id))
       return existing
     end
 
@@ -161,7 +162,7 @@ class Conversation < ApplicationRecord
     transaction do
       message = messages.create!(
         hotel: hotel, sender_role: :guest, body: body,
-        body_locale: guest_locale, client_message_id: client_message_id
+        body_locale: guest_locale, client_message_id: client_message_id, external_id: external_id
       )
       touch_guest_activity!
     end
@@ -177,7 +178,7 @@ class Conversation < ApplicationRecord
     Ai::GenerateReplyJob.perform_later(self)
     message
   rescue ActiveRecord::RecordNotUnique
-    messages.find_by!(client_message_id: client_message_id)
+    existing_guest_message(client_message_id: client_message_id, external_id: external_id) || raise
   end
 
   # Same shape for the staff side: creates the Message and resets
@@ -377,6 +378,33 @@ class Conversation < ApplicationRecord
   end
 
   private
+    # The two ways a guest's send can arrive twice, and the two indexes that
+    # make each impossible — checked up front for the common sequential
+    # retry, and again from #post_guest_message!'s rescue for a genuine
+    # concurrent race.
+    #
+    # `client_message_id` is the web's: a uuid the browser generates, unique
+    # per *conversation*, so it is looked up through this conversation's own
+    # messages. `external_id` is WhatsApp's: Meta's own message id, unique
+    # *globally* (see the partial index in db/migrate/*_create_messages.rb),
+    # so it is looked up across the hotel rather than within one
+    # conversation. That difference is not pedantry — a Meta retry arriving
+    # after a receptionist resolved the conversation lands on a *new* live
+    # conversation, and a lookup scoped to this one would miss it, insert,
+    # and hit the global index with nothing left to recover.
+    #
+    # Both guards are `.present?`-gated because a nil on either column is
+    # ordinary (a WhatsApp message has no client_message_id and vice versa),
+    # and `find_by(column: nil)` would happily match the first row that also
+    # has nothing there.
+    def existing_guest_message(client_message_id:, external_id:)
+      if client_message_id.present? && (existing = messages.find_by(client_message_id: client_message_id))
+        return existing
+      end
+
+      Message.find_by(external_id: external_id) if external_id.present?
+    end
+
     # Marked pending and handed to the queue, or left alone. The decision of
     # *whether* is Message#translation_target_locale's, in one place, so the
     # enqueue site cannot develop its own opinion about which direction needs
@@ -467,6 +495,26 @@ class Conversation < ApplicationRecord
 
     def assign_guest_locale_from_guest_session
       self.guest_locale ||= guest_session&.locale
+    end
+
+    # Derived, never passed in. A conversation is carried on whichever
+    # channel its guest reached the hotel on — there is no third answer, and
+    # Conversation.live_for (the only thing that creates one) deliberately
+    # takes nothing but the session. Getting this wrong is not cosmetic:
+    # Slice 6 Task 4 decides whether a staff reply is sent out over WhatsApp
+    # by reading exactly this column, so a WhatsApp guest on a `web`
+    # conversation would be typed at and never answered.
+    #
+    # Assigned outright, unlike the `||=` of the three callbacks above, and
+    # the difference is load-bearing rather than stylistic: `channel` has a
+    # database default of `web`, so a new Conversation is never nil here and
+    # `||=` would silently never fire — a WhatsApp guest would get a `web`
+    # conversation and nobody would find out until a reply failed to send.
+    # Overwriting a caller-supplied value is the correct behaviour anyway:
+    # the guest session is the only thing that actually knows how this guest
+    # reached the hotel.
+    def assign_channel_from_guest_session
+      self.channel = guest_session.channel if guest_session
     end
 
     # Same defense GuestSession#room_must_belong_to_the_same_hotel and
