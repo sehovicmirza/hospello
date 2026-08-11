@@ -106,6 +106,8 @@ development. **Never commit real values for any of these.**
 | `LIVE_AI` | Never in production or CI | Set to `1` locally to run `test/services/ai/live_smoke_test.rb`, which makes one real API call |
 | `WHATSAPP_ACCESS_TOKEN` | Only once a hotel is connected (Slice 6) | Meta Cloud API system-user token — one for the whole app, not per hotel. Without it the app still boots and runs fully; `Whatsapp::MetaCloudProvider` raises a clear `Whatsapp::ApiError` if something asks it to send |
 | `WHATSAPP_API_VERSION` | No | Meta Graph API version; defaults to `v22.0` |
+| `WHATSAPP_APP_SECRET` | Required before registering the webhook (Slice 6) | Meta App Secret — HMAC-signs every inbound `POST /webhooks/whatsapp` delivery. Unset means every delivery is refused (fail closed), never that signatures go unchecked |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | Required before registering the webhook (Slice 6) | A value you choose and enter into Meta's dashboard; Meta echoes it back on the one-time GET handshake that verifies the webhook URL |
 | `SENTRY_DSN` | Recommended | Error tracking; every `Sentry.*` call is a no-op when unset |
 | `HEARTBEAT_URL` | Recommended | An external uptime monitor's ping URL — see `docs/runbook.md` |
 | `CI` | Set automatically by GitHub Actions | Forces eager loading in the test environment to catch autoload bugs |

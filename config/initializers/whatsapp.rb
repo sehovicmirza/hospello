@@ -26,4 +26,31 @@ Rails.application.configure do
   # so this is a config default rather than a hardcoded constant in the
   # adapter — bumping it is one environment variable, not a deploy.
   config.x.whatsapp.api_version = ENV.fetch("WHATSAPP_API_VERSION", "v22.0")
+
+  # Slice 6 Task 2 — the webhook's two secrets. Neither is the access token
+  # above: that authenticates *this app* to Meta when *sending*; these
+  # authenticate Meta to *this app* when *receiving*, and come from a
+  # different place in Meta's dashboard (the App's own Settings > Basic, not
+  # the WhatsApp product's API setup).
+  #
+  # The Meta App Secret. Whatsapp::WebhookSignature HMAC-SHA256s the raw
+  # body of every inbound webhook with this and compares it, in constant
+  # time, against the X-Hub-Signature-256 header Meta sends — the only
+  # thing standing between this app's one unauthenticated public endpoint
+  # and a forged request. `.presence`, same reasoning as access_token above:
+  # blank must read as absent, not as a secret every signature will fail
+  # against. Blank is the fail-closed default — see WebhookSignature.valid?,
+  # which refuses to verify anything (never "trusts" a request) when this
+  # is unset.
+  config.x.whatsapp.app_secret = ENV["WHATSAPP_APP_SECRET"].presence
+
+  # A string this app makes up and enters into Meta's dashboard when
+  # registering the webhook URL; Meta echoes it straight back on the GET
+  # handshake that verifies the URL is real (hub.verify_token). Not a
+  # secret Meta generates — just a shared value proving whoever configured
+  # the webhook in Meta's dashboard is the same party running this app.
+  # Also compared with secure_compare (Webhooks::WhatsappController#verify)
+  # for the same reason app_secret is: it costs nothing to hold both
+  # attacker-facing comparisons to the same standard.
+  config.x.whatsapp.webhook_verify_token = ENV["WHATSAPP_WEBHOOK_VERIFY_TOKEN"].presence
 end
