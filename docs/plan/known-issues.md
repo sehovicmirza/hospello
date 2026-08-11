@@ -7,6 +7,12 @@ looks like a passing test and is a hole.
 
 ## Open
 
+*(Nothing open right now.)*
+
+---
+
+## Resolved
+
 ### DECIDED: what "delivered" means on the web channel
 
 **Resolved in Slice 5 Task 2, on the second reading below.** A message broadcasts the instant it is
@@ -57,8 +63,6 @@ fallback.
 is worth a human's thirty seconds before it becomes a week of behaviour.
 
 ---
-
-## Resolved
 
 ### SOLVED: the system-test failure that made CI red on every run since the repo's first
 

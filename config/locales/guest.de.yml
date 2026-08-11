@@ -25,6 +25,11 @@ de:
         title: "Ihre Sitzung ist abgelaufen"
         body: "Bitte scannen Sie den QR-Code des Hotels erneut, um ein neues Gespräch zu starten."
     messages:
+      translation:
+        show_original: "Original anzeigen"
+        hide_original: "Original ausblenden"
+        untranslated_note: "So angezeigt, wie es geschrieben wurde — wir konnten es nicht übersetzen."
+        translating: "Wird übersetzt…"
       sender_labels:
         guest: "Sie"
         staff: "Hotelpersonal"

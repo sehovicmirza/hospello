@@ -25,6 +25,11 @@ en:
         title: "Your session has ended"
         body: "Please scan the hotel's QR code again to start a new conversation."
     messages:
+      translation:
+        show_original: "See what they wrote"
+        hide_original: "Hide the original"
+        untranslated_note: "Shown as written — we could not translate this one."
+        translating: "Translating…"
       sender_labels:
         guest: "You"
         staff: "Hotel staff"

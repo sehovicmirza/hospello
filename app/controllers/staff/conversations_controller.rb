@@ -47,6 +47,10 @@ module Staff
       # (see Conversation#mark_read_by_staff!). Done before the transcript
       # is read so the badge in the same render is already correct.
       @conversation.mark_read_by_staff!
+      # Lazily, and only here: the assistant already answered the guest in
+      # their language, so the staff-facing translation is worth paying for
+      # exactly when a receptionist is reading it (Conversation#request_staff_translations!).
+      @conversation.request_staff_translations!
 
       # Staff see everything, internal notes included — this is the one
       # read of `messages` in the app that deliberately carries no

@@ -60,15 +60,24 @@ class Message < ApplicationRecord
   # the job and the watchdog cannot each have their own opinion.
   #
   # A guest message is read by staff, so it goes into the hotel's staff
-  # language; a staff reply is read by the guest, so it goes into theirs.
-  # System notices are already pre-translated on disk (config/locales), and an
-  # assistant reply is already in the guest's own language — translating
-  # either would be a round trip that can only make it worse. The assistant's
-  # *staff-facing* translation is done lazily, when a receptionist actually
-  # opens the conversation.
+  # language; a staff reply is read by the guest, so it goes into theirs. An
+  # assistant reply is already in the guest's language and only ever needs the
+  # staff-facing direction — which is why nothing enqueues it on creation:
+  # see Conversation#request_staff_translations!, which does it lazily when a
+  # receptionist actually opens the conversation. Translating every AI reply
+  # eagerly would double this slice's token cost for text nobody reads.
+  #
+  # System notices are absent on purpose: they are already pre-translated on
+  # disk (config/locales/degraded.*, requests.*), and asking a model to
+  # translate a string we wrote in four languages ourselves would be a round
+  # trip that can only make it worse.
   def translation_target_locale
     source = body_locale.presence
-    target = { "guest" => hotel.staff_locale, "staff" => conversation.guest_locale }[sender_role]
+    target = {
+      "guest" => hotel.staff_locale,
+      "staff" => conversation.guest_locale,
+      "assistant" => hotel.staff_locale
+    }[sender_role]
 
     return nil if target.blank? || source.blank? || source == target
 

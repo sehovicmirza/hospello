@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-10 (Slice 4 complete · Slice 5 at 2 of 4 tasks) |
+| **Last updated** | 2026-08-10 (Slice 5 at 3 of 4 tasks — translation works end to end) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 804 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
+| **Tests** | 817 unit/integration green · 41 system green · rubocop and brakeman clean · **all of it green on CI** |
 | **CI** | ✅ **green — for the first time in this repo's history.** See below; it was never a flake. |
-| **Progress** | **Slices 1–4 complete** · Slice 5 at 2 of 4 tasks |
+| **Progress** | **Slices 1–4 complete** · Slice 5 at 3 of 4 tasks |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -349,18 +349,39 @@ the background for whoever has to read them; nothing renders the result yet (tha
   explicitly** or it passes whichever way round the code has it — that caught a real swapped-
   direction break.
 
+**Slice 5 Task 3 — both directions on screen.** Complete. A guest and a receptionist who share no
+language can now hold a conversation, each reading their own, with the other's actual words one tap
+away.
+
+- One partial, `app/views/shared/_translated_body.html.erb`, used by both surfaces. Both texts are
+  in the DOM with one hidden, so the original is findable by selection, by a screen reader, and with
+  JavaScript off.
+- **The bug the tests caught, and the rule that fixes it:** a reader is never shown their own words
+  translated back at them. The staff-facing translation of a guest's message is in the language the
+  guest's own interface renders in whenever the locales line up that way, so the first version
+  showed a German-speaking guest the Bosnian translation of their own question. The partial takes a
+  `translate` local and the caller decides — guest surface translates what the guest did not write,
+  staff surface what staff did not write.
+- Assistant replies are translated lazily, from `Staff::ConversationsController#show`. The concierge
+  already answered in the guest's language; the staff-facing copy is worth paying for exactly when
+  someone is reading it.
+- **Writing tests here:** the guest's *session* locale renders their surface, the *conversation's*
+  is what the translator aims at. Set only one and the test reads as though it passed —
+  `#speaking_german` in `test/controllers/translation_rendering_test.rb` sets both.
+
 ---
 
 ## What to do next
 
-1. **Slice 5 Task 3 — both directions on screen, and the chip.** The translation exists in the
-   database and nothing shows it yet. `Message#readable_in(locale)` returns `[text, :original |
-   :translated]` and is the one reader both surfaces should use. What is left: render the overlay in
-   the guest bubble and the staff bubble, a control to reveal the original (in words, never a flag —
-   a flag is a country, not a language), a bubble that fell back saying so rather than looking
-   normal, and lazy translation of assistant replies when a receptionist opens the conversation.
-   Then Task 4 (the staff workspace in Bosnian, and the request-summary overlay). Brief:
-   `docs/plan/slice-5-tasks.md`.
+1. **Slice 5 Task 4 — the staff workspace in Bosnian, and the request-summary overlay.** The last
+   task in the slice and the biggest mechanical change in it: every hardcoded English string in
+   `app/views/staff/**` moves into `config/locales/staff.{bs,en}.yml`. Do it as its own commit,
+   separate from anything behavioural, so the diff is reviewable. Two things to know before starting:
+   the locale is **per user** (`User#locale`, `Hotel::STAFF_LOCALES` is `bs`/`en`) because a Bosnian
+   receptionist and an English manager work the same hotel, and the structural locale test needs a
+   per-family locale set — the staff family has two languages where the guest family has four.
+   Then the request-summary overlay: `service_requests.details_original` and `original_locale` are
+   populated and nothing reads them. Brief: `docs/plan/slice-5-tasks.md`.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slices 5–7 (translation, WhatsApp, analytics/hardening) — specified in the plan, task breakdowns

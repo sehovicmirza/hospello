@@ -149,6 +149,40 @@ module Ai
       end
     end
 
+    # --- Assistant replies, translated lazily -------------------------------------
+
+    test "an assistant reply is not translated when it is written" do
+      @conversation.update!(guest_locale: "de")
+
+      assert_no_enqueued_jobs(only: Ai::TranslateMessageJob) do
+        @conversation.post_assistant_reply!(body: "Das Frühstück ist um 07:00.")
+      end
+    end
+
+    # The concierge already answered in the guest's language, so the
+    # staff-facing translation is worth paying for exactly when a receptionist
+    # is reading it — and not on the many conversations nobody opens.
+    test "it is translated the first time a receptionist opens the conversation" do
+      @conversation.update!(guest_locale: "de")
+      @conversation.post_assistant_reply!(body: "Das Frühstück ist um 07:00.")
+
+      assert_enqueued_with(job: Ai::TranslateMessageJob) { @conversation.request_staff_translations! }
+    end
+
+    test "opening it again does not queue the same translation twice" do
+      @conversation.update!(guest_locale: "de")
+      @conversation.post_assistant_reply!(body: "Das Frühstück ist um 07:00.")
+      @conversation.request_staff_translations!
+
+      assert_no_enqueued_jobs(only: Ai::TranslateMessageJob) { @conversation.request_staff_translations! }
+    end
+
+    test "an assistant reply already in the staff's language is left alone" do
+      @conversation.post_assistant_reply!(body: "Doručak je u 07:00.")
+
+      assert_no_enqueued_jobs(only: Ai::TranslateMessageJob) { @conversation.request_staff_translations! }
+    end
+
     test "a staff reply is stamped with the language it was written in" do
       @conversation.update!(guest_locale: "ar")
 

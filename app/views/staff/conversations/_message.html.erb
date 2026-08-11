@@ -32,9 +32,14 @@
   <% else %>
     <div class="flex max-w-[85%] flex-col gap-0.5 <%= message.guest? ? "items-start" : "items-end" %>">
       <span class="text-xs font-medium text-gray-500"><%= staff_message_author(message) %></span>
-      <p class="rounded-lg px-3 py-2 text-sm <%= staff_message_bubble_classes(message) %>" dir="auto">
-        <%= message.body %>
-      </p>
+      <%# The receptionist reads in the hotel's own language, with the
+          guest's actual words one tap away. An untranslated bubble says so
+          rather than looking like an ordinary message a colleague can read. %>
+      <div class="rounded-lg px-3 py-2 text-sm <%= staff_message_bubble_classes(message) %>">
+        <%= render "shared/translated_body", message: message, reader_locale: Current.hotel.staff_locale,
+              translate: !message.staff?,
+              show_label: "See what the guest wrote", hide_label: "Hide the original" %>
+      </div>
       <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
         <%= staff_time(message.created_at).strftime("%d %b %H:%M") %>
       </time>

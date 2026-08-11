@@ -8,10 +8,16 @@
      class="flex flex-col gap-1 <%= message.guest? ? "items-end" : "items-start" %>">
   <div class="flex max-w-[85%] flex-col gap-0.5 <%= message.guest? ? "items-end" : "items-start" %>">
     <span class="sr-only"><%= guest_sender_label(message) %></span>
-    <p dir="auto" class="rounded-lg px-3 py-2 text-sm <%= guest_message_bubble_classes(message) %>"
-       style="<%= guest_message_bubble_style(message) %>">
-      <%= message.body %>
-    </p>
+    <%# The guest reads in their own language: a staff reply written in
+        Bosnian shows here in theirs, with the receptionist's own words one
+        tap away. Their own messages are never translated for them. %>
+    <div class="rounded-lg px-3 py-2 text-sm <%= guest_message_bubble_classes(message) %>"
+         style="<%= guest_message_bubble_style(message) %>">
+      <%= render "shared/translated_body", message: message, reader_locale: I18n.locale,
+            translate: !message.guest?,
+            show_label: t("guest.messages.translation.show_original"),
+            hide_label: t("guest.messages.translation.hide_original") %>
+    </div>
     <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
       <%= guest_message_time(message) %>
     </time>

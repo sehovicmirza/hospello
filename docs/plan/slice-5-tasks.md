@@ -121,48 +121,34 @@ what"), `#claim_translation!`, `#apply_translation!`, `#readable_in`; `Ai::Trans
 
 ---
 
-### Task 3: Both directions, and the chip
+### Task 3: Both directions, and the chip — DONE
 
-**Files:**
-- Modify: `app/views/guest/messages/_message.html.erb`, `app/views/staff/conversations/_message.html.erb`
-- Create: `app/javascript/controllers/translation_toggle_controller.js`
-- Create: `test/system/translation_test.rb`
-- Modify: `app/models/conversation.rb` (enqueue on both post paths)
+Both surfaces render through one partial, `app/views/shared/_translated_body.html.erb`. Both texts
+are in the DOM with one hidden, rather than the original being fetched on demand, so it is findable
+by selection, by a screen reader, and with JavaScript off.
 
-**Which direction gets translated, and into what.** A guest message is translated into the hotel's
-`staff_locale`; a staff message into the conversation's `guest_locale`. When those are the same
-language, nothing is translated at all and `translation_status` stays `not_needed` — the commonest
-case must cost nothing.
+**The rule the first version got wrong, and the reason it is now explicit:** a reader is never shown
+their own words translated back at them. That sounds obvious and is not — the staff-facing
+translation of a guest's message is *in the language the guest's own interface renders in* whenever
+the two sides' locales line up that way, so the first version quietly showed a German-speaking guest
+the Bosnian translation of their own question. The partial now takes a `translate` local and the
+caller decides: the guest surface translates anything the guest did not write, the staff surface
+anything staff did not write (which includes the assistant, whose replies go out in the guest's
+language).
 
-**Assistant messages are translated lazily.** The concierge already replies in the guest's language,
-so the staff-facing translation of an AI message is only needed when a receptionist actually opens
-that conversation. Translating every AI reply eagerly would double the slice's token cost for text
-nobody reads.
+The label is words, in the reader's own language, never a flag — a flag is a country, and the
+countries and the languages here do not line up. A bubble that fell back says so rather than looking
+like an ordinary message; one still in flight says that instead, and the watchdog guarantees it
+resolves within fifteen seconds.
 
-**The chip.** Every translated bubble shows the translation with a control to reveal the original —
-in both directions, and always in words rather than a flag icon (a flag is a country, not a
-language, and gets this wrong for Arabic and for Bosnian both). A bubble that fell back shows the
-original *labelled as untranslated* rather than silently looking like a normal message.
+Assistant replies are translated **lazily**, from `Staff::ConversationsController#show` via
+`Conversation#request_staff_translations!`. The concierge already answered in the guest's language,
+so the staff-facing translation is worth paying for exactly when a receptionist is reading it — not
+on the many conversations nobody opens.
 
-- [ ] **Step 1: Tests for the shape, not the wording**
-
-```ruby
-test "a guest message is translated into the hotel's staff language"
-test "a staff reply is translated into the guest's language"
-test "nothing is translated when both sides already share a language"
-test "an assistant message is translated only when a staff member opens the conversation"
-test "a message that fell back is shown as the original, and says so"
-test "the original is always available, in both directions"
-```
-
-- [ ] **Step 2: Implement, then check the budget ordering**
-
-Translation must keep working when the concierge has stopped. There is already a test asserting
-90% vs 100% on `AiRun.budget_exhausted_for?`; this task adds the one that matters end to end: with
-the hotel at 95% of budget, a guest message still reaches a receptionist **in their language** while
-the concierge stays silent.
-
-- [ ] **Step 3: System test, full suite, commit**
+**A trap for whoever writes tests here:** the guest's *session* locale renders their surface
+(`GuestLocalization`), and the *conversation's* is what the translator aims at. Setting only one of
+them produces a test that reads as though it passed.
 
 ---
 

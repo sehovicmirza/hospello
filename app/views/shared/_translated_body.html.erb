@@ -1,0 +1,53 @@
+<%# The overlay, rendered the same way on both surfaces.
+
+    Both texts are in the DOM and one is hidden, rather than the original
+    being fetched on demand: it means the original is always there to be
+    found — by selection, by a screen reader, by a browser with JavaScript
+    off — and there is no round trip between wanting it and seeing it.
+
+    `label` is the noun for whoever wrote it ("what they wrote"), passed in
+    rather than derived here, because the guest surface and the staff
+    surface name each other differently and this partial should not need to
+    know which side it is on.
+
+    `translate` is the authorship rule, and it is the caller's to decide: a
+    reader is never shown their own words translated back at them. On the
+    guest surface that means anything the guest did not write; on the staff
+    surface, anything staff did not write (which includes the assistant, whose
+    replies go out in the guest's language). Getting this wrong is not subtle
+    — it is the software telling someone what they just said.
+
+    Locals: message, reader_locale, translate, and the two labels. %>
+<% text, source = translate ? message.readable_in(reader_locale) : [ message.body, :original ] %>
+
+<% if source == :translated %>
+  <div data-controller="translation-toggle"
+       data-translation-toggle-show-label-value="<%= show_label %>"
+       data-translation-toggle-hide-label-value="<%= hide_label %>">
+    <p data-translation-toggle-target="translated" dir="auto"><%= text %></p>
+    <%# hidden, not display:none in a class — a hidden attribute is what
+        assistive technology and the toggle both read, and it survives a
+        stylesheet that never loaded. %>
+    <p data-translation-toggle-target="original" dir="auto" hidden><%= message.body %></p>
+
+    <button type="button" data-translation-toggle-target="button"
+            data-action="click->translation-toggle#toggle"
+            aria-expanded="false"
+            class="mt-1 cursor-pointer text-xs font-medium underline opacity-80">
+      <%= show_label %>
+    </button>
+  </div>
+<% else %>
+  <p dir="auto"><%= text %></p>
+
+  <%# Said out loud rather than left to look like an ordinary message. A
+      reader who cannot read this bubble needs to know the software tried
+      and failed, not wonder why the hotel replied in a language they do not
+      speak. `translating` is the in-flight case, and the watchdog
+      guarantees it resolves within fifteen seconds. %>
+  <% if translate && message.translation_status_failed? %>
+    <p class="mt-1 text-xs opacity-70"><%= t("guest.messages.translation.untranslated_note") %></p>
+  <% elsif translate && (message.translation_status_pending? || message.translation_status_translating?) %>
+    <p class="mt-1 text-xs opacity-70"><%= t("guest.messages.translation.translating") %></p>
+  <% end %>
+<% end %>

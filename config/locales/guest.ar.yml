@@ -25,6 +25,11 @@ ar:
         title: "انتهت جلستك"
         body: "يرجى مسح رمز الاستجابة السريعة الخاص بالفندق مرة أخرى لبدء محادثة جديدة."
     messages:
+      translation:
+        show_original: "عرض النص الأصلي"
+        hide_original: "إخفاء النص الأصلي"
+        untranslated_note: "معروض كما كُتب — لم نتمكن من ترجمته."
+        translating: "جارٍ الترجمة…"
       sender_labels:
         guest: "أنت"
         staff: "طاقم الفندق"

@@ -351,6 +351,23 @@ class Conversation < ApplicationRecord
     Turbo::StreamsChannel.broadcast_refresh_to(hotel, :inbox)
   end
 
+  # Assistant replies, translated for staff — lazily, the first time a
+  # receptionist opens the conversation.
+  #
+  # The concierge already answers in the guest's own language, so the
+  # staff-facing translation is only worth paying for when there is a staff
+  # member actually reading it. On a hotel where the assistant handles most
+  # conversations without anyone looking, translating every reply eagerly
+  # would double this slice's token cost for text nobody opens.
+  def request_staff_translations!
+    messages.where(sender_role: :assistant, translation_status: :not_needed).find_each do |message|
+      next if message.translation_target_locale.blank?
+
+      message.update_column(:translation_status, Message.translation_statuses[:pending])
+      Ai::TranslateMessageJob.perform_later(message)
+    end
+  end
+
   # The overlay landed. A refresh rather than a targeted replace, for the same
   # reason every other live update here is one: the bubble, the chip and the
   # inbox row are different DOM shapes reacting to the same event.

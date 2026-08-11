@@ -25,6 +25,11 @@ bs:
         title: "Vaša sesija je istekla"
         body: "Molimo ponovo skenirajte QR kod hotela kako biste započeli novi razgovor."
     messages:
+      translation:
+        show_original: "Vidi šta je napisano"
+        hide_original: "Sakrij original"
+        untranslated_note: "Prikazano kako je napisano — ovo nismo mogli prevesti."
+        translating: "Prevodim…"
       sender_labels:
         guest: "Vi"
         staff: "Osoblje hotela"
