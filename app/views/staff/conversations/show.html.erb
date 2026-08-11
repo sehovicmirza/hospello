@@ -1,4 +1,4 @@
-<% content_for :title, "#{@conversation.guest_session.guest_name} — Inbox" %>
+<% content_for :title, t(".title", guest_name: @conversation.guest_session.guest_name) %>
 
 <%# Same morphing refresh as the inbox list: a new guest message
     broadcasts a refresh to [hotel, :inbox] and this page re-renders from
@@ -15,7 +15,7 @@
   <%= turbo_stream_from Current.hotel, :inbox, channel: HotelInboxChannel,
         data: { inbox_resilience_target: "source" } %>
 
-  <%= link_to "← Back to inbox", staff_conversations_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+  <%= link_to t(".back_to_inbox"), staff_conversations_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
 
   <header id="conversation-header" class="mt-3 mb-6 flex flex-wrap items-start justify-between gap-4">
     <div class="flex flex-col gap-1">
@@ -27,13 +27,13 @@
       </div>
 
       <p class="text-sm text-gray-600">
-        <%= @conversation.room ? "Room #{@conversation.room.number}" : "No room given" %>
+        <%= @conversation.room ? t("staff.common.room.given", number: @conversation.room.number) : t("staff.common.room.none") %>
         ·
-        <%= @conversation.web? ? "Web chat" : "WhatsApp" %>
+        <%= @conversation.web? ? t("staff.common.channel.web") : t("staff.common.channel.whatsapp") %>
         ·
-        Guest language: <%= @conversation.guest_locale.presence || "unknown" %>
+        <%= t(".guest_language", locale: @conversation.guest_locale.presence || t(".guest_language_unknown")) %>
         ·
-        Status: <span id="conversation-status"><%= @conversation.status.capitalize %></span>
+        <%= t(".status_label") %> <span id="conversation-status"><%= staff_conversation_status_label(@conversation) %></span>
       </p>
 
       <%# The room number came from the guest, on a QR code anyone in the
@@ -41,8 +41,7 @@
           that abbreviates it — this is the product's honesty about
           identity, not a tooltip. %>
       <p class="text-xs text-gray-500">
-        The guest typed this name and room number themselves. Nobody has checked them —
-        don’t use them to release keys, charges, or personal details.
+        <%= t(".identity_notice") %>
       </p>
     </div>
 
@@ -52,13 +51,13 @@
           operates it. The label says what will happen, not what is
           currently true. %>
       <% if policy(@conversation).toggle_ai? %>
-        <%= button_to (@conversation.paused? ? "Return to the assistant" : "Take over from the assistant"),
+        <%= button_to (@conversation.paused? ? t(".return_to_assistant") : t(".take_over")),
               ai_mode_staff_conversation_path(@conversation), method: :patch, id: "ai-mode-toggle",
               class: "cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
       <% end %>
 
       <% if policy(@conversation).resolve? && @conversation.live? %>
-        <%= button_to "Mark resolved", resolve_staff_conversation_path(@conversation), method: :patch,
+        <%= button_to t(".mark_resolved"), resolve_staff_conversation_path(@conversation), method: :patch,
               id: "resolve-conversation",
               class: "cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
       <% end %>
@@ -67,13 +66,13 @@
 
   <% if @conversation.paused? %>
     <p id="ai-paused-notice" class="mb-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
-      Reception is handling this conversation. The assistant will not reply until you hand it back.
+      <%= t(".ai_paused_notice") %>
     </p>
   <% end %>
 
   <div id="transcript" class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
     <% if @messages.empty? %>
-      <p id="transcript-empty" class="text-sm text-gray-500">No messages in this conversation yet.</p>
+      <p id="transcript-empty" class="text-sm text-gray-500"><%= t(".no_messages") %></p>
     <% else %>
       <%= render partial: "staff/conversations/message", collection: @messages, as: :message %>
     <% end %>

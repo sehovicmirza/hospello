@@ -139,7 +139,10 @@ class Staff::ConversationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "#conversation-list li", count: 1
-    assert_select "#filter-all", text: /All\s*2/
+    # @staff (stari_staff) reads the staff workspace in Bosnian — see
+    # fixtures — so the "All" filter tab reads "Svi"
+    # (staff.conversations.index.filters.all, config/locales/staff.bs.yml).
+    assert_select "#filter-all", text: /Svi\s*2/
   end
 
   test "a row shows the guest name, room, channel and the UNVERIFIED badge" do
@@ -152,11 +155,14 @@ class Staff::ConversationsControllerTest < ActionDispatch::IntegrationTest
     get staff_conversations_path
 
     assert_response :success
+    # @staff (stari_staff) reads the staff workspace in Bosnian — see
+    # fixtures — so room/channel/identity-badge copy comes from
+    # staff.common.room/channel/identity_badge (config/locales/staff.bs.yml).
     assert_select "##{dom_id(conversation)}" do
       assert_select "*", text: "Ingrid Lindqvist"
-      assert_select "*", text: "Room #{rooms(:stari_302).number}"
-      assert_select "*", text: "Web chat"
-      assert_select "*", text: "UNVERIFIED"
+      assert_select "*", text: "Soba #{rooms(:stari_302).number}"
+      assert_select "*", text: "Web razgovor"
+      assert_select "*", text: "NEPROVJERENO"
     end
   end
 
@@ -174,8 +180,10 @@ class Staff::ConversationsControllerTest < ActionDispatch::IntegrationTest
     get staff_conversations_path
 
     assert_response :success
+    # @staff reads in Bosnian — see fixtures.
+    # staff.conversations.conversation_row.needs_attention.
     assert_select "##{dom_id(waiting)}" do
-      assert_select "*", text: "Needs attention"
+      assert_select "*", text: "Zahtijeva pažnju"
     end
   end
 
@@ -224,8 +232,14 @@ class Staff::ConversationsControllerTest < ActionDispatch::IntegrationTest
     get staff_conversation_path(conversation)
 
     assert_response :success
+    # @staff (stari_staff) reads the staff workspace in Bosnian — see
+    # fixtures. This is staff.conversations.message.internal_note_banner
+    # (config/locales/staff.bs.yml), pasted literally rather than looked
+    # up so this test does not read the same source the view does — the
+    # whole point of this test is that the literal warning sentence is
+    # actually on the page.
     assert_select "##{dom_id(note)}" do
-      assert_select "*", text: /Internal note — the guest cannot see this/
+      assert_select "*", text: /Interna napomena — gost ovo ne može vidjeti/
     end
   end
 

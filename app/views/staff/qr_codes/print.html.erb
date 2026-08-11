@@ -1,4 +1,4 @@
-<% content_for :title, "Print QR code — #{@hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: @hotel.name) %>
 
 <% content_for :head do %>
   <style>

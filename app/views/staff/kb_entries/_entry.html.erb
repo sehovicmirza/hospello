@@ -7,9 +7,9 @@
       <span class="font-medium text-gray-900"><%= entry.title %></span>
 
       <% if entry.published? %>
-        <span class="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Live</span>
+        <span class="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20"><%= t(".live") %></span>
       <% else %>
-        <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/30">Draft</span>
+        <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/30"><%= t(".draft") %></span>
       <% end %>
 
       <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
@@ -22,7 +22,7 @@
 
   <div class="flex shrink-0 items-center gap-3">
     <% if policy(entry).publish? %>
-      <%= button_to (entry.published? ? "Unpublish" : "Publish"),
+      <%= button_to (entry.published? ? t(".unpublish") : t(".publish")),
             publish_staff_kb_entry_path(entry), method: :patch,
             params: { published: !entry.published? },
             class: [ "cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium",
@@ -30,12 +30,12 @@
     <% end %>
 
     <% if policy(entry).update? %>
-      <%= link_to "Edit", edit_staff_kb_entry_path(entry), class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+      <%= link_to t("staff.common.actions.edit"), edit_staff_kb_entry_path(entry), class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
     <% end %>
 
     <% if policy(entry).destroy? %>
-      <%= button_to "Delete", staff_kb_entry_path(entry), method: :delete,
-            form: { data: { turbo_confirm: "Delete “#{entry.title}”?" } },
+      <%= button_to t("staff.common.actions.delete"), staff_kb_entry_path(entry), method: :delete,
+            form: { data: { turbo_confirm: t(".delete_confirm", title: entry.title) } },
             class: "cursor-pointer text-sm font-medium text-red-600 hover:text-red-500" %>
     <% end %>
   </div>

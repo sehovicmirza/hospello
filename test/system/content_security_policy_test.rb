@@ -53,7 +53,9 @@ class ContentSecurityPolicyTest < ApplicationSystemTestCase
     sign_in_as users(:stari_admin), password: "password123"
 
     visit edit_staff_hotel_settings_path
-    fill_in "Primary color", with: "#334455"
+    # staff.hotel_settings.edit.primary_color_label (config/locales/staff.bs.yml)
+    # — stari_admin reads the staff workspace in Bosnian.
+    fill_in "Primarna boja", with: "#334455"
 
     # The swatch only updates on an `input` event handled by
     # brand_preview_controller.js — if importmap-rails' nonce on the inline
@@ -67,11 +69,15 @@ class ContentSecurityPolicyTest < ApplicationSystemTestCase
   end
 
   private
+    # Both fixtures used here (stari_admin) read the staff workspace in
+    # Bosnian — see test/fixtures/users.yml — so the post-sign-in page
+    # renders staff.layout.signed_in_as_html's Bosnian "Prijavljeni ste
+    # kao %{name}" (config/locales/staff.bs.yml), not the English literal.
     def sign_in_as(user, password:)
       visit root_url
       fill_in "email_address", with: user.email_address
       fill_in "password", with: password
       click_on "Sign in"
-      assert_text "Signed in as #{user.name}"
+      assert_text "Prijavljeni ste kao #{user.name}"
     end
 end

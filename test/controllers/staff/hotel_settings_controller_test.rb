@@ -66,7 +66,8 @@ class Staff::HotelSettingsControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a", text: "Hotel settings", count: 1
+    # stari_admin reads the staff workspace in Bosnian — see fixtures.
+    assert_select "nav a", text: "Postavke hotela", count: 1
   end
 
   test "posting platform-only attributes from the staff form leaves them unchanged" do
@@ -158,7 +159,9 @@ class Staff::HotelSettingsControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_response :unprocessable_content
-    assert_select "li", text: "Name can't be blank"
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "can't be blank".
+    assert_select "li", text: "Name ne smije biti prazno"
   end
 
   test "a signed-out user is redirected to sign-in for every staff route" do

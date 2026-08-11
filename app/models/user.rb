@@ -15,6 +15,13 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
 
   validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_blank: true
+  # The staff workspace's own UI language (StaffLocalization), not the
+  # hotel-wide translation target (Hotel#staff_locale) — a Bosnian
+  # receptionist and an English-speaking manager work the same hotel, so
+  # this is a property of the person, not the tenant. Same list either way:
+  # Hotel::STAFF_LOCALES is "the languages Hospello's staff surface speaks",
+  # reused here rather than duplicated.
+  validates :locale, inclusion: { in: Hotel::STAFF_LOCALES }
 
   # Deliberately NOT TenantScoped: hotel_id is nullable because platform admins
   # belong to no hotel. See test/tenancy/tenant_declaration_test.rb.

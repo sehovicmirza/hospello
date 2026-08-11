@@ -131,7 +131,9 @@ class GuestStaffLiveTest < ApplicationSystemTestCase
       # Assert on the destination, not the click (engineering rule 4):
       # click_on returns when the click is dispatched, not when the next
       # page has loaded, and racing that once left a session cookie unset.
-      session.assert_text "Signed in as #{users(:stari_staff).name}"
+      # stari_staff reads the staff workspace in Bosnian — see
+      # test/fixtures/users.yml.
+      session.assert_text "Prijavljeni ste kao #{users(:stari_staff).name}"
     end
 
     def open_guest_chat(session, hotel, raw_token)

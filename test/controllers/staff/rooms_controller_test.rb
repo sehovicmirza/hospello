@@ -38,7 +38,8 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_rooms_path, text: "Rooms", count: 1
+    # stari_admin reads the staff workspace in Bosnian — see fixtures.
+    assert_select "nav a[href=?]", staff_rooms_path, text: "Sobe", count: 1
   end
 
   test "the staff nav offers a working Rooms link to plain staff too (read-only, not admin-only)" do
@@ -47,7 +48,8 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_rooms_path, text: "Rooms", count: 1
+    # stari_staff reads the staff workspace in Bosnian too — see fixtures.
+    assert_select "nav a[href=?]", staff_rooms_path, text: "Sobe", count: 1
   end
 
   test "plain staff sees no add-room form" do
@@ -94,7 +96,9 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_select "li", text: "Number has already been taken"
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "has already been taken".
+    assert_select "li", text: "Number je već zauzet"
   end
 
   test "plain staff cannot add a room" do
@@ -200,7 +204,9 @@ class Staff::RoomsControllerTest < ActionDispatch::IntegrationTest
     patch staff_room_path(room), params: { room: { active: "" } }
 
     assert_response :unprocessable_content
-    assert_match "is not included in the list", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "is not included in the list".
+    assert_match "nije uključeno u listu", response.body
     assert room.reload.active?
   end
 

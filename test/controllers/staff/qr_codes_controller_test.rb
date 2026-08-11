@@ -161,7 +161,10 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_qr_code_path, text: "QR code", count: 1
+    # Both fixture users read the staff workspace in Bosnian — see
+    # fixtures — so the nav label is staff.nav.qr_code's "QR kod"
+    # (config/locales/staff.bs.yml).
+    assert_select "nav a[href=?]", staff_qr_code_path, text: "QR kod", count: 1
   end
 
   test "the staff nav offers a working QR code link to plain staff too — read-only, not admin-only" do
@@ -170,7 +173,10 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_qr_code_path, text: "QR code", count: 1
+    # Both fixture users read the staff workspace in Bosnian — see
+    # fixtures — so the nav label is staff.nav.qr_code's "QR kod"
+    # (config/locales/staff.bs.yml).
+    assert_select "nav a[href=?]", staff_qr_code_path, text: "QR kod", count: 1
   end
 
   test "a signed-out user is redirected to sign-in" do

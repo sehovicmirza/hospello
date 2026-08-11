@@ -25,7 +25,8 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_users_path, text: "Staff", count: 1
+    # stari_admin reads the staff workspace in Bosnian — see fixtures.
+    assert_select "nav a[href=?]", staff_users_path, text: "Osoblje", count: 1
   end
 
   # Plain staff have no read access to this screen at all (unlike Rooms and
@@ -120,7 +121,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_match "already been taken", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "has already been taken".
+    assert_match "već zauzet", response.body
   end
 
   # Probed directly: password: "a" used to be accepted here with no minimum
@@ -134,7 +137,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_match "too short", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "too short".
+    assert_match "prekratko", response.body
   end
 
   # Probed directly: active: "" casts to nil (ActiveModel::Type::Boolean),
@@ -150,7 +155,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     patch staff_user_path(target), params: { user: { active: "" } }
 
     assert_response :unprocessable_content
-    assert_match "is not included in the list", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "is not included in the list".
+    assert_match "nije uključeno u listu", response.body
     assert target.reload.active?
   end
 

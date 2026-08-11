@@ -85,7 +85,10 @@ class Staff::RequestCategoriesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_select "li", text: "Key has already been taken"
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "has already been taken". The
+    # attribute name itself ("Key") is not translated.
+    assert_select "li", text: "Key je već zauzet"
   end
 
   test "plain staff cannot add a category" do

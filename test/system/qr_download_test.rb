@@ -12,12 +12,15 @@ class QrDownloadTest < ApplicationSystemTestCase
     sign_in_as users(:stari_admin), password: "password123"
 
     visit staff_root_path
-    click_on "QR code"
+    # stari_admin reads the staff workspace in Bosnian — staff.nav.qr_code
+    # and staff.qr_codes.show.download_svg/download_png
+    # (config/locales/staff.bs.yml), pasted literally.
+    click_on "QR kod"
 
     assert_current_path staff_qr_code_path
     assert_match %r{\Ahttps://.+/h/stari-grad\z}, find("#qr-url").text
-    assert_selector "a[href='#{staff_qr_code_path(format: :svg)}']", text: "Download SVG"
-    assert_selector "a[href='#{staff_qr_code_path(format: :png)}']", text: "Download PNG"
+    assert_selector "a[href='#{staff_qr_code_path(format: :svg)}']", text: "Preuzmi SVG"
+    assert_selector "a[href='#{staff_qr_code_path(format: :png)}']", text: "Preuzmi PNG"
   end
 
   # Review round 1, IMPORTANT 3: dir="rtl" alone reorders characters/bidi,
@@ -64,11 +67,15 @@ class QrDownloadTest < ApplicationSystemTestCase
     # `click_on` returns when the click is dispatched, not when the resulting
     # page has loaded — asserting on the destination makes the click and its
     # navigation a single step, matching the other system tests in this project.
+    #
+    # stari_admin reads the staff workspace in Bosnian — see
+    # test/fixtures/users.yml — so this is staff.layout.signed_in_as_html's
+    # Bosnian text (config/locales/staff.bs.yml), pasted literally.
     def sign_in_as(user, password:)
       visit root_url
       fill_in "email_address", with: user.email_address
       fill_in "password", with: password
       click_on "Sign in"
-      assert_text "Signed in as #{user.name}"
+      assert_text "Prijavljeni ste kao #{user.name}"
     end
 end

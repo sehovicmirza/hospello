@@ -60,7 +60,10 @@ module Staff
       get staff_unanswered_questions_path
 
       assert_select "#no-knowledge-gaps"
-      assert_select "*", text: /doesn’t cover/
+      # @admin (stari_admin) reads the staff workspace in Bosnian — see
+      # fixtures. "ne pokriva" = "doesn't cover" (staff.unanswered_questions
+      # .index.empty_hint, config/locales/staff.bs.yml).
+      assert_select "*", text: /ne pokriva/
     end
 
     # --- Answering a gap ----------------------------------------------------

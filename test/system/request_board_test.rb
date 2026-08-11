@@ -44,15 +44,19 @@ class RequestBoardTest < ApplicationSystemTestCase
 
       request = ActsAsTenant.with_tenant(@hotel) { ServiceRequest.sole }
 
+      # stari_staff reads the staff workspace in Bosnian — see
+      # test/fixtures/users.yml — so the status/transition labels below are
+      # staff.common.request_status/request_transitions' Bosnian text
+      # (config/locales/staff.bs.yml), pasted literally.
       reception.within("##{ActionView::RecordIdentifier.dom_id(request)}") do
-        reception.assert_text "New"
-        reception.click_on "Accept it"
+        reception.assert_text "Novo"
+        reception.click_on "Prihvati"
       end
       guest.assert_text I18n.t("requests.status.accepted", locale: :bs), wait: LIVE_WAIT
 
       reception.within("##{ActionView::RecordIdentifier.dom_id(request)}") do
-        reception.assert_text "Accepted"
-        reception.click_on "Mark as done"
+        reception.assert_text "Prihvaćeno"
+        reception.click_on "Označi kao završeno"
       end
       guest.assert_text I18n.t("requests.status.completed", locale: :bs), wait: LIVE_WAIT
     end
@@ -88,7 +92,9 @@ class RequestBoardTest < ApplicationSystemTestCase
       session.fill_in "password", with: "password123"
       session.click_on "Sign in"
       # Assert on the destination, not the click (engineering rule 4).
-      session.assert_text "Signed in as #{users(:stari_staff).name}"
+      # stari_staff reads the staff workspace in Bosnian — see
+      # test/fixtures/users.yml.
+      session.assert_text "Prijavljeni ste kao #{users(:stari_staff).name}"
     end
 
     def open_guest_chat(session)

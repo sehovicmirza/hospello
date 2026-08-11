@@ -18,37 +18,37 @@
       <span class="font-medium text-gray-900" dir="auto"><%= conversation.guest_session.guest_name %></span>
 
       <span class="text-sm text-gray-600">
-        <%= conversation.room ? "Room #{conversation.room.number}" : "No room given" %>
+        <%= conversation.room ? t("staff.common.room.given", number: conversation.room.number) : t("staff.common.room.none") %>
       </span>
 
       <%= guest_identity_badge(conversation.guest_session) %>
 
       <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-        <%= conversation.web? ? "Web chat" : "WhatsApp" %>
+        <%= conversation.web? ? t("staff.common.channel.web") : t("staff.common.channel.whatsapp") %>
       </span>
 
       <% if needs_attention %>
-        <span class="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white">Needs attention</span>
+        <span class="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white"><%= t(".needs_attention") %></span>
       <% end %>
 
       <% if conversation.resolved? || conversation.expired? %>
         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-          <%= conversation.status.capitalize %>
+          <%= staff_conversation_status_label(conversation) %>
         </span>
       <% end %>
 
       <% if conversation.paused? %>
-        <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Reception handling</span>
+        <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"><%= t(".reception_handling") %></span>
       <% end %>
     </div>
 
     <div class="flex items-baseline justify-between gap-4">
       <p class="line-clamp-1 text-sm text-gray-600" dir="auto">
         <% if preview %>
-          <span class="text-gray-400"><%= preview.sender_role == "guest" ? "Guest:" : "You:" %></span>
+          <span class="text-gray-400"><%= preview.sender_role == "guest" ? t(".guest_prefix") : t(".you_prefix") %></span>
           <%= truncate(preview.body, length: 120) %>
         <% else %>
-          <span class="italic text-gray-400">No messages yet</span>
+          <span class="italic text-gray-400"><%= t(".no_messages_yet") %></span>
         <% end %>
       </p>
 

@@ -4,7 +4,10 @@ class AuthenticationTest < ApplicationSystemTestCase
   test "a staff user signs in with email and password" do
     sign_in_as users(:stari_staff), password: "password123"
 
-    assert_text "Signed in as #{users(:stari_staff).name}"
+    # stari_staff reads the staff workspace in Bosnian — see
+    # test/fixtures/users.yml — staff.layout.signed_in_as_html
+    # (config/locales/staff.bs.yml), pasted literally.
+    assert_text "Prijavljeni ste kao #{users(:stari_staff).name}"
   end
 
   test "a wrong password shows an error and does not sign in" do

@@ -13,7 +13,9 @@ class ReceptionInboxTest < ApplicationSystemTestCase
     end
 
     sign_in_as_reception
-    click_on "Inbox"
+    # stari_staff reads the staff workspace in Bosnian — see
+    # test/fixtures/users.yml — staff.nav.inbox (config/locales/staff.bs.yml).
+    click_on "Razgovori"
     assert_text "Could I get a late checkout?"
 
     find("##{dom_id(conversation)} a").click
@@ -47,7 +49,9 @@ class ReceptionInboxTest < ApplicationSystemTestCase
     find("#note-save").click
 
     within "#transcript" do
-      assert_text "Internal note — the guest cannot see this"
+      # staff.conversations.message.internal_note_banner
+      # (config/locales/staff.bs.yml) — stari_staff reads in Bosnian.
+      assert_text "Interna napomena — gost ovo ne može vidjeti"
       assert_text "Guest has asked three times"
     end
 
@@ -88,7 +92,9 @@ class ReceptionInboxTest < ApplicationSystemTestCase
     visit staff_conversations_path
 
     fill_in "q", with: rooms(:stari_302).number
-    click_on "Search"
+    # staff.conversations.index.search (config/locales/staff.bs.yml) —
+    # stari_staff reads the staff workspace in Bosnian.
+    click_on "Pretraži"
 
     assert_selector "##{dom_id(match)}"
     assert_no_selector "##{dom_id(other)}"
@@ -104,7 +110,11 @@ class ReceptionInboxTest < ApplicationSystemTestCase
 
     find("#ai-mode-toggle").click
 
-    assert_text "Reception is handling this conversation"
+    # staff.conversations.show.ai_paused_notice (config/locales/staff.bs.yml)
+    # — stari_staff reads in Bosnian. The transcript system-notice text
+    # below ("Reception took over...") is a literal string in
+    # Conversation#pause_ai!, out of this task's scope, and stays English.
+    assert_text "Recepcija je preuzela ovaj razgovor"
     within "#transcript" do
       assert_text "Reception took over the conversation."
     end
@@ -121,7 +131,9 @@ class ReceptionInboxTest < ApplicationSystemTestCase
       # click is dispatched, not when the next page has loaded (engineering
       # rule 4 — a race here once left the session cookie unset and
       # surfaced much later as a missing form field).
-      assert_text "Signed in as #{users(:stari_staff).name}"
+      # stari_staff reads the staff workspace in Bosnian — see
+      # test/fixtures/users.yml.
+      assert_text "Prijavljeni ste kao #{users(:stari_staff).name}"
     end
 
     # Signs in as the fixture guest in the same browser, replacing the

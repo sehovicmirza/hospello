@@ -1,9 +1,9 @@
-<% content_for :title, "Request categories — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
 <% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
 
 <div class="mb-6 flex items-center justify-between">
-  <h1 class="text-2xl font-semibold text-gray-900">Request categories</h1>
-  <%= link_to "← Departments", staff_departments_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+  <h1 class="text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
+  <%= link_to t(".back_to_departments"), staff_departments_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
 </div>
 
 <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -13,11 +13,11 @@
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Category</th>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Department</th>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Details collected</th>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-              <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_category") %></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_department") %></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_details") %></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_status") %></th>
+              <th class="px-4 py-3"><span class="sr-only"><%= t("staff.common.actions.actions_column") %></span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
@@ -27,26 +27,26 @@
                   <div class="font-medium text-gray-900"><%= category.name %></div>
                   <div class="text-gray-500"><%= category.key %></div>
                 </td>
-                <td class="px-4 py-3 text-gray-700"><%= category.department&.name || "—" %></td>
-                <td class="px-4 py-3 text-gray-700"><%= category.detail_fields.map(&:humanize).join(", ").presence || "—" %></td>
+                <td class="px-4 py-3 text-gray-700"><%= category.department&.name || t(".no_department") %></td>
+                <td class="px-4 py-3 text-gray-700"><%= category.detail_fields.map { |field| staff_detail_field_label(field) }.join(", ").presence || t(".no_details") %></td>
                 <td class="px-4 py-3">
                   <% if category.active? %>
-                    <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+                    <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20"><%= t("staff.common.status.active") %></span>
                   <% else %>
-                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Inactive</span>
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10"><%= t("staff.common.status.inactive") %></span>
                   <% end %>
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-3">
                     <% if policy(category).update? %>
-                      <%= link_to "Edit", edit_staff_request_category_path(category), class: "font-medium text-blue-600 hover:text-blue-500" %>
-                      <%= button_to (category.active? ? "Deactivate" : "Activate"), staff_request_category_path(category),
+                      <%= link_to t("staff.common.actions.edit"), edit_staff_request_category_path(category), class: "font-medium text-blue-600 hover:text-blue-500" %>
+                      <%= button_to (category.active? ? t("staff.common.actions.deactivate") : t("staff.common.actions.activate")), staff_request_category_path(category),
                             method: :patch, params: { request_category: { active: !category.active? } },
                             class: "font-medium text-amber-700 hover:text-amber-600 cursor-pointer" %>
                     <% end %>
                     <% if policy(category).destroy? %>
-                      <%= button_to "Delete", staff_request_category_path(category), method: :delete,
-                            form: { data: { turbo_confirm: "Delete #{category.name}?" } },
+                      <%= button_to t("staff.common.actions.delete"), staff_request_category_path(category), method: :delete,
+                            form: { data: { turbo_confirm: t(".delete_confirm", name: category.name) } },
                             class: "font-medium text-red-600 hover:text-red-500 cursor-pointer" %>
                     <% end %>
                   </div>
@@ -58,7 +58,7 @@
       </div>
     <% else %>
       <div class="rounded-lg border border-dashed border-gray-300 p-12 text-center">
-        <p class="text-gray-600">No request categories yet — add the first one.</p>
+        <p class="text-gray-600"><%= t(".empty") %></p>
       </div>
     <% end %>
   </div>
@@ -66,7 +66,7 @@
   <% if policy(RequestCategory).create? %>
     <div class="lg:col-span-1">
       <section class="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 class="text-sm font-medium text-gray-700">Add a request category</h2>
+        <h2 class="text-sm font-medium text-gray-700"><%= t(".add_heading") %></h2>
 
         <% if @category&.errors&.any? %>
           <div class="mt-2 rounded-lg bg-red-50 p-3">
@@ -80,27 +80,27 @@
 
         <%= form_with model: @category, url: staff_request_categories_path, class: "mt-3 space-y-3" do |form| %>
           <div>
-            <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
+            <%= form.label :name, t(".name_label"), class: "block text-sm font-medium text-gray-700" %>
             <%= form.text_field :name, class: field_classes %>
           </div>
           <div>
-            <%= form.label :key, "Key (stable identifier, e.g. wake_up_call)", class: "block text-sm font-medium text-gray-700" %>
+            <%= form.label :key, t(".key_label"), class: "block text-sm font-medium text-gray-700" %>
             <%= form.text_field :key, class: field_classes %>
           </div>
           <div>
-            <%= form.label :department_id, "Department", class: "block text-sm font-medium text-gray-700" %>
-            <%= form.collection_select :department_id, @department_options, :id, :name, { include_blank: "— none —" }, class: field_classes %>
+            <%= form.label :department_id, t(".department_label"), class: "block text-sm font-medium text-gray-700" %>
+            <%= form.collection_select :department_id, @department_options, :id, :name, { include_blank: t(".department_blank") }, class: field_classes %>
           </div>
           <div>
-            <%= form.label :icon, class: "block text-sm font-medium text-gray-700" %>
+            <%= form.label :icon, t(".icon_label"), class: "block text-sm font-medium text-gray-700" %>
             <%= form.text_field :icon, class: field_classes %>
           </div>
           <div>
-            <%= form.label :position, "Display order", class: "block text-sm font-medium text-gray-700" %>
+            <%= form.label :position, t(".position_label"), class: "block text-sm font-medium text-gray-700" %>
             <%= form.number_field :position, class: field_classes %>
           </div>
           <%= render "detail_fields_fields", param_key: "request_category", selected: @category.detail_fields %>
-          <%= form.submit "Add category", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+          <%= form.submit t(".add_submit"), class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
         <% end %>
       </section>
     </div>

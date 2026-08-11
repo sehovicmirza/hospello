@@ -1,9 +1,8 @@
-<% content_for :title, "QR code — #{@hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: @hotel.name) %>
 
-<h1 class="mb-2 text-2xl font-semibold text-gray-900">QR code</h1>
+<h1 class="mb-2 text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
 <p class="mb-6 max-w-2xl text-sm text-gray-600">
-  One code for the whole hotel — print it for every room and every common area. There is no
-  per-room code: guests scan the same card everywhere and land in the chat for their room.
+  <%= t(".description") %>
 </p>
 
 <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -15,7 +14,7 @@
 
   <div class="space-y-5 lg:col-span-2">
     <div>
-      <p class="text-sm font-medium text-gray-700">Guest landing URL</p>
+      <p class="text-sm font-medium text-gray-700"><%= t(".url_label") %></p>
       <p id="qr-url" class="mt-1 break-all rounded-md bg-gray-50 px-3 py-2 font-mono text-sm text-gray-800"><%= @qr_code.url %></p>
     </div>
 
@@ -28,15 +27,15 @@
         server instead of silently 404ing/refusing to connect. Reuses
         @qr_code.path (the one place "/h/<slug>" is written) rather than
         rebuilding that shape here. %>
-    <%= link_to "Test it yourself", "#{request.protocol}#{request.host_with_port}#{@qr_code.path}", target: "_blank", rel: "noopener",
+    <%= link_to t(".test_link"), "#{request.protocol}#{request.host_with_port}#{@qr_code.path}", target: "_blank", rel: "noopener",
           class: "inline-block rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
 
     <div class="flex flex-wrap gap-3 border-t border-gray-200 pt-5">
-      <%= link_to "Download SVG", staff_qr_code_path(format: :svg),
+      <%= link_to t(".download_svg"), staff_qr_code_path(format: :svg),
             class: "rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500" %>
-      <%= link_to "Download PNG", staff_qr_code_path(format: :png),
+      <%= link_to t(".download_png"), staff_qr_code_path(format: :png),
             class: "rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500" %>
-      <%= link_to "Print sheet", print_staff_qr_code_path, target: "_blank", rel: "noopener",
+      <%= link_to t(".print_sheet"), print_staff_qr_code_path, target: "_blank", rel: "noopener",
             class: "rounded-md border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
     </div>
   </div>

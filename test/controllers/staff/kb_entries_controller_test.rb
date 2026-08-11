@@ -27,11 +27,14 @@ class Staff::KbEntriesControllerTest < ActionDispatch::IntegrationTest
     get staff_kb_entries_path
 
     assert_response :success
+    # @admin (stari_admin) reads the staff workspace in Bosnian — see
+    # fixtures — so "Live"/"Draft" render as staff.kb_entries.entry's
+    # "Objavljeno"/"Nacrt" (config/locales/staff.bs.yml), pasted literally.
     assert_select "##{dom_id(live)}" do
-      assert_select "*", text: "Live"
+      assert_select "*", text: "Objavljeno"
     end
     assert_select "##{dom_id(draft)}" do
-      assert_select "*", text: "Draft"
+      assert_select "*", text: "Nacrt"
     end
   end
 
@@ -161,10 +164,13 @@ class Staff::KbEntriesControllerTest < ActionDispatch::IntegrationTest
     get staff_kb_entries_path
 
     assert_response :success
+    # @admin reads in Bosnian — see fixtures. "Wi-Fi" is a loanword and
+    # reads the same in both staff.kb_entries.starters locale files, so it
+    # is not itself proof of translation; "Doručak"/"Odjava" are.
     assert_select "#kb-starters" do
-      assert_select "*", text: "Breakfast"
+      assert_select "*", text: "Doručak"
       assert_select "*", text: "Wi-Fi"
-      assert_select "*", text: "Check-out"
+      assert_select "*", text: "Odjava"
     end
   end
 end

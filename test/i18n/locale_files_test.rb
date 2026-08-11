@@ -5,24 +5,37 @@ require "test_helper"
 # entire suite green — config.i18n.fallbacks = true quietly absorbed a
 # missing key by rendering the English string instead, with nothing
 # checking that each locale actually still carries its own copy. This reads
-# the four files directly off disk (not through I18n's own lookup, which
-# would apply that same fallback and could pass vacuously against a broken
-# file) and compares their key sets and interpolation variables structurally.
+# the files directly off disk (not through I18n's own lookup, which would
+# apply that same fallback and could pass vacuously against a broken file)
+# and compares their key sets and interpolation variables structurally.
 #
-# It covers every guest-facing locale family, not just `guest.*`. The
-# `degraded.*` family matters at least as much: those strings are what a guest
-# sees when the model is unavailable, and a missing Arabic key there would
-# silently answer an Arabic-speaking guest in English at the exact moment the
-# product is already failing.
-class GuestLocaleFilesTest < ActiveSupport::TestCase
-  LOCALES = GuestLocaleHelper::SUPPORTED_LOCALES
-  FAMILIES = %w[guest degraded requests].freeze
+# Renamed from guest_locale_files_test.rb (Slice 5 Task 4): it stopped being
+# guest-only the moment `staff` joined the family list below. `staff` has
+# its own reason to matter here as much as the guest families do — a
+# missing Bosnian key in the staff workspace would quietly show a Bosnian
+# receptionist an English sentence, via the exact same fallback mechanism
+# that this test exists to catch on the guest side.
+#
+# FAMILY_LOCALES, not one shared LOCALES constant: the guest-facing families
+# (guest itself, degraded, requests) are translated into all four guest
+# languages, but the staff workspace only ever speaks Hotel::STAFF_LOCALES
+# (bs/en) — conflating the two lists would either demand Arabic and German
+# staff copy nobody asked for, or silently stop checking German and Arabic
+# guest copy. Keeping a locale set per family is what makes both mistakes
+# impossible rather than merely unlikely.
+class LocaleFilesTest < ActiveSupport::TestCase
+  FAMILY_LOCALES = {
+    "guest" => GuestLocaleHelper::SUPPORTED_LOCALES,
+    "degraded" => GuestLocaleHelper::SUPPORTED_LOCALES,
+    "requests" => GuestLocaleHelper::SUPPORTED_LOCALES,
+    "staff" => Hotel::STAFF_LOCALES
+  }.freeze
 
-  test "every guest locale file declares exactly the same set of translation keys" do
-    FAMILIES.each do |family|
-      key_sets = LOCALES.index_with { |locale| flattened_translations(family, locale).keys.to_set }
+  test "every locale file declares exactly the same set of translation keys as its own family" do
+    FAMILY_LOCALES.each do |family, locales|
+      key_sets = locales.index_with { |locale| flattened_translations(family, locale).keys.to_set }
 
-      reference_locale = LOCALES.first
+      reference_locale = locales.first
       reference_keys = key_sets.fetch(reference_locale)
 
       key_sets.each do |locale, keys|
@@ -39,13 +52,13 @@ class GuestLocaleFilesTest < ActiveSupport::TestCase
     end
   end
 
-  test "every guest locale file uses the same %{interpolation} variables for a given key" do
-    FAMILIES.each do |family|
-      translations_by_locale = LOCALES.index_with { |locale| flattened_translations(family, locale) }
+  test "every locale file uses the same %{interpolation} variables for a given key" do
+    FAMILY_LOCALES.each do |family, locales|
+      translations_by_locale = locales.index_with { |locale| flattened_translations(family, locale) }
       all_keys = translations_by_locale.values.flat_map(&:keys).uniq
 
       mismatches = all_keys.filter_map do |key|
-        variables_by_locale = LOCALES.index_with do |locale|
+        variables_by_locale = locales.index_with do |locale|
           interpolation_variables(translations_by_locale.dig(locale, key))
         end
 
@@ -59,9 +72,9 @@ class GuestLocaleFilesTest < ActiveSupport::TestCase
     end
   end
 
-  test "no guest locale file has a blank translation for a key another locale fills in" do
-    FAMILIES.each do |family|
-      translations_by_locale = LOCALES.index_with { |locale| flattened_translations(family, locale) }
+  test "no locale file has a blank translation for a key another locale in its family fills in" do
+    FAMILY_LOCALES.each do |family, locales|
+      translations_by_locale = locales.index_with { |locale| flattened_translations(family, locale) }
 
       blanks = translations_by_locale.flat_map do |locale, translations|
         translations.filter_map { |key, value| "#{locale}: #{key}" if value.blank? }
@@ -81,14 +94,21 @@ class GuestLocaleFilesTest < ActiveSupport::TestCase
   # the degradation notice when the assistant is unavailable, and the receipt
   # when a guest taps Confirm on a summary card. Neither can fall back to a
   # live translation, so the file on disk is the only thing standing between a
-  # guest and a message in the wrong language.
+  # guest and a message in the wrong language. Guest-facing only — the staff
+  # workspace has no equivalent "posted with no model in the loop and must
+  # never fall back" message; every staff string is either static chrome
+  # (which the tests above already cover) or copy already reused from the
+  # guest families (config/locales/guest.*.yml — see the staff translation
+  # overlay's fallback note, which does exactly that).
   UNTRANSLATABLE_AT_RUNTIME = %w[degraded.reception_will_reply requests.sent_to_reception].freeze
 
   test "every guest language has its own words for the messages nothing can translate later" do
-    UNTRANSLATABLE_AT_RUNTIME.each do |key|
-      rendered = LOCALES.index_with { |locale| I18n.t(key, locale: locale) }
+    locales = GuestLocaleHelper::SUPPORTED_LOCALES
 
-      assert_equal LOCALES.length, rendered.values.uniq.length,
+    UNTRANSLATABLE_AT_RUNTIME.each do |key|
+      rendered = locales.index_with { |locale| I18n.t(key, locale: locale) }
+
+      assert_equal locales.length, rendered.values.uniq.length,
         "two languages share #{key}, which means at least one is falling back to another: #{rendered.inspect}"
       rendered.each_value { |string| assert_no_match(/translation missing/i, string) }
     end

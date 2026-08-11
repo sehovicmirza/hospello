@@ -1,11 +1,9 @@
-<% content_for :title, "Knowledge gaps — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
 
 <div class="mb-6">
-  <h1 class="text-2xl font-semibold text-gray-900">Knowledge gaps</h1>
+  <h1 class="text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
   <p class="mt-1 max-w-2xl text-sm text-gray-600">
-    Questions guests asked that your knowledge base couldn’t answer. The assistant told them it
-    didn’t know and passed the question to reception rather than guessing — write the answer down
-    once here and it stops being a question.
+    <%= t(".description") %>
   </p>
 </div>
 
@@ -21,30 +19,30 @@
               normalised English the assistant recorded for grouping. %>
           <% if question.question_original.present? %>
             <p class="mt-1 text-sm text-gray-600" dir="auto">
-              Asked as: “<%= question.question_original %>”
+              <%= t(".asked_as_html", question: question.question_original) %>
             </p>
           <% end %>
 
           <p class="mt-1 text-xs text-gray-500">
             <%# Spelled out rather than left as a bare number: "3" next to a
                 question reads as an id as easily as a count. %>
-            Asked <%= pluralize(question.asked_count, "time") %>
+            <%= t(".asked_count", count: question.asked_count) %>
             <% if question.locale.present? %>
               · <%= question.locale.upcase %>
             <% end %>
-            · first asked <%= staff_time(question.created_at)&.strftime("%-d %b, %H:%M") %>
+            · <%= t(".first_asked", time: staff_time(question.created_at)&.strftime("%-d %b, %H:%M")) %>
           </p>
         </div>
 
         <div class="flex shrink-0 items-center gap-2">
           <% if policy(question).update? %>
-            <%= link_to "Answer & add to the knowledge base",
+            <%= link_to t(".answer_action"),
                   new_staff_kb_entry_path(unanswered_question_id: question.id),
                   id: "answer-#{question.id}",
                   class: "rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" %>
           <% end %>
           <% if policy(question).dismiss? %>
-            <%= button_to "Dismiss", dismiss_staff_unanswered_question_path(question), method: :patch,
+            <%= button_to t(".dismiss"), dismiss_staff_unanswered_question_path(question), method: :patch,
                   class: "cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100" %>
           <% end %>
         </div>
@@ -53,24 +51,24 @@
   </ul>
 <% else %>
   <div id="no-knowledge-gaps" class="rounded-lg border border-dashed border-gray-300 p-10 text-center">
-    <p class="text-gray-700">Nothing outstanding.</p>
+    <p class="text-gray-700"><%= t(".empty_heading") %></p>
     <p class="mx-auto mt-1 max-w-md text-sm text-gray-600">
-      When a guest asks something your knowledge base doesn’t cover, it will appear here.
+      <%= t(".empty_hint") %>
     </p>
   </div>
 <% end %>
 
 <% if @settled.any? %>
-  <h2 class="mt-10 mb-3 text-sm font-medium text-gray-600">Already dealt with</h2>
+  <h2 class="mt-10 mb-3 text-sm font-medium text-gray-600"><%= t(".settled_heading") %></h2>
   <ul id="settled-gaps" class="divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white">
     <% @settled.each do |question| %>
       <li id="<%= dom_id(question) %>" class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
         <span class="min-w-0 flex-1 text-gray-700"><%= question.question %></span>
         <span class="shrink-0 text-xs font-medium uppercase tracking-wide <%= question.status_answered? ? "text-green-700" : "text-gray-500" %>">
-          <%= question.status_answered? ? "Answered" : "Dismissed" %>
+          <%= question.status_answered? ? t(".answered") : t(".dismissed") %>
         </span>
         <% if question.kb_entry.present? && policy(question.kb_entry).update? %>
-          <%= link_to "See the entry", edit_staff_kb_entry_path(question.kb_entry),
+          <%= link_to t(".see_entry"), edit_staff_kb_entry_path(question.kb_entry),
                 class: "shrink-0 text-xs font-medium text-blue-600 hover:text-blue-500" %>
         <% end %>
       </li>

@@ -3,32 +3,43 @@ module StaffHelper
   # empty knowledge base. The hardest part of starting one is the blank
   # sheet, and a hotel that never gets past it has a concierge that can
   # only ever say "I don't know" — so this list is a product feature, not
-  # placeholder copy.
+  # placeholder copy. `category` is a KbEntry category key (a machine value,
+  # never shown); the visible/prefilled title comes from
+  # config/locales/staff.*.yml (staff.kb_entries.starters — see
+  # #kb_starter_title) so a Bosnian-speaking admin starts from a Bosnian
+  # title, not an English one.
   KB_STARTERS = [
-    { title: "Breakfast", category: "dining" },
-    { title: "Check-out", category: "policies" },
-    { title: "Wi-Fi", category: "facilities" },
-    { title: "Parking", category: "facilities" },
-    { title: "Spa", category: "facilities" },
-    { title: "Restaurant", category: "dining" },
-    { title: "Getting to the airport", category: "transport" }
+    { key: "breakfast", category: "dining" },
+    { key: "check_out", category: "policies" },
+    { key: "wifi", category: "facilities" },
+    { key: "parking", category: "facilities" },
+    { key: "spa", category: "facilities" },
+    { key: "restaurant", category: "dining" },
+    { key: "airport", category: "transport" }
   ].freeze
 
+  def kb_starter_title(starter)
+    t("staff.kb_entries.starters.#{starter[:key]}")
+  end
+
   # Category names as a hotel manager would say them, not as the enum
-  # spells them. Kept here rather than in a locale file because the whole
-  # staff workspace is still hardcoded English (see the plan's note on
-  # per-user staff locale, which is a later slice); when that arrives this
-  # is one of the places it lands.
+  # spells them.
   def kb_category_label(category)
-    {
-      "facilities" => "Facilities",
-      "dining" => "Food & drink",
-      "rooms" => "Rooms",
-      "policies" => "Policies",
-      "local_area" => "Local area",
-      "transport" => "Getting around",
-      "other" => "Other"
-    }.fetch(category.to_s, category.to_s.humanize)
+    t("staff.common.kb_categories.#{category}", default: category.to_s.humanize)
+  end
+
+  # A request category's detail field, named the way a receptionist would
+  # say it rather than as RequestCategory::ALLOWED_DETAIL_FIELDS spells it.
+  def staff_detail_field_label(field)
+    t("staff.common.detail_fields.#{field}", default: field.to_s.humanize)
+  end
+
+  # A user's role (User#role), read wherever it is shown — the picker on
+  # the new-staff form and the two read-only displays (the roster table,
+  # one person's own page) all say the same word for "staff" or "hotel
+  # admin" rather than each spelling the enum out itself.
+  def staff_role_label(role)
+    t("staff.common.roles.#{role}", default: role.to_s.humanize)
   end
 
   # Every timestamp rendered anywhere in the staff workspace goes through
@@ -63,7 +74,7 @@ module StaffHelper
   # HotelPolicy (platform-admin-only) since Pundit infers the policy class
   # from the record's own class name, not from what this screen needs.
   def staff_nav_items
-    items = [ { label: "Dashboard", path: staff_root_path } ]
+    items = [ { id: "dashboard", label: t("staff.nav.dashboard"), path: staff_root_path } ]
     # Inbox sits directly under Dashboard because it is the screen a
     # receptionist lives in, and it is the only nav item that carries a
     # count: noticing is half of what this product has to do for a busy
@@ -71,7 +82,7 @@ module StaffHelper
     # and never incremented client-side, so it cannot drift away from what
     # is really waiting (see the plan's realtime section).
     if policy(Conversation).index?
-      items << { label: "Inbox", path: staff_conversations_path, badge: staff_inbox_badge_count }
+      items << { id: "inbox", label: t("staff.nav.inbox"), path: staff_conversations_path, badge: staff_inbox_badge_count }
     end
     # Directly after Inbox: the knowledge base is the other thing a hotel
     # touches regularly once the concierge is live, and burying it is how a
@@ -81,22 +92,22 @@ module StaffHelper
     # than everything open — a number that never reaches zero is a number
     # nobody reads.
     if policy(ServiceRequest).index?
-      items << { label: "Requests", path: staff_service_requests_path, badge: staff_new_request_count }
+      items << { id: "requests", label: t("staff.nav.requests"), path: staff_service_requests_path, badge: staff_new_request_count }
     end
-    items << { label: "Knowledge base", path: staff_kb_entries_path } if policy(KbEntry).index?
+    items << { id: "kb", label: t("staff.nav.knowledge_base"), path: staff_kb_entries_path } if policy(KbEntry).index?
     # Immediately under the knowledge base, and badged, because this screen
     # only works if it is seen: the whole point is that a hotel discovers
     # what it never wrote down, and a hotel that never opens this discovers
     # nothing. Same server-computed rule as the inbox badge — nil rather
     # than 0, so the number always means something.
     if policy(UnansweredQuestion).index?
-      items << { label: "Knowledge gaps", path: staff_unanswered_questions_path, badge: staff_knowledge_gap_count }
+      items << { id: "knowledge-gaps", label: t("staff.nav.knowledge_gaps"), path: staff_unanswered_questions_path, badge: staff_knowledge_gap_count }
     end
-    items << { label: "Hotel settings", path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
-    items << { label: "Rooms", path: staff_rooms_path } if policy(Room).index?
-    items << { label: "Departments & categories", path: staff_departments_path } if policy(Department).index?
-    items << { label: "Staff", path: staff_users_path } if policy(User).index?
-    items << { label: "QR code", path: staff_qr_code_path } if QrCodePolicy.new(Current.user, Current.hotel).show?
+    items << { id: "hotel-settings", label: t("staff.nav.hotel_settings"), path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
+    items << { id: "rooms", label: t("staff.nav.rooms"), path: staff_rooms_path } if policy(Room).index?
+    items << { id: "departments", label: t("staff.nav.departments"), path: staff_departments_path } if policy(Department).index?
+    items << { id: "staff", label: t("staff.nav.staff"), path: staff_users_path } if policy(User).index?
+    items << { id: "qr-code", label: t("staff.nav.qr_code"), path: staff_qr_code_path } if QrCodePolicy.new(Current.user, Current.hotel).show?
 
     items
   end
@@ -109,9 +120,9 @@ module StaffHelper
   def staff_message_author(message)
     case message.sender_role
     when "guest" then message.conversation.guest_session.guest_name
-    when "staff" then message.sender_user&.name || "Reception"
-    when "assistant" then "Assistant"
-    else "System"
+    when "staff" then message.sender_user&.name || t("staff.common.message_authors.reception")
+    when "assistant" then t("staff.common.message_authors.assistant")
+    else t("staff.common.message_authors.system")
     end
   end
 
@@ -147,13 +158,11 @@ module StaffHelper
     return nil if hotel.nil?
 
     if !hotel.ai_enabled?
-      "The AI assistant is switched off for this hotel. Guests are being answered by staff only."
+      t("staff.common.ai_status.disabled")
     elsif Ai::CircuitBreaker.new(hotel).open?
-      "AI assistant paused — it is not reaching the provider. Guests are being answered manually, " \
-      "and it will resume on its own once the provider responds."
+      t("staff.common.ai_status.circuit_open")
     elsif AiRun.budget_exhausted_for?(hotel, fraction: 0.9)
-      "The AI assistant has reached today's usage limit. Guests are being answered manually until " \
-      "tomorrow; staff replies and translation are unaffected."
+      t("staff.common.ai_status.budget_exhausted")
     end
   end
 
@@ -172,10 +181,17 @@ module StaffHelper
   # because the board is a work queue, and the word a receptionist uses for
   # something nobody has picked up is "new".
   def staff_request_status_label(request)
-    {
-      "new" => "New", "accepted" => "Accepted", "in_progress" => "Under way",
-      "completed" => "Done", "declined" => "Declined", "cancelled" => "Cancelled"
-    }.fetch(request.status, request.status.humanize)
+    staff_status_label(request.status)
+  end
+
+  # Same reasoning as the request status above, for the conversation list's
+  # own two settled states ("resolved"/"expired" — the only two
+  # Conversation#status values ever shown as text, see
+  # conversations/_conversation_row.html.erb and conversations/show.html.erb).
+  # Not `.status.capitalize`: capitalizing an English enum value is still an
+  # English word.
+  def staff_conversation_status_label(conversation)
+    t("staff.common.conversation_status.#{conversation.status}", default: conversation.status.humanize)
   end
 
   def staff_request_status_classes(request)
@@ -189,6 +205,10 @@ module StaffHelper
 
   # How long it has been sitting there, in the words a receptionist would use
   # out loud rather than a timestamp they have to subtract from now.
+  # time_ago_in_words is I18n-aware on its own (rails-i18n ships the
+  # datetime.distance_in_words strings for :bs), so this needs no
+  # translation of its own — only the "Waiting %{time}" wrapper around it
+  # (staff.common.waiting) does.
   def staff_request_waiting_for(request)
     time_ago_in_words(request.created_at)
   end
@@ -198,8 +218,11 @@ module StaffHelper
   # learns to distrust the screen.
   def staff_request_transitions(request)
     labels = {
-      "accepted" => "Accept it", "in_progress" => "Someone is on it", "completed" => "Mark as done",
-      "declined" => "We can't do this", "cancelled" => "Cancel it"
+      "accepted" => t("staff.common.request_transitions.accepted"),
+      "in_progress" => t("staff.common.request_transitions.in_progress"),
+      "completed" => t("staff.common.request_transitions.completed"),
+      "declined" => t("staff.common.request_transitions.declined"),
+      "cancelled" => t("staff.common.request_transitions.cancelled")
     }
 
     ServiceRequest::TRANSITIONS.fetch(request.status, []).index_with { |to| labels.fetch(to) }
@@ -218,12 +241,15 @@ module StaffHelper
   end
 
   def staff_request_event_sentence(event)
-    who = event.user&.name || "Automatically"
+    who = event.user&.name || t("staff.common.request_event.automatically")
 
     if event.kind_status_change?
-      "#{who}: #{event.from_status_name&.humanize} → #{event.to_status_name&.humanize}"
+      t("staff.common.request_event.status_change",
+        who: who,
+        from: event.from_status_name && staff_status_label(event.from_status_name),
+        to: event.to_status_name && staff_status_label(event.to_status_name))
     else
-      "#{who} added a note"
+      t("staff.common.request_event.note_added", who: who)
     end
   end
 
@@ -239,9 +265,17 @@ module StaffHelper
   # reads like a promise this product does not yet make. Whoever builds
   # staff verification adds the branch then, along with the way in.
   def guest_identity_badge(_guest_session)
-    tag.span "UNVERIFIED",
+    tag.span t("staff.common.identity_badge.label"),
       class: "inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold " \
              "text-amber-800 ring-1 ring-inset ring-amber-600/30",
-      title: "The guest typed this name and room number themselves — nobody has checked them."
+      title: t("staff.common.identity_badge.tooltip")
+  end
+
+  # The one lookup behind both #staff_request_status_label (a request's own
+  # status) and #staff_request_event_sentence (the from/to of a status
+  # change in its history) — a receptionist should never see the same
+  # status worded two different ways depending on which screen they are on.
+  def staff_status_label(status)
+    t("staff.common.request_status.#{status}", default: status.to_s.humanize)
   end
 end

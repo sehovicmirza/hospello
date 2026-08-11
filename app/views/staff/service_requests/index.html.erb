@@ -1,4 +1,4 @@
-<% content_for :title, "Requests — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
 
 <%# Live the same way the inbox is: a status change broadcasts a refresh to
     [hotel, :requests] (ServiceRequest#broadcast_board), Turbo re-fetches this
@@ -16,16 +16,16 @@
         data: { inbox_resilience_target: "source" } %>
 
   <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-    <h1 class="text-2xl font-semibold text-gray-900">Requests</h1>
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
 
     <p id="requests-connection-notice" class="hidden rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800"
        role="status" data-inbox-resilience-target="offlineBanner">
-      Live updates are offline — this page is refreshing itself every minute instead.
+      <%= t(".offline_banner") %>
     </p>
   </div>
 
   <nav id="request-filters" class="mb-4 flex flex-wrap gap-2" aria-label="Filter requests">
-    <% { open: "Open", all: "All", settled: "Finished" }.each do |filter, label| %>
+    <% { open: t(".filters.open"), all: t(".filters.all"), settled: t(".filters.settled") }.each do |filter, label| %>
       <%# Each tab keeps the current search and category, so switching lens
           does not silently throw away what the receptionist typed. %>
       <%= link_to staff_service_requests_path(filter: filter, q: @query.presence, category_id: params[:category_id].presence),
@@ -43,15 +43,15 @@
 
   <%= form_with url: staff_service_requests_path, method: :get, id: "request-search", class: "mb-4 flex flex-wrap gap-2" do %>
     <%= hidden_field_tag :filter, @filter %>
-    <%= search_field_tag :q, @query, placeholder: "Search room, guest name or what they asked for",
+    <%= search_field_tag :q, @query, placeholder: t(".search_placeholder"),
           class: "w-full max-w-sm rounded-md border border-gray-400 px-3 py-2 text-sm shadow-sm focus:outline-blue-600" %>
     <%= select_tag :category_id,
           options_from_collection_for_select(@categories, :id, :name, params[:category_id]),
-          include_blank: "Every kind",
+          include_blank: t(".category_blank"),
           class: "rounded-md border border-gray-400 px-3 py-2 text-sm shadow-sm focus:outline-blue-600" %>
-    <%= submit_tag "Search", class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+    <%= submit_tag t(".search"), class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
     <% if @query.present? || params[:category_id].present? %>
-      <%= link_to "Clear", staff_service_requests_path(filter: @filter),
+      <%= link_to t(".clear"), staff_service_requests_path(filter: @filter),
             class: "rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100" %>
     <% end %>
   <% end %>
@@ -63,10 +63,10 @@
   <% else %>
     <div id="request-board-empty" class="rounded-lg border border-dashed border-gray-300 p-10 text-center">
       <p class="text-gray-700">
-        <%= @query.present? || params[:category_id].present? ? "Nothing matches that." : "Nothing waiting." %>
+        <%= @query.present? || params[:category_id].present? ? t(".no_match") : t(".nothing_waiting") %>
       </p>
       <p class="mx-auto mt-1 max-w-md text-sm text-gray-600">
-        Requests appear here the moment a guest confirms one in their chat.
+        <%= t(".empty_hint") %>
       </p>
     </div>
   <% end %>

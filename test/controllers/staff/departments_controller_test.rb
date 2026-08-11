@@ -22,7 +22,11 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
     get staff_root_path
 
     assert_response :success
-    assert_select "nav a[href=?]", staff_departments_path, text: "Departments & categories", count: 1
+    # stari_admin reads the staff workspace in Bosnian (see fixtures) —
+    # "Odjeljenja i kategorije" is config/locales/staff.bs.yml's
+    # staff.nav.departments, pasted literally rather than looked up so this
+    # test does not read the same source the view does.
+    assert_select "nav a[href=?]", staff_departments_path, text: "Odjeljenja i kategorije", count: 1
   end
 
   test "plain staff can view departments but sees no add-department form" do
@@ -67,7 +71,11 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
-    assert_select "li", text: "Name has already been taken"
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary ("je već zauzet" = "has already been
+    # taken"). The attribute name itself ("Name") is not translated —
+    # activerecord.attributes.* is out of this task's scope.
+    assert_select "li", text: "Name je već zauzet"
   end
 
   test "plain staff cannot add a department" do
@@ -104,7 +112,9 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
     patch staff_department_path(department), params: { department: { active: "" } }
 
     assert_response :unprocessable_content
-    assert_match "is not included in the list", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for "is not included in the list".
+    assert_match "nije uključeno u listu", response.body
     assert department.reload.active?
   end
 
@@ -142,7 +152,11 @@ class Staff::DepartmentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to staff_departments_path
     follow_redirect!
-    assert_match "Cannot delete", response.body
+    # stari_admin's locale is bs; rails-i18n supplies the Bosnian
+    # ActiveRecord error vocabulary for restrict_with_error's "Cannot
+    # delete record because dependent request categories exist" (the
+    # association name itself, "request categories", is not translated).
+    assert_match "Nije moguće izbrisati", response.body
     assert Department.unscoped.exists?(department.id)
   end
 

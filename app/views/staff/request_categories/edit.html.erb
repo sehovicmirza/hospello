@@ -1,9 +1,9 @@
-<% content_for :title, "Edit #{@category.name} — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", name: @category.name, hotel_name: Current.hotel.name) %>
 <% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
 
 <div class="mb-6 flex items-center justify-between">
-  <h1 class="text-2xl font-semibold text-gray-900">Edit <%= @category.name %></h1>
-  <%= link_to "Back to request categories", staff_request_categories_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
+  <h1 class="text-2xl font-semibold text-gray-900"><%= t(".heading", name: @category.name) %></h1>
+  <%= link_to t(".back"), staff_request_categories_path, class: "text-sm font-medium text-blue-600 hover:text-blue-500" %>
 </div>
 
 <div class="max-w-md">
@@ -19,23 +19,23 @@
 
   <%= form_with model: @category, url: staff_request_category_path(@category), method: :patch, class: "space-y-4" do |form| %>
     <div>
-      <%= form.label :name, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.label :name, t(".name_label"), class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :name, required: true, class: field_classes %>
     </div>
     <div>
-      <%= form.label :key, "Key (stable identifier, e.g. wake_up_call)", class: "block text-sm font-medium text-gray-700" %>
+      <%= form.label :key, t(".key_label"), class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :key, required: true, class: field_classes %>
     </div>
     <div>
-      <%= form.label :department_id, "Department", class: "block text-sm font-medium text-gray-700" %>
-      <%= form.collection_select :department_id, @department_options, :id, :name, { include_blank: "— none —" }, class: field_classes %>
+      <%= form.label :department_id, t(".department_label"), class: "block text-sm font-medium text-gray-700" %>
+      <%= form.collection_select :department_id, @department_options, :id, :name, { include_blank: t(".department_blank") }, class: field_classes %>
     </div>
     <div>
-      <%= form.label :icon, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.label :icon, t(".icon_label"), class: "block text-sm font-medium text-gray-700" %>
       <%= form.text_field :icon, class: field_classes %>
     </div>
     <div>
-      <%= form.label :position, "Display order", class: "block text-sm font-medium text-gray-700" %>
+      <%= form.label :position, t(".position_label"), class: "block text-sm font-medium text-gray-700" %>
       <%= form.number_field :position, class: field_classes %>
     </div>
 
@@ -43,9 +43,9 @@
 
     <div class="flex items-center gap-2">
       <%= form.check_box :active, class: "rounded border-gray-400" %>
-      <%= form.label :active, "Active", class: "text-sm text-gray-700" %>
+      <%= form.label :active, t(".active_label"), class: "text-sm text-gray-700" %>
     </div>
 
-    <%= form.submit "Save changes", class: "rounded-md bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+    <%= form.submit t("staff.common.actions.save_changes"), class: "rounded-md bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>
   <% end %>
 </div>

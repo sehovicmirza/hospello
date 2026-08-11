@@ -1,4 +1,4 @@
-<% content_for :title, "Inbox — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
 
 <%# Turbo 8 morphing page refresh is how this screen stays live: a new
     message broadcasts a refresh to [hotel, :inbox] (Conversation#broadcast_new_message),
@@ -17,11 +17,11 @@
         data: { inbox_resilience_target: "source" } %>
 
   <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-    <h1 class="text-2xl font-semibold text-gray-900">Inbox</h1>
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
 
     <p id="inbox-connection-notice" class="hidden rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-800"
        role="status" data-inbox-resilience-target="offlineBanner">
-      Live updates are offline — this page is refreshing itself every minute instead.
+      <%= t(".offline_banner") %>
     </p>
   </div>
 
@@ -34,7 +34,7 @@
             "aria-current": (filter == @filter ? "page" : nil),
             class: [ "rounded-full border px-3 py-1.5 text-sm font-medium",
                      filter == @filter ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-300 text-gray-600 hover:bg-gray-100" ] do %>
-        <%= { all: "All", needs_attention: "Needs attention", resolved: "Resolved" }.fetch(filter) %>
+        <%= t(".filters.#{filter}") %>
         <span class="ml-1 text-xs text-gray-500"><%= @counts.fetch(filter) %></span>
       <% end %>
     <% end %>
@@ -43,11 +43,11 @@
   <%= form_with url: staff_conversations_path, method: :get, id: "inbox-search",
         class: "mb-6 flex gap-2" do %>
     <%= hidden_field_tag :filter, @filter %>
-    <%= search_field_tag :q, @query, placeholder: "Search guest name or room number",
+    <%= search_field_tag :q, @query, placeholder: t(".search_placeholder"),
           class: "w-full max-w-sm rounded-md border border-gray-400 px-3 py-2 text-sm shadow-sm focus:outline-blue-600" %>
-    <%= submit_tag "Search", class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+    <%= submit_tag t(".search"), class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
     <% if @query.present? %>
-      <%= link_to "Clear", staff_conversations_path(filter: @filter),
+      <%= link_to t(".clear"), staff_conversations_path(filter: @filter),
             class: "rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100" %>
     <% end %>
   <% end %>
@@ -65,9 +65,9 @@
     <div id="inbox-empty" class="rounded-lg border border-dashed border-gray-300 p-12 text-center">
       <p class="text-gray-600">
         <% if @query.present? %>
-          No conversations match “<%= @query %>”.
+          <%= t(".no_match_html", query: @query) %>
         <% else %>
-          No conversations in this view yet. They appear here the moment a guest sends their first message.
+          <%= t(".empty") %>
         <% end %>
       </p>
     </div>

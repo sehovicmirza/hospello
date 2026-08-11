@@ -25,24 +25,23 @@
         is the record that owns the decision. %>
     <%= hidden_field_tag "kb_entry[unanswered_question_id]", unanswered_question.id, id: "kb-entry-gap-id" %>
     <div id="answering-gap" class="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-      <p class="font-medium">You are answering a question a guest actually asked.</p>
-      <p class="mt-1">Asked <%= pluralize(unanswered_question.asked_count, "time") %>:
-        “<%= unanswered_question.question %>”</p>
+      <p class="font-medium"><%= t(".answering_gap") %></p>
+      <p class="mt-1"><%= t(".asked_count_question_html", count: unanswered_question.asked_count, question: unanswered_question.question) %></p>
       <% if unanswered_question.question_original.present? %>
-        <p class="mt-1 text-blue-800" dir="auto">In the guest’s own words: “<%= unanswered_question.question_original %>”</p>
+        <p class="mt-1 text-blue-800" dir="auto"><%= t(".asked_original_html", question: unanswered_question.question_original) %></p>
       <% end %>
     </div>
   <% end %>
 
   <div>
-    <%= form.label :title, class: "block text-sm font-medium text-gray-700" %>
-    <p class="text-xs text-gray-500">What a guest would call it — “Breakfast”, “Parking”, “Late check-out”.</p>
+    <%= form.label :title, t(".title_label"), class: "block text-sm font-medium text-gray-700" %>
+    <p class="text-xs text-gray-500"><%= t(".title_hint") %></p>
     <%= form.text_field :title, required: true,
           class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
   </div>
 
   <div>
-    <%= form.label :category, class: "block text-sm font-medium text-gray-700" %>
+    <%= form.label :category, t(".category_label"), class: "block text-sm font-medium text-gray-700" %>
     <%= form.select :category,
           KbEntry.categories.keys.map { |category| [ kb_category_label(category), category ] },
           {},
@@ -50,28 +49,27 @@
   </div>
 
   <div data-controller="character-count">
-    <%= form.label :content, "What the assistant may tell guests", class: "block text-sm font-medium text-gray-700" %>
+    <%= form.label :content, t(".content_label"), class: "block text-sm font-medium text-gray-700" %>
     <p class="text-xs text-gray-500">
-      Plain sentences, exactly as you would say them at the desk. Include the specifics — times,
-      prices, floors — because the assistant will not invent any of them.
+      <%= t(".content_hint") %>
     </p>
     <%= form.text_area :content, rows: 8, required: true, maxlength: KbEntry::MAX_CONTENT_LENGTH,
           data: { character_count_target: "input", action: "input->character-count#update" },
           class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
     <p class="mt-1 text-xs text-gray-500">
       <span data-character-count-target="output"><%= entry.content.to_s.length %></span>
-      / <%= KbEntry::MAX_CONTENT_LENGTH %> characters
+      <%= t(".content_count_suffix", max: KbEntry::MAX_CONTENT_LENGTH) %>
     </p>
   </div>
 
   <div class="flex items-center gap-2">
     <%= form.check_box :published, class: "size-4 rounded border-gray-400" %>
-    <%= form.label :published, "Live for guests", class: "text-sm font-medium text-gray-700" %>
-    <span class="text-xs text-gray-500">Leave unticked to keep working on it privately.</span>
+    <%= form.label :published, t(".published_label"), class: "text-sm font-medium text-gray-700" %>
+    <span class="text-xs text-gray-500"><%= t(".published_hint") %></span>
   </div>
 
   <div class="flex items-center gap-3">
-    <%= form.submit "Save entry", class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
-    <%= link_to "Cancel", staff_kb_entries_path, class: "text-sm font-medium text-gray-600 hover:text-gray-900" %>
+    <%= form.submit t(".save"), class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+    <%= link_to t(".cancel"), staff_kb_entries_path, class: "text-sm font-medium text-gray-600 hover:text-gray-900" %>
   </div>
 <% end %>

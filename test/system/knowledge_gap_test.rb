@@ -16,22 +16,27 @@ class KnowledgeGapTest < ApplicationSystemTestCase
     end
     sign_in_as_hotel_admin
 
-    click_on "Knowledge gaps"
+    # stari_admin reads the staff workspace in Bosnian — see
+    # test/fixtures/users.yml — so every staff-chrome label below is the
+    # literal Bosnian text from config/locales/staff.bs.yml. Flash notices
+    # ("saved.", "answered for guests now") are set as literal English
+    # strings in the controller, out of this task's scope, and stay English.
+    click_on "Praznine u znanju"
     assert_text "Is there a swimming pool?"
     assert_text "Ima li bazen?"
 
-    click_on "Answer & add to the knowledge base"
+    click_on "Odgovori i dodaj u bazu znanja"
 
     # The form knows what it is answering, and arrives ready to go live —
     # a gap answered into a draft is a gap no guest can tell was closed.
     within("#answering-gap") { assert_text "Ima li bazen?" }
-    assert_equal "Is there a swimming pool?", find_field("Title").value
-    assert find_field("Live for guests").checked?
+    assert_equal "Is there a swimming pool?", find_field("Naslov").value
+    assert find_field("Vidljivo gostima").checked?
 
-    fill_in "Title", with: "Swimming pool"
-    fill_in "What the assistant may tell guests",
+    fill_in "Naslov", with: "Swimming pool"
+    fill_in "Šta asistent smije reći gostima",
             with: "We have no pool, but the Ilidža thermal baths are 20 minutes away by tram."
-    click_on "Save entry"
+    click_on "Sačuvaj stavku"
 
     assert_text "“Swimming pool” saved."
     assert_text "That question is answered for guests now."
@@ -52,7 +57,8 @@ class KnowledgeGapTest < ApplicationSystemTestCase
     visit staff_unanswered_questions_path
     assert_text "Do you sell cigarettes?"
 
-    accept_confirm_if_any { click_on "Dismiss" }
+    # staff.unanswered_questions.index.dismiss, config/locales/staff.bs.yml.
+    accept_confirm_if_any { click_on "Odbaci" }
 
     assert_text "Dismissed."
     within("#settled-gaps") { assert_text "Do you sell cigarettes?" }
@@ -90,6 +96,9 @@ class KnowledgeGapTest < ApplicationSystemTestCase
       fill_in "password", with: "password123"
       click_on "Sign in"
       # Assert on the destination, not the click (engineering rule 4).
-      assert_text "Signed in as #{users(:stari_admin).name}"
+      # stari_admin reads the staff workspace in Bosnian — see
+      # test/fixtures/users.yml — staff.layout.signed_in_as_html
+      # (config/locales/staff.bs.yml), pasted literally.
+      assert_text "Prijavljeni ste kao #{users(:stari_admin).name}"
     end
 end

@@ -21,7 +21,7 @@
           more slowly — the opposite of what a warning needs. %>
       <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-purple-800">
         <span aria-hidden="true">🔒</span>
-        Internal note — the guest cannot see this
+        <%= t(".internal_note_banner") %>
       </p>
       <p class="text-sm text-purple-950" dir="auto"><%= message.body %></p>
       <p class="mt-1 text-xs text-purple-700">
@@ -38,7 +38,7 @@
       <div class="rounded-lg px-3 py-2 text-sm <%= staff_message_bubble_classes(message) %>">
         <%= render "shared/translated_body", message: message, reader_locale: Current.hotel.staff_locale,
               translate: !message.staff?,
-              show_label: "See what the guest wrote", hide_label: "Hide the original" %>
+              show_label: t(".see_original"), hide_label: t(".hide_original") %>
       </div>
       <time datetime="<%= message.created_at.iso8601 %>" class="px-1 text-xs text-gray-400">
         <%= staff_time(message.created_at).strftime("%d %b %H:%M") %>

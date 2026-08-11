@@ -53,8 +53,12 @@ class TranslationRenderingTest < ActionDispatch::IntegrationTest
 
     get staff_conversation_path(@conversation)
 
+    # @staff (stari_staff) reads the staff workspace in Bosnian — see
+    # fixtures — so the fallback note is guest.messages.translation
+    # .untranslated_note's Bosnian text (config/locales/guest.bs.yml),
+    # shared by shared/_translated_body.html.erb on both surfaces.
     assert_select "*", text: /Wann gibt es Frühstück\?/
-    assert_select "*", text: /could not translate/i
+    assert_select "*", text: /nismo mogli prevesti/i
   end
 
   test "a translation still in flight says that instead" do
@@ -68,7 +72,10 @@ class TranslationRenderingTest < ActionDispatch::IntegrationTest
 
     get staff_conversation_path(@conversation)
 
-    assert_select "*", text: /Translating/i
+    # @staff reads in Bosnian — see fixtures. "Prevodim…" is
+    # guest.messages.translation.translating's Bosnian text
+    # (config/locales/guest.bs.yml), shared by both surfaces.
+    assert_select "*", text: /Prevodim/i
   end
 
   # Nothing to reveal, nothing to offer. A toggle on a message that was never

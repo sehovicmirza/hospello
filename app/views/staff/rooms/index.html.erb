@@ -1,7 +1,7 @@
-<% content_for :title, "Rooms — #{Current.hotel.name}" %>
+<% content_for :title, t(".title", hotel_name: Current.hotel.name) %>
 <% field_classes = "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
 
-<h1 class="mb-6 text-2xl font-semibold text-gray-900">Rooms</h1>
+<h1 class="mb-6 text-2xl font-semibold text-gray-900"><%= t(".heading") %></h1>
 
 <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
   <div class="lg:col-span-2">
@@ -10,9 +10,9 @@
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="bg-gray-50">
             <tr>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Room</th>
-              <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-              <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_room") %></th>
+              <th class="px-4 py-3 text-left font-medium text-gray-600"><%= t(".table_status") %></th>
+              <th class="px-4 py-3"><span class="sr-only"><%= t("staff.common.actions.actions_column") %></span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200">
@@ -21,22 +21,22 @@
                 <td class="px-4 py-3 font-medium text-gray-900"><%= room.number %></td>
                 <td class="px-4 py-3">
                   <% if room.active? %>
-                    <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+                    <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20"><%= t("staff.common.status.active") %></span>
                   <% else %>
-                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Inactive</span>
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10"><%= t("staff.common.status.inactive") %></span>
                   <% end %>
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex justify-end gap-3">
                     <% if policy(room).update? %>
-                      <%= link_to "Edit", edit_staff_room_path(room), class: "font-medium text-blue-600 hover:text-blue-500" %>
-                      <%= button_to (room.active? ? "Deactivate" : "Activate"), staff_room_path(room),
+                      <%= link_to t("staff.common.actions.edit"), edit_staff_room_path(room), class: "font-medium text-blue-600 hover:text-blue-500" %>
+                      <%= button_to (room.active? ? t("staff.common.actions.deactivate") : t("staff.common.actions.activate")), staff_room_path(room),
                             method: :patch, params: { room: { active: !room.active? } },
                             class: "font-medium text-amber-700 hover:text-amber-600 cursor-pointer" %>
                     <% end %>
                     <% if policy(room).destroy? %>
-                      <%= button_to "Delete", staff_room_path(room), method: :delete,
-                            form: { data: { turbo_confirm: "Delete room #{room.number}?" } },
+                      <%= button_to t("staff.common.actions.delete"), staff_room_path(room), method: :delete,
+                            form: { data: { turbo_confirm: t(".delete_confirm", number: room.number) } },
                             class: "font-medium text-red-600 hover:text-red-500 cursor-pointer" %>
                     <% end %>
                   </div>
@@ -48,7 +48,7 @@
       </div>
     <% else %>
       <div class="rounded-lg border border-dashed border-gray-300 p-12 text-center">
-        <p class="text-gray-600">No rooms yet — add one, or paste a list on the right.</p>
+        <p class="text-gray-600"><%= t(".empty") %></p>
       </div>
     <% end %>
   </div>
@@ -56,7 +56,7 @@
   <div class="lg:col-span-1 space-y-8">
     <% if policy(Room).create? %>
       <section class="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 class="text-sm font-medium text-gray-700">Add a room</h2>
+        <h2 class="text-sm font-medium text-gray-700"><%= t(".add_heading") %></h2>
 
         <% if @room&.errors&.any? %>
           <div class="mt-2 rounded-lg bg-red-50 p-3">
@@ -69,22 +69,20 @@
         <% end %>
 
         <%= form_with model: @room, url: staff_rooms_path, class: "mt-3 flex gap-2" do |form| %>
-          <%= form.text_field :number, placeholder: "e.g. 204 or PH1", class: field_classes %>
-          <%= form.submit "Add", class: "mt-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+          <%= form.text_field :number, placeholder: t(".add_placeholder"), class: field_classes %>
+          <%= form.submit t(".add_submit"), class: "mt-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
         <% end %>
       </section>
 
       <section class="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 class="text-sm font-medium text-gray-700">Bulk add</h2>
+        <h2 class="text-sm font-medium text-gray-700"><%= t(".bulk_heading") %></h2>
         <p class="mt-1 text-sm text-gray-500">
-          Comma- or newline-separated room numbers. Ranges like <code>101-110</code> expand
-          automatically (capped at <%= Room::MAX_BULK_RANGE %> rooms per range). Numbers already in
-          use are skipped, not duplicated.
+          <%= t(".bulk_hint_html", example: content_tag(:code, "101-110"), max: Room::MAX_BULK_RANGE) %>
         </p>
 
         <%= form_with url: bulk_create_staff_rooms_path, method: :post, class: "mt-3" do |form| %>
-          <%= form.text_area "bulk[numbers]", rows: 4, placeholder: "101-110, 201, 202, PH1", class: field_classes %>
-          <%= form.submit "Bulk add", class: "mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+          <%= form.text_area "bulk[numbers]", rows: 4, placeholder: t(".bulk_placeholder"), class: field_classes %>
+          <%= form.submit t(".bulk_submit"), class: "mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
         <% end %>
       </section>
     <% end %>
