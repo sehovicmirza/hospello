@@ -7,7 +7,32 @@ looks like a passing test and is a hole.
 
 ## Open
 
-*(Nothing open right now.)*
+### WATCH: a mass browser-launch failure in CI (seen once, 2026-08-11)
+
+CI run 31489460738 — a **docs-only commit** — failed with **38 errors out of 41 system tests**, every
+one of them inside `Selenium::WebDriver::Driver#create_session` with
+`NoMethodError: undefined method 'closed?' for nil`. That is Chrome failing to launch at all, not any
+test's logic. The very next run (31490526902, a real code change) was fully green, and local runs of
+the same commit passed, so the immediate cause is the runner, not this repository.
+
+**Recorded rather than dismissed, because there is a plausible contributor on our side.**
+`test/application_system_test_case.rb`'s `teardown` quits the driver after *every* test, so a full
+system run launches Chrome 41 separate times instead of once. On a contended GitHub runner that is
+41 chances to fail instead of one.
+
+That teardown was added in Slice 2 to stop a poisoned browser session leaking into whichever test ran
+next — and the root cause of that poisoning has **since been found and fixed properly** (Chrome's
+breached-password UI; see the entry below). So its original justification may no longer hold, and
+removing it would cut the failure surface by a factor of 41.
+
+**Do not just delete it.** The breached-password fix explains the *sign-in* poisoning; whether it
+also explains the `<select>`-popup input grab that `CloseNativeSelectPopup` handles is untested. If
+this recurs, the experiment is cheap and specific: remove the teardown, run the full system suite
+20 times locally and watch CI for a week. If a poisoned-session failure comes back, put it straight
+back — that is the mitigation earning its keep, and the answer is then to make the driver quit
+conditional rather than unconditional.
+
+One occurrence is not a pattern. Do not spend a session on this until it happens again.
 
 ---
 
