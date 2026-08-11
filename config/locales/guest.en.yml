@@ -13,6 +13,8 @@ en:
         optional: "optional"
         consent_label: "I agree to the privacy notice below."
         submit: "Start chat"
+        whatsapp_cta: "Chat on WhatsApp instead"
+        whatsapp_greeting: "Hello! I am staying at %{hotel_name}."
       privacy_notice:
         title: "Privacy notice"
         pending_review_marker: "DRAFT — pending legal review"

@@ -13,6 +13,8 @@ de:
         optional: "optional"
         consent_label: "Ich stimme dem untenstehenden Datenschutzhinweis zu."
         submit: "Chat starten"
+        whatsapp_cta: "Stattdessen über WhatsApp schreiben"
+        whatsapp_greeting: "Hallo! Ich wohne im %{hotel_name}."
       privacy_notice:
         title: "Datenschutzhinweis"
         pending_review_marker: "ENTWURF — rechtliche Prüfung ausstehend"

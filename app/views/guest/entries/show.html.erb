@@ -81,6 +81,21 @@
           class: "rounded-md px-4 py-2 font-medium" %>
   <% end %>
 
+  <%# The hotel's other front door, offered only when it really is one: a
+      channel that exists but is `pending` or `disabled` is a number nobody
+      is answering, and a button that leads there is worse than no button.
+      No token, no id and no session in the link — wa.me carries only the
+      number and a greeting, and the room binding happens in conversation
+      (Ai::Tools#set_guest_room). Anyone can read this URL off the page;
+      there is nothing in it to steal. %>
+  <% if @hotel.whatsapp_channel&.active? %>
+    <a id="whatsapp-cta" rel="noopener" target="_blank"
+       href="<%= guest_whatsapp_url(@hotel) %>"
+       class="rounded-md border border-gray-300 px-4 py-2 text-center font-medium text-gray-800 hover:bg-gray-50">
+      <%= t(".whatsapp_cta") %>
+    </a>
+  <% end %>
+
   <% if @hotel.powered_by_visible? %>
     <p id="powered-by-hospello" class="pb-4 text-center text-xs text-gray-400"><%= t("guest.powered_by_hospello") %></p>
   <% end %>

@@ -2,6 +2,30 @@
 # app/views/guest/messages) and by Conversation#broadcast_new_message,
 # which renders guest/messages/_message outside of any controller action.
 module GuestChatHelper
+  # The wa.me deep link the landing page's "Chat on WhatsApp" button points
+  # at — Meta's own click-to-chat form, which every WhatsApp client
+  # understands and which needs no app-specific scheme.
+  #
+  # Two things it deliberately does not carry: the leading `+` (wa.me wants
+  # digits only, and a `+` in the path silently produces a dead link), and
+  # anything identifying. There is no token, no session and no guest id in
+  # it — the room binding happens in conversation (Ai::Tools#set_guest_room),
+  # so this URL is safe to print, screenshot or share, which is exactly what
+  # people do with it.
+  #
+  # The greeting is prefilled so the guest's first message is one they chose
+  # to send: Meta's 24-hour customer service window only opens once *they*
+  # write, and a button that opens an empty chat leaves them staring at a
+  # blank composer wondering what to say.
+  def guest_whatsapp_url(hotel)
+    channel = hotel.whatsapp_channel
+    return nil if channel.nil?
+
+    greeting = t("guest.entries.show.whatsapp_greeting", hotel_name: hotel.name)
+
+    "https://wa.me/#{channel.phone_number_e164.to_s.delete('^0-9')}?text=#{CGI.escape(greeting)}"
+  end
+
   # Every timestamp on the guest surface renders in the *hotel's* timezone
   # (spec requirement) — mirrors StaffHelper#staff_time, just keyed off the
   # hotel passed in rather than Current.hotel: Conversation#post_guest_message!

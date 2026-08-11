@@ -179,4 +179,67 @@ class Guest::EntriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "form#new_guest_session"
   end
+
+  # --- The WhatsApp door (Slice 6 Task 4) --------------------------------------
+  #
+  # The hotel's other front door, offered on the same page as the QR chat.
+
+  test "a hotel with a live WhatsApp number offers it as a way in" do
+    get hotel_landing_path(hotels(:stari_grad).slug)
+
+    assert_response :success
+    # Digits only and no leading + — wa.me silently produces a dead link for
+    # a URL-encoded plus, which is the kind of break nobody notices until a
+    # guest reports it.
+    assert_select "#whatsapp-cta[href^=?]", "https://wa.me/38761100100?text="
+  end
+
+  # A channel that exists but is `pending` or `disabled` is a number nobody is
+  # answering. A button leading there is worse than no button: the guest sends
+  # a message into silence and concludes the hotel is ignoring them.
+  test "a number that is not live yet is not offered at all" do
+    assert with_tenant(hotels(:vrelo)) { whatsapp_channels(:vrelo_whatsapp).pending? },
+      "fixture drift: vrelo's channel is meant to be pending"
+
+    get hotel_landing_path(hotels(:vrelo).slug)
+
+    assert_response :success
+    assert_select "#whatsapp-cta", count: 0
+  end
+
+  test "a hotel with no WhatsApp channel at all renders the page normally" do
+    with_tenant(hotels(:vrelo)) { whatsapp_channels(:vrelo_whatsapp).destroy! }
+
+    get hotel_landing_path(hotels(:vrelo).slug)
+
+    assert_response :success
+    assert_select "#whatsapp-cta", count: 0
+    assert_select "form#new_guest_session"
+  end
+
+  # There is nothing in this link to steal, and that is deliberate: the room
+  # binding happens in conversation, not in a URL anyone can screenshot.
+  test "the link carries nothing identifying — no token, no session, no ids" do
+    get hotel_landing_path(hotels(:stari_grad).slug)
+
+    href = css_select("#whatsapp-cta").first.attr("href")
+
+    assert_no_match(/token|session|guest_id|hotel_id/i, href)
+    # Only the number and the greeting, and nothing else — asserted as the
+    # whole shape rather than as an absence, so a future parameter has to be
+    # added here deliberately instead of slipping in unnoticed.
+    assert_match %r{\Ahttps://wa\.me/\d+\?text=[^&]+\z}, href
+  end
+
+  # The greeting is prefilled because Meta's 24-hour window only opens once
+  # the *guest* writes — an empty composer is a guest wondering what to say.
+  test "the link prefills a greeting in the guest's own language" do
+    get hotel_landing_path(hotels(:stari_grad).slug), headers: { "Accept-Language" => "de" }
+
+    href = css_select("#whatsapp-cta").first.attr("href")
+    # The literal German from config/locales/guest.de.yml, pasted rather than
+    # looked up through I18n.t — deriving it from the file the view reads
+    # would pass however empty that key became (engineering rule 2).
+    assert_includes CGI.unescape(href), "Hallo! Ich wohne im #{hotels(:stari_grad).name}."
+  end
 end

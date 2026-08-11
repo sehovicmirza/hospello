@@ -15,9 +15,9 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-08-11 (Slice 6 Task 4 — outbound sending, and the channel settings screen) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1036 unit/integration green (930 + 106 new) · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1041 unit/integration green (930 + 111 new) · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 steps 1 and 3a of four |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 steps 1 and 3 of four |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -819,6 +819,22 @@ task. Now it is a hotel-admin one.
   from the name that it is the routing key and that a wrong value means guest messages reach nobody.
   Another hotel's value is refused by the global unique index and surfaces as a readable error.
 
+**Slice 6 Task 4 step 3, second half — the guest-facing door.** The landing page now offers
+"Chat on WhatsApp" next to the QR chat, in all four guest locales.
+
+- Rendered **only** for an `active` channel. A channel that exists but is `pending` or `disabled` is
+  a number nobody is answering, and a button leading there is worse than no button — the guest
+  writes into silence and concludes the hotel is ignoring them.
+- `GuestChatHelper#guest_whatsapp_url` builds Meta's own `wa.me` click-to-chat link. Two details
+  that would each break it quietly: the number is stripped to **digits only** (a `+` in a wa.me path
+  produces a dead link, and nothing would report it), and the greeting is **prefilled**, because
+  Meta's 24-hour window only opens once the *guest* writes — a button that opens an empty composer
+  leaves them wondering what to say.
+- **Nothing identifying is in the link** — no token, no session, no ids — which is what makes it
+  safe to print, screenshot and share, which is what people do with it. The room binding happens in
+  conversation (`Ai::Tools#set_guest_room`). A test pins the whole URL shape rather than only the
+  absence, so a future parameter has to be added deliberately.
+
 ---
 
 ## What to do next
@@ -850,12 +866,11 @@ task. Now it is a hotel-admin one.
      body). Meta must approve each one, and the registry is how a hotel knows whether its welcome
      message is usable yet. The brief is explicit that this slice must **not** build a bulk-send UI:
      an un-opted-in send risks the hotel's number, which is the hotel's asset and not ours.
-   - **Step 3 — half done.** The staff settings screen exists (see its write-up above). What is
-     left is the **guest-facing half**: the landing page's "Chat on WhatsApp" button —
-     `wa.me/<number>` with a prefilled greeting, rendered **only** when the hotel has an `active`
-     channel, and with no token in the link. That needs guest-facing copy in **all four** locales
-     (`bs/en/de/ar`, unlike the staff family's two) — `test/i18n/locale_files_test.rb` enforces the
-     difference, so add the key to every one of them or the suite goes red.
+   - **Step 3 — done**, both halves (staff settings screen and the guest-facing `wa.me` button).
+     See their write-ups above. Not built, and deliberately so: a **system test** for the settings
+     screen (the brief names `test/system/whatsapp_channel_settings_test.rb`). Everything it would
+     cover is covered by the controller test, and this suite's house rule is to drive only what
+     needs a browser — but if you add one, keep it short and single-purpose per engineering rule 5.
    - **Step 4 — `docs/whatsapp-onboarding.md`**, separating our steps from Meta's and the BSP's, and
      saying plainly which waits are outside anyone's control here.
    - **`render.yaml` still has none of the four WhatsApp env vars**, and this is now the sharp edge:

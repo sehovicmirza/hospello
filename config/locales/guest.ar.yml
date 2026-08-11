@@ -13,6 +13,8 @@ ar:
         optional: "اختياري"
         consent_label: "أوافق على إشعار الخصوصية أدناه."
         submit: "ابدأ المحادثة"
+        whatsapp_cta: "تواصل معنا عبر واتساب"
+        whatsapp_greeting: "مرحباً! أنا نزيل في %{hotel_name}."
       privacy_notice:
         title: "إشعار الخصوصية"
         pending_review_marker: "مسودة — قيد المراجعة القانونية"

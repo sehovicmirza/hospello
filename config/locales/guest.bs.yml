@@ -13,6 +13,8 @@ bs:
         optional: "opcionalno"
         consent_label: "Slažem se sa obavještenjem o privatnosti ispod."
         submit: "Započni razgovor"
+        whatsapp_cta: "Piši nam na WhatsApp"
+        whatsapp_greeting: "Dobar dan! Odsjeo/la sam u %{hotel_name}."
       privacy_notice:
         title: "Obavještenje o privatnosti"
         pending_review_marker: "NACRT — čeka pravnu reviziju"
