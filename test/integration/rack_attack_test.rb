@@ -183,4 +183,111 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_equal 429, response.status,
       "a forged X-Forwarded-For must not let an untrusted direct connection dodge its own throttle bucket"
   end
+
+  # Slice 6's webhook safelist (config/initializers/rack_attack.rb). Two
+  # layers: the class method's own body/rewind behavior in isolation below,
+  # then the full safelist wired into a real, currently-active throttle —
+  # today no throttle rule actually matches /webhooks/whatsapp (none of the
+  # four above look at that path), so a test that only proved "a verified
+  # request to /webhooks/whatsapp is never 429'd" would pass whether or not
+  # the safelist code exists at all. Registering a throttle that DOES match
+  # it, just for the duration of one test, is what makes this a real,
+  # breakable proof of the exemption rather than an accident of no rule
+  # colliding with it yet.
+  module WhatsappWebhookSafelistHelpers
+    APP_SECRET = "test-whatsapp-rack-attack-secret"
+
+    def with_whatsapp_app_secret(secret = APP_SECRET)
+      original = Rails.configuration.x.whatsapp.app_secret
+      Rails.configuration.x.whatsapp.app_secret = secret
+      yield
+    ensure
+      Rails.configuration.x.whatsapp.app_secret = original
+    end
+
+    def whatsapp_signature(body, secret: APP_SECRET)
+      "sha256=" + OpenSSL::HMAC.hexdigest("SHA256", secret, body)
+    end
+
+    # A real Rack::Attack::Request (the app's own subclass, not a bare
+    # Rack::Request) over a genuinely rewindable body — Rack::MockRequest's
+    # :input option wraps a String in exactly the kind of IO a real Rack
+    # server hands the app.
+    def whatsapp_rack_request(body, signature:)
+      env = Rack::MockRequest.env_for("/webhooks/whatsapp", method: "POST", input: body)
+      env["HTTP_X_HUB_SIGNATURE_256"] = signature if signature
+      Rack::Attack::Request.new(env)
+    end
+  end
+  include WhatsappWebhookSafelistHelpers
+
+  test "verified_whatsapp_signature? accepts a correctly signed body and leaves it rewound for the next reader" do
+    # +'...' (not a bare literal): this string is handed to
+    # Rack::MockRequest/Rack::Test, which wraps it in a StringIO and calls a
+    # mutating method on it — harmless on an ordinary String, but Ruby 3.4's
+    # "chilled string" transition warns the first time any literal receives
+    # one. Unary + makes it explicitly unfrozen up front.
+    body = +'{"object":"whatsapp_business_account","entry":[]}'
+
+    with_whatsapp_app_secret do
+      req = whatsapp_rack_request(body, signature: whatsapp_signature(body))
+
+      assert Rack::Attack.verified_whatsapp_signature?(req)
+      assert_equal body, req.body.read,
+        "the body must still be fully, byte-for-byte readable downstream — a missing rewind would silently empty every real webhook's body"
+    end
+  end
+
+  test "verified_whatsapp_signature? refuses a forged signature and still leaves the body rewound" do
+    body = +'{"object":"whatsapp_business_account","entry":[]}' # +'...': see the first test above
+
+    with_whatsapp_app_secret do
+      req = whatsapp_rack_request(body, signature: "sha256=" + ("0" * 64))
+
+      assert_not Rack::Attack.verified_whatsapp_signature?(req)
+      assert_equal body, req.body.read, "even a REFUSED request must leave the body rewound for the controller to read"
+    end
+  end
+
+  test "verified_whatsapp_signature? refuses a request with no signature header at all" do
+    body = +'{"object":"whatsapp_business_account","entry":[]}' # +'...': see the first test above
+
+    with_whatsapp_app_secret do
+      req = whatsapp_rack_request(body, signature: nil)
+
+      assert_not Rack::Attack.verified_whatsapp_signature?(req)
+    end
+  end
+
+  test "a verified WhatsApp webhook delivery is exempt from a throttle that would otherwise match it" do
+    Rack::Attack.throttle("test_whatsapp_throttle_for_this_test", limit: 2, period: 1.minute) do |req|
+      req.path == "/webhooks/whatsapp"
+    end
+
+    with_whatsapp_app_secret do
+      body = +'{"object":"whatsapp_business_account","entry":[]}' # +'...': see the first test above
+      good_headers = { "CONTENT_TYPE" => "application/json", "X-Hub-Signature-256" => whatsapp_signature(body) }
+      bad_headers  = { "CONTENT_TYPE" => "application/json", "X-Hub-Signature-256" => "sha256=" + ("0" * 64) }
+
+      # Exhaust the throttle's limit with unverified deliveries — each one
+      # is genuinely refused by the controller itself (401), which is a
+      # different thing from being throttled (429): this loop proves the
+      # throttle is real and active, not merely declared.
+      2.times do
+        post "/webhooks/whatsapp", params: body, headers: bad_headers
+        assert_response :unauthorized
+      end
+      post "/webhooks/whatsapp", params: body, headers: bad_headers
+      assert_equal 429, response.status, "an unverified delivery must still be throttled normally once the limit is exceeded"
+
+      # A verified delivery, arriving after that same limit was already
+      # exhausted by the unverified ones above, must sail through anyway —
+      # this is the property the safelist exists to guarantee.
+      post "/webhooks/whatsapp", params: body, headers: good_headers
+      assert_not_equal 429, response.status
+      assert_response :success
+    end
+  ensure
+    Rack::Attack.throttles.delete("test_whatsapp_throttle_for_this_test")
+  end
 end

@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 6 Task 1 complete — the WhatsApp channel, the port, and the Meta Cloud adapter) |
+| **Last updated** | 2026-08-11 (Slice 6 Task 2 complete — the webhook: signed, idempotent, fast) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 888 unit/integration green (852 + 36 new) · 41 system green · rubocop and brakeman clean |
+| **Tests** | 930 unit/integration green (888 + 42 new) · 41 system green (x2 clean runs) · rubocop and brakeman clean |
 | **CI** | Not yet run on this session's commits — instructed not to push, so nothing has reached GitHub Actions yet. Locally: `bin/rails test`, `bin/rails test:system`, `bundle exec rubocop`, `bundle exec brakeman --no-pager` all clean (see below). Confirm the Actions tab once these are pushed. |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Task 1 of 4 complete |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Task 2 of 4 complete |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -586,28 +586,105 @@ staff view are untouched — the seam is entirely new files plus one `has_one` o
 - 888 unit/integration (852 + 36 new: 13 model, 23 provider) + 41 system tests green, rubocop and
   brakeman clean.
 
+**Slice 6 Task 2 — the webhook: fast, idempotent, and impossible to forge.** Complete.
+`POST /webhooks/whatsapp` is now live and is the only unauthenticated, publicly reachable endpoint in
+this app that accepts a body — every guarantee below was proven by breaking the code and watching the
+specific test (and only that test) go red, not by inspection.
+
+- `Webhooks::WhatsappController` deliberately does **not** inherit `ApplicationController` — it
+  inherits `ActionController::Base` directly. `ApplicationController` bundles three things that make
+  no sense for a server-to-server callback: `Authentication`'s `before_action` (would redirect every
+  delivery to a sign-in page Meta can't follow), `Pundit` (nothing here is authorized against a user —
+  there is no user), and `allow_browser versions: :modern` (a "is this a recent Safari/Chrome/Firefox"
+  User-Agent gate with no defensible answer for a webhook, and not something this endpoint's
+  availability should depend on). CSRF protection is still on by default at the
+  `ActionController::Base` level regardless of ancestry, so it's skipped explicitly
+  (`skip_before_action :verify_authenticity_token`) — proven load-bearing by temporarily re-enabling
+  `ActionController::Base.allow_forgery_protection` (off app-wide in test) for one request and
+  watching it 422 without the skip.
+- **Forgery**: `Whatsapp::WebhookSignature.valid?` — HMAC-SHA256 over `request.raw_post` (never
+  `params`, which Rails has already parsed/reordered by the time a controller sees it — signing that
+  would verify something the sender never sent), compared with
+  `ActiveSupport::SecurityUtils.secure_compare`. One implementation, called from both the controller
+  (the real gate) and the rack-attack safelist (below) — proven called, not just present, by
+  monkey-patching `secure_compare` and asserting it actually ran. Deleting the verification call
+  entirely made 7 of 9 signature tests go red (the 2 that stayed green were the two *legitimate*-
+  signature tests, correctly — a stub `return true` still accepts those).
+- **Replay**: `webhook_events` — this app's **one** deliberately non-tenant-scoped table (say so
+  everywhere: model, migration, and `TenantDeclarationTest::EXEMPT`, or the next reader assumes it was
+  missed). `[provider, external_id]` has a real unique index; the controller writes through it with
+  `insert_all(..., unique_by:)` — `ON CONFLICT DO NOTHING` — proven database-level (not merely
+  Rails-level) by dropping the index directly against the test DB and watching exactly the DB-level
+  test fail while the validation-level test stayed green. A replay still resolves the row's id and
+  still enqueues a job even when its own insert lost the conflict (a plain indexed lookup on the
+  miss) — a deliberate choice beyond the brief's literal wording: if a process died between a first
+  delivery's insert and its enqueue, a Meta retry is the only thing that can recover it, so "replay is
+  harmless" has to mean *recoverable*, not merely deduplicated at the row level.
+- **Speed**: insert, enqueue `Whatsapp::ProcessInboundJob` on the **`critical`** queue, return 200 —
+  never inline processing, never behind the `ai` queue. `Whatsapp::ProcessInboundJob` itself is a
+  deliberate, documented no-op stub in *this* task (`TenantFree`, since no hotel is known yet) —
+  Slice 6 Task 3 gives it a real body; Task 2 only had to guarantee the class exists and is safe to
+  enqueue, since the controller's own step 2 requires enqueuing it now.
+- **Never raises on a malformed body**: a signature-verified-but-non-JSON payload (can't happen from
+  real Meta, defensive only) is caught, reported to Sentry, answered 200 — proven by deleting the
+  rescue and watching the exact `JSON::ParserError` propagate unhandled.
+- **The GET handshake** (`hub.mode`/`hub.verify_token`/`hub.challenge`) echoes the challenge only on a
+  matching token, compared with `secure_compare` too — not strictly required by the brief's own
+  constant-time language, but there's no reason to hold it to a lower standard than its neighbor for a
+  few characters. Two new secrets, neither the existing `WHATSAPP_ACCESS_TOKEN`: `WHATSAPP_APP_SECRET`
+  (the Meta *App* Secret, a different credential from a different dashboard page — signs the delivery)
+  and `WHATSAPP_WEBHOOK_VERIFY_TOKEN` (a value this app makes up for the one-time handshake). Both
+  **fail closed** when unset — refuse everything, never trust by default — documented in
+  `.env.example`, `README.md`, and `config/initializers/whatsapp.rb`.
+- **Rack::Attack**: the reserved, commented-out safelist is now real, gated on
+  `Rack::Attack.verified_whatsapp_signature?(req)` — a *class* method, not inlined in the block, since
+  Rack::Attack calls safelist blocks with `block.call(req)`, never `instance_exec`'d, so `self` inside
+  the block is whatever it was at the block's own definition site (the `Rack::Attack` class body
+  itself). That method reads the raw Rack body (`req.body.read`) and **must** `.rewind` it afterward —
+  plain `Rack::Request#body` returns the live, shared `rack.input` with none of
+  `ActionDispatch::Request#raw_post`'s own caching, so a missing rewind would silently hand the
+  controller an empty body for every real delivery this safelist inspects. Proven two ways: deleting
+  the rewind made the two body-content tests (which read `req.body` a second time, directly — not
+  through a full Rails request, which independently re-rewinds and would have hidden the bug) go red
+  with `""` where the real body belonged; deleting the safelist itself made a request that had already
+  exhausted a (test-only, temporarily-registered) matching throttle come back 429 instead of success —
+  necessary because *no throttle in this file actually matches `/webhooks/whatsapp` today*, so a test
+  against the real throttle set would have passed with or without the safelist.
+- 930 unit/integration (888 + 42 new: 9 model, 9 signature service, 3 job stub, 17 controller, 4
+  rack-attack) + 41 system tests green (run twice, both clean — no flake observed this session),
+  rubocop and brakeman clean. Brakeman's `SkipBeforeFilter` check, specifically relevant to this
+  task's CSRF skip, raised nothing; its only warning is the pre-existing, unrelated Rails-EOL notice.
+
 ---
 
 ## What to do next
 
 **Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
 
-1. **Slice 6 — WhatsApp. Task 1 done, Task 2 next.** `docs/plan/slice-6-tasks.md` has the full
-   four-task breakdown. Task 1 (this session) built the foundation: `WhatsappChannel` (globally
-   unique `phone_number_id`, enforced at both the validation and the database level),
-   `Whatsapp::Provider`/`Whatsapp::MetaCloudProvider` (tested against WebMock — the exact URL,
-   header and JSON body, never a mock of the provider itself), the typed errors
-   (`AuthenticationError`/`RateLimitedError`/`ApiError`/`WindowClosedError`), and the 24-hour
-   customer-service-window guard, boundary-tested with `travel_to(..., with_usec: true)` — see that
-   task's write-up above for why the `with_usec:` matters, it is not decoration. Task 2 is the
-   webhook; read `docs/plan/slice-6-tasks.md`'s "Traps worth knowing" section before starting it —
-   the signature must be computed over `request.raw_post` (by the time you see `params`, Rails has
-   parsed and reordered the JSON, so signing that verifies something the sender never sent), and
-   `phone_number_id` (not the phone number) is the routing key `WhatsappChannel` already makes
-   globally unique, ready for the webhook to key off. `render.yaml` still needs
-   `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_API_VERSION` added whenever a task makes an outbound send live
-   (see Task 1's write-up above). Meta's free test number still covers all of it — no BSP business
-   decision needed yet.
+1. **Slice 6 — WhatsApp. Tasks 1–2 done, Task 3 next.** `docs/plan/slice-6-tasks.md` has the full
+   four-task breakdown. Task 1 built the foundation: `WhatsappChannel` (globally unique
+   `phone_number_id`, enforced at both the validation and the database level),
+   `Whatsapp::Provider`/`Whatsapp::MetaCloudProvider`, the typed errors, and the 24-hour
+   customer-service-window guard. Task 2 built the webhook: `POST /webhooks/whatsapp` verifies
+   Meta's `X-Hub-Signature-256` over `request.raw_post` (never `params`) with
+   `Whatsapp::WebhookSignature`, stores a durable, deliberately non-tenant-scoped `WebhookEvent` via
+   `insert_all(..., unique_by:)` (`ON CONFLICT DO NOTHING` — a replay creates zero new rows but still
+   enqueues a job for the existing one), and enqueues the still-stub `Whatsapp::ProcessInboundJob` on
+   the `critical` queue. Rack::Attack now safelists a request only once its signature has verified
+   (`Rack::Attack.verified_whatsapp_signature?`). See Task 2's write-up above for the full
+   break/red/restore evidence, and its own report at
+   `.superpowers/sdd/slice-6-tasks/task-2-report.md` for more detail than fits here.
+   **Task 3 is inbound processing** — `Whatsapp::InboundRouter`: payload's
+   `metadata.phone_number_id` → `WhatsappChannel` → hotel (an unknown id is `ignored` and reported,
+   never raised — Meta retries a non-200 forever), find-or-create the guest by phone (the same
+   `rescue RecordNotUnique` → re-find shape `Conversation.live_for` already uses), the
+   `set_guest_room` tool for a roomless WhatsApp session, and status-callback handling into
+   `messages.delivery_status`. It will need to give `Whatsapp::ProcessInboundJob#perform` its real
+   body — that method is currently an intentional no-op (see Task 2's write-up). `render.yaml` still
+   needs `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_API_VERSION`/`WHATSAPP_APP_SECRET`/
+   `WHATSAPP_WEBHOOK_VERIFY_TOKEN` added whenever a task makes the webhook or an outbound send live in
+   production (still nothing reads them there today). Meta's free test number still covers all of
+   it — no BSP business decision needed yet.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the
@@ -685,6 +762,12 @@ far, so the seam is verified against WebMock only.
   prevent. Use `FakeClaude` above the seam and WebMock at it.
 - **`.superpowers/` is gitignored** — it is agent scratch. Everything a new session actually needs is
   in `docs/plan/` and this file. If you produce something durable, put it in `docs/`, not there.
+- **Posting a raw String body through `ActionDispatch::IntegrationTest` (`post path, params: raw_json_string, headers: {...}`)** — needed for `Webhooks::WhatsappController`'s tests, and Slice 6
+  Tasks 3–4 will likely write more of them — prints `rack/mock_request.rb:148: warning: literal
+  string will be frozen in the future` on a bare literal. Harmless (Ruby 3.4's "chilled string"
+  transition; Rack::MockRequest mutates the string internally), not a bug in this app, but noisy in
+  CI logs. Fix: `+"..."` on the literal, not a `# frozen_string_literal` pragma fight — see
+  `test/controllers/webhooks/whatsapp_controller_test.rb` for the pattern.
 - **Never commit `config/master.key`.** It was accidentally committed once early on and had to be
   purged from history before the first push. The ignore rule is in place; don't defeat it.
 

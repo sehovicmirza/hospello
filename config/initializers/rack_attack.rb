@@ -74,13 +74,43 @@ class Rack::Attack
     req.path == "/up"
   end
 
-  # Reserved: Slice 6 adds POST /webhooks/whatsapp. A throttled webhook
-  # delivery reads to Meta as a failure and makes it back off — which
-  # silently drops guest messages arriving over WhatsApp, the opposite of
-  # what this file is for. When that endpoint exists, safelist requests that
-  # already carry a *verified* WhatsApp signature (never an unauthenticated
-  # safelist — that would just move the abuse surface instead of closing
-  # it):
+  # Slice 6's POST /webhooks/whatsapp. A throttled webhook delivery reads to
+  # Meta as a failure and makes it back off — which silently drops guest
+  # messages arriving over WhatsApp, the opposite of what this file is for.
+  # Meta's own Cloud API also delivers from a small, rotating pool of server
+  # IPs shared across every app it serves worldwide, so an IP-keyed throttle
+  # is an especially bad fit here even by this file's own standards: one
+  # "IP" can represent thousands of unrelated senders' traffic at once.
   #
-  #   safelist("whatsapp_webhook") { |req| req.path == "/webhooks/whatsapp" && verified_whatsapp_signature?(req) }
+  # Exempted only for requests whose signature has ALREADY verified — never
+  # an unauthenticated safelist, which would just move the abuse surface
+  # (a forged request would sail through every throttle too) rather than
+  # close it. verified_whatsapp_signature? is a class method, not inlined in
+  # the block below, because of *how* Rack::Attack calls this block: it is
+  # invoked as a plain block.call(req), never instance_exec'd against req,
+  # so `self` inside it is whatever `self` already was where the block
+  # literal was written — here, that's the Rack::Attack class itself (this
+  # block is defined directly inside `class Rack::Attack ... end`), which is
+  # exactly why an unqualified call below has to be something *this class*
+  # responds to.
+  def self.verified_whatsapp_signature?(req)
+    # Rack, not Rails, at this layer: Rack::Attack's middleware runs ahead
+    # of ActionDispatch::Request's own raw_post caching (see
+    # Whatsapp::WebhookSignature's docs on why the signature covers
+    # request.raw_post specifically), and plain Rack::Request#body returns
+    # the live, shared env["rack.input"] object with no caching of its own —
+    # unlike ActionDispatch::Request#body, calling #read here really does
+    # consume it. Left unrewound, every real delivery this safelist inspects
+    # would reach the controller with an empty body. See
+    # test/integration/rack_attack_test.rb, which proves the rewind
+    # directly rather than trusting a comment.
+    body = req.body.read
+    req.body.rewind
+
+    Whatsapp::WebhookSignature.valid?(raw_body: body, signature_header: req.get_header("HTTP_X_HUB_SIGNATURE_256"))
+  end
+
+  safelist("whatsapp_webhook") do |req|
+    req.path == "/webhooks/whatsapp" && req.post? && verified_whatsapp_signature?(req)
+  end
 end
