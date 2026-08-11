@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 5 complete — the staff workspace in Bosnian, the request-summary overlay, and the way in: setting a staff member's own language) |
+| **Last updated** | 2026-08-11 (Slice 5 complete, Bosnian pluralisation corrected, Slice 6 breakdown written) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 850 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI for the newest commit (see below) |
 | **CI** | ⚠️ Unconfirmed for the newest commit. This session made three commits and pushed none of them itself (instructed not to) — but `origin/main` was found already at the second commit (`ddc7d45`) partway through the session, apparently pushed by another actor with access to this repo, not by this session. The third commit (`722364e`) is genuinely local-only. Check the Actions tab before trusting any of this is CI-green. |
-| **Progress** | **Slices 1–5 complete** |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) specified and ready to start |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -493,15 +493,17 @@ in tests, break-and-restore evidence, full suite before committing).
     same sentence. Verified load-bearing by reverting to the old string-surgery version and watching
     both the original test and a new complementary one (created: 1/skipped: 2, the inverse count
     combination) go red.
-  - **Note on Bosnian pluralization's own limit, stated rather than hidden:** I18n's default backend
-    (no custom rule registered for `:bs`) only distinguishes `one` from `other`, the same English-shaped
-    split every other `count:` key in this file already uses (Piece 1's "Asked N times", also
-    unchanged here). Bosnian actually has three plural forms (1 / 2–4 / 5+); `other` here is the 5+
-    form, so a count of 2–4 reads slightly less naturally than a full CLDR pluralization rule would
-    produce. This never affects *correctness* — the number itself is always right — only how natural
-    2–4 sounds. Registering a real three-form Bosnian pluralization rule for `I18n::Backend::Pluralization`
-    would fix this properly across every `count:` key in the app at once; flagged here rather than
-    solved as a proportionate, separate piece of work, not bundled into a review fix-round.
+  - **Bosnian pluralization: since fixed properly** (commit `bafbe63`). This bullet used to record
+    a two-form `one`/`other` approximation as a deliberate limit. It was not a limit worth keeping —
+    Bosnian's middle form covers counts of 2–4, which is the range a receptionist actually hits, so
+    "2 soba dodano" was simply wrong where the language wants "2 sobe dodane". The correct rule
+    already shipped with `rails-i18n` and was sitting inert; `config/initializers/pluralization.rb`
+    includes `I18n::Backend::Pluralization` so the backend can consult it. Two measurements changed
+    the plan on the way: Bosnian's effective CLDR rule asks for `one/few/other`, **not** the
+    `one/few/many/other` of the East Slavic file (a `many` key is never read), and a key missing
+    `few` does **not** raise at count 2 — I18n silently falls back to `other`. That silence is why
+    `test/i18n/locale_files_test.rb` now checks every pluralised key against its own locale's
+    declared forms.
   - **Still deliberately English, and said so in the code** (`Staff::RoomsController#bulk_create`'s
     `Room::BulkRangeTooLarge` rescue, `Staff::ServiceRequestsController#transition`'s
     `ServiceRequest::InvalidTransition` rescue): both relay a raw Ruby exception message from a model,
@@ -524,13 +526,17 @@ in tests, break-and-restore evidence, full suite before committing).
 
 **Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
 
-1. **Push the third commit (`722364e`) and confirm CI is green for all three.** All three were
-   verified locally (unit/integration, system, rubocop, brakeman all clean). This session pushed none
-   of them itself, but `origin/main` was already at the second commit partway through — see the CI
-   row above. Check the Actions tab; do not assume green from a local run.
+1. **Slice 6 — WhatsApp.** The task breakdown is now written: `docs/plan/slice-6-tasks.md`, four
+   tasks. Nothing in it needs the BSP business decision resolved first — Meta's free test number
+   gives you the whole slice (five test recipients, no verification). Read that file's "Traps worth
+   knowing" section before starting; the two that matter most are that the webhook signature must be
+   computed over `request.raw_post` (by the time you see `params`, Rails has parsed and reordered the
+   JSON, so signing that verifies something the sender never sent), and that `phone_number_id` — not
+   the phone number — is the routing key and must be globally unique.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
-3. Slices 6–7 (WhatsApp, analytics/hardening) — specified in the plan, task breakdowns not yet written.
+3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the
+   plan, task breakdown not yet written.
 4. **Small, deliberate gaps left by Slice 5 Task 4**, worth a decision before a pilot rather than
    fixing on a hunch: ActiveRecord attribute names inside composed validation errors are still
    hardcoded English (rails-i18n translates the error text itself, not the field name — a Bosnian
@@ -538,10 +544,8 @@ in tests, break-and-restore evidence, full suite before committing).
    (`Staff::RoomsController#bulk_create`'s absurd-bulk-paste guard,
    `Staff::ServiceRequestsController#transition`'s two-tabs-racing-a-status-change guard) are still
    raw English `e.message` — both are defensive edge cases rather than routine confirmations. See
-   Task 4's Piece 3 section above for the full reasoning. If a pilot ever shows Bosnian pluralization's
-   two-form (`one`/`other`) approximation reading awkwardly for counts of 2–4, that's the other one —
-   also flagged there, with the actual fix (a registered three-form `I18n::Backend::Pluralization`
-   rule for `:bs`).
+   Task 4's Piece 3 section above for the full reasoning. (The Bosnian pluralization gap that used to
+   be listed here is fixed — see `bafbe63`.)
 
 Still open, and now a real product question rather than a hypothetical one: the takeover notice
 `pause_ai!` records is an **internal** note, so a guest whose conversation moves from the assistant
