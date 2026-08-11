@@ -41,6 +41,11 @@ It must always answer, for someone with zero context:
   codebase has had 20+ tests that passed against broken code; see the engineering rules.
 - **Commit in logical chunks and push.** The human may close their laptop at any time; unpushed
   work is lost work. Do not batch a whole slice into one commit.
+- **If you are a subagent told not to push, expect your commits to reach `origin` anyway.** A
+  coordinating session verifies each task and pushes it, often within a minute of your last commit.
+  Three separate agents have now reported this as a possible unauthorized actor with repo access,
+  after finding an "update by push" in `git reflog` they could not account for. It is expected and
+  benign. Report what you committed; do not treat the remote moving as a security incident.
 - **Never commit secrets.** No `config/master.key`, no `.env`, no API keys, no credentials in
   fixtures or seeds. `config/credentials.yml.enc` is fine; its key is not.
 - **Never require a hidden manual step to deploy.** If a change needs a new environment variable,
