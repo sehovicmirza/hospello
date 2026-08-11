@@ -104,6 +104,8 @@ development. **Never commit real values for any of these.**
 | `AI_MODEL` | No | Concierge model id; defaults to `claude-opus-5` |
 | `TRANSLATION_MODEL` | No | Translation model id; defaults to `claude-haiku-4-5`. Deliberately separate from `AI_MODEL` — translation is the guest-to-receptionist lifeline and must survive the concierge being switched off |
 | `LIVE_AI` | Never in production or CI | Set to `1` locally to run `test/services/ai/live_smoke_test.rb`, which makes one real API call |
+| `WHATSAPP_ACCESS_TOKEN` | Only once a hotel is connected (Slice 6) | Meta Cloud API system-user token — one for the whole app, not per hotel. Without it the app still boots and runs fully; `Whatsapp::MetaCloudProvider` raises a clear `Whatsapp::ApiError` if something asks it to send |
+| `WHATSAPP_API_VERSION` | No | Meta Graph API version; defaults to `v22.0` |
 | `SENTRY_DSN` | Recommended | Error tracking; every `Sentry.*` call is a no-op when unset |
 | `HEARTBEAT_URL` | Recommended | An external uptime monitor's ping URL — see `docs/runbook.md` |
 | `CI` | Set automatically by GitHub Actions | Forces eager loading in the test environment to catch autoload bugs |

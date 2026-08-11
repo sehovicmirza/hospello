@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 5 complete, Bosnian pluralisation corrected, Slice 6 breakdown written) |
+| **Last updated** | 2026-08-11 (Slice 6 Task 1 complete — the WhatsApp channel, the port, and the Meta Cloud adapter) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 850 unit/integration green · 41 system green · rubocop and brakeman clean · not yet re-run on CI for the newest commit (see below) |
-| **CI** | ⚠️ Unconfirmed for the newest commit. This session made three commits and pushed none of them itself (instructed not to) — but `origin/main` was found already at the second commit (`ddc7d45`) partway through the session, apparently pushed by another actor with access to this repo, not by this session. The third commit (`722364e`) is genuinely local-only. Check the Actions tab before trusting any of this is CI-green. |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) specified and ready to start |
+| **Tests** | 888 unit/integration green (852 + 36 new) · 41 system green · rubocop and brakeman clean |
+| **CI** | Not yet run on this session's commits — instructed not to push, so nothing has reached GitHub Actions yet. Locally: `bin/rails test`, `bin/rails test:system`, `bundle exec rubocop`, `bundle exec brakeman --no-pager` all clean (see below). Confirm the Actions tab once these are pushed. |
+| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Task 1 of 4 complete |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -520,19 +520,94 @@ in tests, break-and-restore evidence, full suite before committing).
   house rule, not silently reran-until-green.
 - 850 unit/integration + 41 system tests green, rubocop and brakeman clean.
 
+**Slice 6 Task 1 — the channel, the port, and one provider behind it.** Complete. The foundation the
+rest of the slice stands on. Nothing downstream changed: `Ai::Concierge`, `Conversation` and every
+staff view are untouched — the seam is entirely new files plus one `has_one` on `Hotel`.
+
+- `WhatsappChannel` — `has_one` on `Hotel`, `TenantScoped` like every other hotel-owned resource (not
+  a judgement call: `test/tenancy/tenant_declaration_test.rb` auto-scans every `ApplicationRecord`
+  with a `hotel_id` column and fails the suite if it isn't). `phone_number_id` — Meta's own routing
+  id, not the displayed number — is **globally** unique, not merely unique per hotel: a plain
+  (non-partial) index at the database level, proven by a test that switches Rails validation off
+  entirely (`collider.save!(validate: false)`) so only Postgres is left standing between two hotels
+  sharing an id. `phone_number_e164` and `hotel_id` (one channel per hotel) get the same two-layer
+  treatment (validation + index), each verified by dropping the index / removing the validation and
+  watching the specific test go red. `phonelib` (declared in the Gemfile ahead of this slice,
+  genuinely unused anywhere until now) validates the number is real, not a hand-rolled regex.
+- `Whatsapp::Provider` — the port — plus `Whatsapp::MetaCloudProvider`, the one adapter this slice
+  ships. `.for(channel)` dispatches on `channel.provider`; `three_sixty_dialog`/`twilio` raise a
+  clear `ArgumentError` rather than silently guessing, since only Meta Cloud is actually implemented.
+  `#send_text`/`#send_template` build Meta Cloud API's documented JSON shape over `Net::HTTP` (stdlib
+  — no new gem needed for one POST endpoint); every test asserts the exact URL, the
+  `Authorization: Bearer` header and the exact JSON body against WebMock, never a mock of the
+  provider standing in for itself (rule 1 — verified load-bearing by injecting an extra undocumented
+  key into the request body and watching the shape assertion catch it).
+- **The 24-hour customer service window lives in the provider, not the caller**: `#send_text` raises
+  `Whatsapp::WindowClosedError` when `Time.current > conversation.last_guest_message_at + 24.hours`.
+  `conversation:` is duck-typed on `#last_guest_message_at` alone, so the boundary tests need no
+  Hotel/GuestSession/Conversation graph at all — a plain `Struct` is the real collaborator, not a
+  stand-in for one, and the whole file needs no `ActsAsTenant.with_tenant` anywhere. `#send_template`
+  is deliberately exempt — a pre-approved template is exactly Meta's own escape hatch from the
+  window. **A real bug caught along the way**: the first version of the "exact boundary moment" test
+  passed under both the correct `>` and a deliberately-reintroduced wrong `>=`, because Rails'
+  `travel_to` defaults to `with_usec: false` and silently truncates to whole seconds — up to ~999ms
+  of slack that hid the very off-by-one the test existed to catch. Fixed with `with_usec: true`;
+  re-verified load-bearing by reintroducing the `>=` bug afterward and watching the corrected test
+  (and only that test) go red.
+- Typed errors mirror `Ai::`'s own hierarchy exactly: `Whatsapp::Error` (base), `AuthenticationError`
+  (401 — someone must fix the configured token), `RateLimitedError` (429, carries Meta's own
+  `retry-after` when it sends one), `ApiError` (everything else, carries `status`),
+  `WindowClosedError`. Each mapping verified by temporarily collapsing it into the generic case and
+  watching the specific test (and only that test) go red.
+- `Whatsapp::InboundMessage` / `Whatsapp::DeliveryStatus` — the normalized structs Slice 6 Task 3's
+  inbound router will populate from a real webhook payload. Deliberately inert in this task (no
+  parser yet, by design — Task 1's own checklist never asks for one): nothing here constructs one
+  yet, so a dedicated test would only exercise `attr_reader`.
+- `config/initializers/whatsapp.rb` mirrors `config/initializers/ai.rb` exactly: one
+  `WHATSAPP_ACCESS_TOKEN` for the whole app, not per hotel (Hospello is the Meta Tech Provider, and
+  this system-user token can send on behalf of every hotel's `phone_number_id` it has been granted —
+  see `docs/whatsapp-onboarding.md`; `whatsapp_channels` has no `access_token` column of its own for
+  exactly that reason), plus `WHATSAPP_API_VERSION` (default `v22.0`). Both documented in
+  `.env.example` and `README.md`'s env var table. Neither is required for the app to boot or for any
+  hotel's QR web chat to keep working.
+- **Deliberately not wired into `render.yaml` yet**: nothing reads these in production today — no
+  webhook (Task 2), no send call (Task 4), no UI to create a `WhatsappChannel` row (Task 4) — so
+  there is nothing yet for a missing secret to break. Add `WHATSAPP_ACCESS_TOKEN` /
+  `WHATSAPP_API_VERSION` to `render.yaml` whenever a task actually makes an outbound send live, most
+  likely Task 4.
+- A transient `bin/rails test:system` run mid-session errored on 38 of 41 tests at once, with a
+  signature (screenshot-capture itself failing inside `ActionDispatch::SystemTesting`) consistent
+  with the Chrome/chromedriver resource-contention flake this file's Slice 5 Task 4 section above
+  already documents (~111 open Chrome-related processes measured then; 116 measured this session).
+  Diagnosed rather than assumed: nothing changed between that run and the clean ones immediately
+  before and after it touched any system-tested surface at all (WhatsApp has no UI yet), and two
+  immediate re-runs both passed 41/41 with no changes made. Recorded per the same "diagnose, don't
+  guess" house rule, not silently reran-until-green.
+- 888 unit/integration (852 + 36 new: 13 model, 23 provider) + 41 system tests green, rubocop and
+  brakeman clean.
+
 ---
 
 ## What to do next
 
 **Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
 
-1. **Slice 6 — WhatsApp.** The task breakdown is now written: `docs/plan/slice-6-tasks.md`, four
-   tasks. Nothing in it needs the BSP business decision resolved first — Meta's free test number
-   gives you the whole slice (five test recipients, no verification). Read that file's "Traps worth
-   knowing" section before starting; the two that matter most are that the webhook signature must be
-   computed over `request.raw_post` (by the time you see `params`, Rails has parsed and reordered the
-   JSON, so signing that verifies something the sender never sent), and that `phone_number_id` — not
-   the phone number — is the routing key and must be globally unique.
+1. **Slice 6 — WhatsApp. Task 1 done, Task 2 next.** `docs/plan/slice-6-tasks.md` has the full
+   four-task breakdown. Task 1 (this session) built the foundation: `WhatsappChannel` (globally
+   unique `phone_number_id`, enforced at both the validation and the database level),
+   `Whatsapp::Provider`/`Whatsapp::MetaCloudProvider` (tested against WebMock — the exact URL,
+   header and JSON body, never a mock of the provider itself), the typed errors
+   (`AuthenticationError`/`RateLimitedError`/`ApiError`/`WindowClosedError`), and the 24-hour
+   customer-service-window guard, boundary-tested with `travel_to(..., with_usec: true)` — see that
+   task's write-up above for why the `with_usec:` matters, it is not decoration. Task 2 is the
+   webhook; read `docs/plan/slice-6-tasks.md`'s "Traps worth knowing" section before starting it —
+   the signature must be computed over `request.raw_post` (by the time you see `params`, Rails has
+   parsed and reordered the JSON, so signing that verifies something the sender never sent), and
+   `phone_number_id` (not the phone number) is the routing key `WhatsappChannel` already makes
+   globally unique, ready for the webhook to key off. `render.yaml` still needs
+   `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_API_VERSION` added whenever a task makes an outbound send live
+   (see Task 1's write-up above). Meta's free test number still covers all of it — no BSP business
+   decision needed yet.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the
