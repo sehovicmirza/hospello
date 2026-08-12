@@ -240,6 +240,24 @@ module Retention
       end
     end
 
+    # The same question for the one statement in this job that is not an
+    # ordinary Rails write: anonymization is a raw UPDATE with a correlated
+    # subquery, run through the same in_batches loop, and "does that compose"
+    # is worth an assertion rather than a reading of the Rails source.
+    test "it anonymizes past the first batch too" do
+      category = request_categories(:stari_towels)
+      extra = with_tenant(@stari) do
+        3.times.map { request_for(@stari, category, rooms(:stari_302), users(:stari_staff), age: 120.days) }
+      end
+
+      with_batch_size(2) { purge }
+
+      with_tenant(@stari) do
+        still_identifiable = ServiceRequest.where(id: extra.map(&:id)).where(anonymized_at: nil)
+        assert_empty still_identifiable, "requests past the first batch kept the guest's words"
+      end
+    end
+
     # --- the numbers are the policy's, not this job's -------------------------
 
     # Hung off the guest who is still here, deliberately: the departed guest's

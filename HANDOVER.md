@@ -15,7 +15,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-08-12 (Slice 7 Task 3 — retention and the right to be forgotten) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1199 unit/integration green · 41 system green (run three times this session, no flake) · rubocop and brakeman clean |
+| **Tests** | 1200 unit/integration green · 41 system green (run four times this session, no flake) · rubocop and brakeman clean |
 | **CI** | **Green through `39447e6`** — checked, not assumed. Nothing since has been *observed* on CI by this session; every step was run locally instead (full suite, system suite, rubocop, brakeman). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–3 of 5 done |
 

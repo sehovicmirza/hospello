@@ -30,11 +30,13 @@ module Retention
       chat_cutoff = Policy.guest_chat_cutoff
       operational_cutoff = Policy.operational_cutoff
 
+      webhook_cutoff = Policy.webhook_event_cutoff
+
       Hotel.find_each do |hotel|
         ActsAsTenant.with_tenant(hotel) { purge_hotel(hotel, chat_cutoff, operational_cutoff) }
       end
 
-      purge_webhook_events
+      purge_webhook_events(webhook_cutoff)
     end
 
     private
@@ -120,8 +122,8 @@ module Retention
       # with no single owner. Those rows carry a real phone number and a real
       # message, and a loop over hotels would never reach a single one of
       # them.
-      def purge_webhook_events
-        WebhookEvent.where(created_at: ...Policy.webhook_event_cutoff)
+      def purge_webhook_events(cutoff)
+        WebhookEvent.where(created_at: ...cutoff)
           .in_batches(of: BATCH_SIZE) { |batch| batch.delete_all }
       end
   end

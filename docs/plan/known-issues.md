@@ -28,6 +28,28 @@ pre-translated system-notice body (the `degraded.*`/`requests.*` pattern this ap
 copy no model is allowed to write) and escalate rather than let the concierge answer a photo it
 cannot see.
 
+### DEFERRED: an erasure while a job for that guest is in flight leaves one failed job (Slice 7 Task 3)
+
+`Retention::GuestErasure` deletes a guest session and, by cascade, its conversations and messages —
+including a *live* conversation, which is the point: somebody asking to be forgotten is not told to
+wait for the nightly sweep. If an `Ai::GenerateReplyJob`, `Ai::TranslateMessageJob` or
+`Whatsapp::SendMessageJob` is queued for that conversation at that moment, it will fail on
+`ActiveJob::DeserializationError` when it runs and land in the failed-jobs table.
+
+**Blast radius: one noisy row for a guest who no longer exists.** No data is lost, nothing retries
+into a wrong hotel, and nothing is written for the erased guest — the record it needed is gone,
+which is the correct outcome, reached noisily.
+
+**Why it is not fixed here.** The obvious fix is `discard_on ActiveJob::DeserializationError` in
+`ApplicationJob` — the line is already there, commented out, from the Rails generator. Turning it on
+is an app-wide behaviour change that would also silence a job failing because of a *bug* that
+deleted a record it should not have, which is exactly the signal this codebase would want to keep.
+Scoping it to the three jobs above is defensible but is a decision about job semantics, not about
+retention, and it is not worth making inside a task with legal weight for an edge case that costs
+one line in Mission Control.
+
+**If you see these in the failed-jobs table after an erasure, that is this, and it is expected.**
+
 ### OPEN: mass browser-launch failure — three hypotheses tested and closed
 
 **Symptom.** A system-test run errors on ~38 of its 41 tests, all inside
