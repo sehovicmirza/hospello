@@ -16,7 +16,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 1088 unit/integration green · 41 system green · rubocop and brakeman clean |
-| **CI** | **Green through `f84821c`** (Slice 6's last code commit) — checked, not assumed: every step passed, including system tests, rubocop, brakeman and bundler-audit. The two commits after it (`033c108` docs, `2e14f8c` the rollup) were pushed with their runs still in flight — **check the Actions tab** rather than trusting this row for those two. **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
+| **CI** | **Green through `39447e6`** — checked, not assumed: every commit of this session passed every step, including system tests, rubocop, brakeman and bundler-audit. **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Task 1 of 5 done |
 
 > ### The CI failure is fixed, and it was never a flake
