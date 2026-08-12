@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (Slice 6 Task 4 — outbound sending, and the channel settings screen) |
+| **Last updated** | 2026-08-11 (**Slice 6 complete** — WhatsApp, end to end) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1041 unit/integration green (930 + 111 new) · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1067 unit/integration green (930 + 137 new) · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–5 complete** · Slice 6 (WhatsApp) Tasks 1–3 complete, Task 4 steps 1 and 3 of four |
+| **Progress** | **Slices 1–6 complete** · Slice 7 is next |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -835,56 +835,67 @@ task. Now it is a hotel-admin one.
   conversation (`Ai::Tools#set_guest_room`). A test pins the whole URL shape rather than only the
   absence, so a future parameter has to be added deliberately.
 
+**Slice 6 Task 4 steps 2 and 4 — the template registry, and the runbook.** With these, **Slice 6 is
+complete**: every step of all four tasks.
+
+- `whatsapp_templates` — a hotel's record of what it registered with Meta and what Meta said.
+  **This table records Meta's decisions and makes none of them**, which is the sentence the whole
+  design follows from. `#usable?` is a cheap pre-check that saves a doomed API call, never a
+  permission this app grants — Meta refuses an unapproved template whatever the row says.
+- Identity is **name + language**: "welcome" in bs and "welcome" in de are two separately-approved
+  objects at Meta, so the unique index covers both and is scoped to the hotel. Unlike
+  `phone_number_id` this is *not* a routing key — two hotels each having a "welcome" is ordinary, and
+  a global index would let the first hotel to register a common name take it from everyone else.
+- `status` and `rejection_reason` **are** writable from the form, unlike the channel screen's
+  `verified_at`/`last_inbound_at` — and the inconsistency is deliberate. Those are written by things
+  that really happen inside this app, so a form could make them lie. These are written by Meta, in
+  Meta's dashboard, where this app has no reach: transcription is the only way they can be here.
+- **No bulk-send UI, on purpose**, and adding one is not a small feature: an un-opted-in send risks
+  the hotel's number, which is the hotel's asset and not ours.
+- **`render.yaml` now carries the three WhatsApp secrets** (`WHATSAPP_ACCESS_TOKEN`,
+  `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, all `sync: false`) plus the commented
+  `WHATSAPP_API_VERSION` override. This was the last hidden manual step in the slice.
+- `docs/whatsapp-onboarding.md` gained **section 4, "Connecting a number — the actual steps"**: the
+  three secrets and where each comes from, the exact Meta webhook configuration, the three fields a
+  hotel fills in, and a four-step ordered check that each proves something the next one assumes
+  (message in → routed → concierge asks → reply arrives). It is the section to read with a number in
+  hand; sections 1–3 remain about lead times.
+- **A second sighting of the mass browser-launch failure**, this time locally: 38 errors out of 41,
+  with the immediately preceding and following runs both 41/41 green. Recorded in
+  `known-issues.md` — including that **the error text was not captured**, so it is not confirmed to
+  be the same fault CI saw. Nothing was changed in the harness for it (engineering rule 6); the entry
+  now says to capture full output first and gives ~1 in 8 as the baseline to beat.
+
 ---
 
 ## What to do next
 
-**Slice 5 is complete.** Nothing further is queued for it; see below for what a pilot might raise.
+**Slice 6 is complete** — every step of all four tasks. The write-ups above cover each; the two
+files that show the whole thing working are `test/services/whatsapp/inbound_flow_test.rb` (a real
+webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md` section 4
+(connecting a real number).
 
-1. **Slice 6 — WhatsApp. Tasks 1–2 done, Task 3 next.** `docs/plan/slice-6-tasks.md` has the full
-   four-task breakdown. Task 1 built the foundation: `WhatsappChannel` (globally unique
-   `phone_number_id`, enforced at both the validation and the database level),
-   `Whatsapp::Provider`/`Whatsapp::MetaCloudProvider`, the typed errors, and the 24-hour
-   customer-service-window guard. Task 2 built the webhook: `POST /webhooks/whatsapp` verifies
-   Meta's `X-Hub-Signature-256` over `request.raw_post` (never `params`) with
-   `Whatsapp::WebhookSignature`, stores a durable, deliberately non-tenant-scoped `WebhookEvent` via
-   `insert_all(..., unique_by:)` (`ON CONFLICT DO NOTHING` — a replay creates zero new rows but still
-   enqueues a job for the existing one), and enqueues the still-stub `Whatsapp::ProcessInboundJob` on
-   the `critical` queue. Rack::Attack now safelists a request only once its signature has verified
-   (`Rack::Attack.verified_whatsapp_signature?`). See Task 2's write-up above for the full
-   break/red/restore evidence, and its own report at
-   `.superpowers/sdd/slice-6-tasks/task-2-report.md` for more detail than fits here.
-   Task 3 built inbound processing end to end: `Whatsapp::InboundRouter`, `WhatsappChannel.route`,
-   `GuestSession.for_whatsapp`, `Ai::Tools#set_guest_room`, `Ai::PromptBuilder`'s `<room_unknown>`
-   block, `Message#apply_delivery_status!`, and a real body for `Whatsapp::ProcessInboundJob`. See
-   its write-up above; `test/services/whatsapp/inbound_flow_test.rb` is the file that shows the whole
-   thing working.
+1. **Slice 7 is next** (analytics, readiness checklist, retention/GDPR, demo seed, hardening — see
+   item 3 below and `docs/plan/implementation-plan.md`, which is the contract; do not redesign it
+   from this summary). **Write `docs/plan/slice-7-tasks.md` first**, the same way slices 4, 5 and 6
+   each got a task breakdown before any code was written, then follow the review loop in
+   `CLAUDE.md`.
 
-   **Task 4 is in progress: step 1 (outbound sending) is done, steps 2–4 are not.** See its write-up
-   above; `docs/plan/slice-6-tasks.md` has the full breakdown. What is left:
-   - **Step 2 — the template registry** (`whatsapp_templates`: hotel, name, locale, category, status,
-     body). Meta must approve each one, and the registry is how a hotel knows whether its welcome
-     message is usable yet. The brief is explicit that this slice must **not** build a bulk-send UI:
-     an un-opted-in send risks the hotel's number, which is the hotel's asset and not ours.
-   - **Step 3 — done**, both halves (staff settings screen and the guest-facing `wa.me` button).
-     See their write-ups above. Not built, and deliberately so: a **system test** for the settings
-     screen (the brief names `test/system/whatsapp_channel_settings_test.rb`). Everything it would
-     cover is covered by the controller test, and this suite's house rule is to drive only what
-     needs a browser — but if you add one, keep it short and single-purpose per engineering rule 5.
-   - **Step 4 — `docs/whatsapp-onboarding.md`**, separating our steps from Meta's and the BSP's, and
-     saying plainly which waits are outside anyone's control here.
-   - **`render.yaml` still has none of the four WhatsApp env vars**, and this is now the sharp edge:
-     as of step 1 an outbound send really does read `WHATSAPP_ACCESS_TOKEN` in production. Add
-     `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_API_VERSION`, `WHATSAPP_APP_SECRET` and
-     `WHATSAPP_WEBHOOK_VERIFY_TOKEN` before anyone points a real number at this. They are already in
-     `.env.example` and `README.md`. Nothing breaks without them — `MetaCloudProvider#post` raises a
-     named `ApiError` and the message is marked `failed` with a line the receptionist can read —
-     but every WhatsApp reply fails until they are set.
+   Three things left undone in Slice 6, all deliberate, none blocking:
+   - **A system test for the WhatsApp settings screen** (the brief names
+     `test/system/whatsapp_channel_settings_test.rb`). Everything it would cover is covered by
+     `test/controllers/staff/whatsapp_channels_controller_test.rb`, and this suite's house rule is to
+     drive only what needs a browser. If you add one, keep it short and single-purpose (rule 5).
+   - **Non-text inbound messages** — a guest who sends a photo still gets silence. This was free
+     while *everything* was silent; it is not any more, now that replies really do leave. Recorded in
+     `docs/plan/known-issues.md` with the cheapest honest fix.
+   - **Nothing sends a template yet.** The registry records them and `Whatsapp::Provider
+     #send_template` exists and is tested, but no caller uses it — deliberately, since the opt-in
+     that would make a proactive send legitimate is collected at check-in and this slice ships no
+     bulk-send UI.
 
-   Also worth revisiting now that replies really do leave: the non-text-inbound gap recorded in
-   `docs/plan/known-issues.md` (a guest who sends a photo gets silence — which was free while
-   *everything* was silent, and is not any more). Meta's free test number still covers all of this —
-   no BSP business decision needed yet.
+   Meta's free test number covers everything built so far — five test recipients, no business
+   verification, no BSP decision needed. `docs/whatsapp-onboarding.md` section 4 is the checklist.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
 3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the

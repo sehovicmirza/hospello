@@ -75,6 +75,10 @@
         <%= form.submit t(".save"), class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700" %>
       <% end %>
     <% end %>
+
+    <%= render "staff/whatsapp_templates/section",
+          templates: Current.hotel.whatsapp_templates.ordered,
+          template: @template || Current.hotel.whatsapp_templates.new %>
   </div>
 
   <aside class="space-y-4">

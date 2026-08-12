@@ -133,6 +133,14 @@ Rails.application.routes.draw do
     # #update creates it on first save (see the controller).
     resource :whatsapp_channel, only: %i[edit update]
 
+    # The hotel's record of what it registered with Meta. Nested under
+    # nothing and rendered by the channel screen above — many per hotel, so
+    # unlike the channel these need ids, and like everything else in this
+    # namespace those ids are looked up through Current.hotel's own
+    # association, so another hotel's 404s. No #index or #new: the channel
+    # screen is where they are listed and added.
+    resources :whatsapp_templates, only: %i[create edit update destroy]
+
     resources :departments, only: %i[index create edit update destroy]
     resources :request_categories, only: %i[index create edit update destroy]
 

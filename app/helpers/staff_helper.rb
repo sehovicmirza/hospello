@@ -132,6 +132,19 @@ module StaffHelper
     end
   end
 
+  # Colour is the *second* signal on a template's status, never the only one —
+  # the word itself is rendered next to it (see the templates section), because
+  # "waiting on Meta" and "refused by Meta" are different situations with
+  # different next steps and a reader in a hurry must not have to decode a
+  # colour to tell them apart.
+  def whatsapp_template_status_classes(template)
+    case template.status
+    when "approved" then "bg-green-100 text-green-800"
+    when "rejected" then "bg-red-100 text-red-800"
+    else "bg-amber-100 text-amber-900"
+    end
+  end
+
   def staff_message_bubble_classes(message)
     case message.sender_role
     when "guest" then "bg-gray-100 text-gray-900"

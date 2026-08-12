@@ -31,6 +31,14 @@ bs:
       update:
         updated: "Jezik ažuriran."
     common:
+      whatsapp_template_status:
+        pending: "Čeka se Meta"
+        approved: "Meta odobrila"
+        rejected: "Meta odbila"
+      whatsapp_template_category:
+        utility: "Korisna poruka"
+        marketing: "Marketing"
+        authentication: "Autentifikacija"
       whatsapp_status:
         pending: "Još nije potvrđeno"
         active: "Aktivno"
@@ -550,3 +558,29 @@ bs:
         help_body: "ID-evi se nalaze u Metinom WhatsApp Manageru. Rokovi odobrenja su Metini, ne naši — pogledajte docs/whatsapp-onboarding.md za redoslijed i šta očekivati."
       update:
         updated: "WhatsApp postavke sačuvane."
+    whatsapp_templates:
+      section:
+        heading: "Šabloni poruka"
+        intro: "Nakon 24 sata od zadnje poruke gosta, WhatsApp dozvoljava samo poruke koje je Meta već odobrila. Šabloni se prave i odobravaju u Metinom Business Manageru — zabilježite ih ovdje da svi vide koji su upotrebljivi."
+        empty: "Nijedan šablon još nije zabilježen."
+        edit: "Uredi"
+        delete: "Ukloni"
+        delete_confirm: "Ukloniti %{name} sa ovog spiska? Kod Mete ostaje registrovan."
+        new_legend: "Zabilježi šablon"
+        edit_legend: "Uređivanje: %{name}"
+        name_label: "Naziv"
+        name_hint: "Tačno kako je registrovan kod Mete: mala slova, brojevi i donje crte."
+        locale_label: "Jezik"
+        locale_hint: "Metin kod jezika, npr. bs, en, de, pt_BR. Isti naziv na drugom jeziku je zaseban šablon."
+        category_label: "Kategorija"
+        status_label: "Šta je Meta rekla"
+        status_hint: "Prepisano iz Metinog panela. Bilježenje ovdje ne mijenja ništa — odlučuje samo Meta."
+        body_label: "Odobreni tekst"
+        body_hint: "Za vašu evidenciju. Meta popunjava {{1}} polja pri slanju."
+        save: "Sačuvaj šablon"
+      create:
+        created: "„%{name}” zabilježen."
+      update:
+        updated: "„%{name}” sačuvan."
+      destroy:
+        deleted: "„%{name}” uklonjen sa spiska."

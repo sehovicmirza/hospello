@@ -2,8 +2,14 @@
 
 WhatsApp is a **second, optional** way for a guest to reach the same AI
 concierge and reception dashboard the QR web chat already provides — it is
-not a replacement for it, and it ships in a later slice (Slice 6) than
-everything else in this repository today.
+not a replacement for it.
+
+**Status: built.** A guest can message a hotel's number, be asked for their
+room and name, get answers from that hotel's knowledge base, and take a
+request through the same confirm-before-create flow — all of it landing in
+the same reception inbox. Section 4 below is the part that turns that from
+"works in the test suite" into "works for a real hotel", and it is the
+section to read first if you have a number in hand.
 
 **The product is fully usable before WhatsApp is connected.** A hotel can
 be onboarded, branded, staffed, and taking guest requests entirely through
@@ -45,10 +51,14 @@ very different owners:
     long-term, but requires **Hospello itself** — not each hotel — to pass
     Meta's App Review first. Not pursued for the pilot.
 - Implements the webhook, signature verification, message normalization,
-  and the 24-hour customer-service-window handling (see the runbook's
-  WhatsApp placeholder section, filled in when this ships).
-- Registers and tracks the approval status of the pre-approved message
-  template(s) each hotel needs for the cases below.
+  and the 24-hour customer-service-window handling. **All built** — the
+  window is enforced inside the provider itself (`Whatsapp::Provider`), so
+  no caller can forget it, and a send outside the window marks the message
+  undelivered on the reception transcript with a sentence saying why.
+- Provides the screen where a hotel records its number and reads its state
+  (**Staff → WhatsApp**), and the registry where it records which message
+  templates Meta has approved. Nothing about connecting a number needs an
+  engineer or a Rails console.
 
 ## 2. What the hotel must provide
 
@@ -111,6 +121,104 @@ time and set expectations with the hotel accordingly:
   approval is itself a Meta review step with its own turnaround, separate
   from display-name review. Design any proactive-messaging feature around
   this constraint from the start rather than discovering it at launch.
+
+## 4. Connecting a number — the actual steps
+
+Everything above is about lead times. This is the part someone does with a
+number already in hand, and it is the same short list whether the number is
+Meta's free test number or a hotel's real one.
+
+**Meta's free test number needs none of section 3.** No business
+verification, no display-name review, up to five test recipients you nominate
+in the WhatsApp Manager. It is the right way to prove an environment works
+end to end before a real hotel is involved.
+
+### 4.1 On the server (once per environment)
+
+Three secrets, all in `render.yaml` and all `sync: false` (so they are set in
+Render's dashboard, never committed):
+
+| Variable | Where it comes from |
+|---|---|
+| `WHATSAPP_ACCESS_TOKEN` | WhatsApp Manager → the System User token. Authorizes every send. |
+| `WHATSAPP_APP_SECRET` | Meta App dashboard → App Settings → Basic. Verifies the signature on every delivery. |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | **You choose this.** Any random string; you type the same one into Meta below. |
+
+`WHATSAPP_API_VERSION` has a default and only needs setting to pin or roll
+forward.
+
+**None of them is required for the app to run.** Every hotel's QR web chat
+works with all three unset — WhatsApp is what stops working, and it stops
+visibly: a send raises a named error and the message is marked undelivered on
+the transcript, and an unsigned webhook is refused rather than trusted.
+
+### 4.2 In Meta's App dashboard (once per environment)
+
+Under **WhatsApp → Configuration → Webhook**:
+
+- **Callback URL**: `https://<your-host>/webhooks/whatsapp`
+- **Verify token**: the same string you set as `WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+- **Subscribe to**: the `messages` field. That single field carries both
+  inbound guest messages and delivery receipts.
+
+Meta sends a one-off `GET` handshake the moment you click Verify. If it fails,
+the verify token does not match — nothing else produces that error.
+
+### 4.3 In Hospello, per hotel (Staff → WhatsApp)
+
+- **Phone number** — the displayed number, in full international form.
+- **Phone number ID** — Meta's own id for that number, from the WhatsApp
+  Manager. **This is not the phone number**, and it is the field worth
+  double-checking: it is what routes an incoming message to a hotel, so a
+  wrong value means guest messages arrive and reach nobody. It is globally
+  unique, so another hotel's value is refused outright.
+- **Status → Live.** A number left `Not confirmed yet` still receives
+  messages (that is how you confirm it works) but is not offered to guests on
+  the landing page — the "Chat on WhatsApp" button appears only for a live
+  number, because a button leading to a number nobody answers is worse than
+  no button.
+
+### 4.4 Confirming it actually works
+
+In order, because each step tells you something the next one assumes:
+
+1. **Message the number from a phone.** Within a second or two the
+   conversation appears in the reception inbox, badged WhatsApp.
+2. **Check Staff → WhatsApp.** "Last message received" should now say
+   *moments ago*. If the inbox is empty and this still says *Nothing has
+   arrived yet*, the delivery never routed — the phone number ID is the first
+   thing to re-check.
+3. **Watch the concierge ask for the room and name**, in the language the
+   guest wrote in. That is the first outbound send, so it also proves the
+   access token.
+4. **Reply from the reception inbox.** It arrives on the phone. If it is
+   marked undelivered instead, read the line under it — the common case is the
+   24-hour window, which reopens the moment the guest writes again.
+
+### 4.5 Templates
+
+A hotel may only write freely within 24 hours of the guest's last message.
+Outside it, only a template Meta has already approved may be sent.
+
+Templates are created and approved in **Meta's own Business Manager** —
+nothing in Hospello submits one. The registry on the WhatsApp screen is where
+a hotel records what it registered and what Meta said, so anyone at the hotel
+can see whether the welcome message is usable yet without logging in there.
+
+Two things worth knowing before designing anything around them:
+
+- A template is identified by **name *and* language**. "welcome" in Bosnian
+  and "welcome" in German are two separately-approved objects.
+- The category is not cosmetic. A **utility** template (a booking
+  confirmation, a service update) is judged far more leniently than a
+  **marketing** one, and a marketing template sent to someone who did not
+  explicitly opt in is what actually gets a number restricted. The welcome
+  message is utility.
+
+**There is deliberately no bulk-send screen**, and adding one is not a small
+feature. An un-opted-in send risks the hotel's number, which is the hotel's
+asset and not ours; the opt-in has to be collected at check-in with a
+checkbox that names WhatsApp explicitly.
 
 ## Sequencing recommendation
 

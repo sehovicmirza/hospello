@@ -55,6 +55,31 @@ conditional rather than unconditional.
 
 One occurrence is not a pattern. Do not spend a session on this until it happens again.
 
+**Second sighting — 2026-08-11, locally this time, so it is now a pattern.**
+`bin/rails test:system` returned **38 errors out of 41** with only 7 assertions run — the same 38/41
+ratio as the CI sighting. What is known about it:
+
+- It was **not** resource exhaustion: 25% disk used, 14GB RAM free.
+- It was **not** the chromedriver/Chrome version mismatch described in HANDOVER.md — the matching
+  driver was exported, and single-file runs before and after worked.
+- The **immediately preceding and immediately following** full-suite runs, on the same tree with the
+  same driver, were both **41/41 green**. Six other full runs that session were green.
+- **The error text was not captured** — the run's output was filtered to its tail, so it is *not*
+  confirmed to be the same `NoMethodError: undefined method 'closed?' for nil` CI saw. It may or may
+  not be the same fault. Say so rather than assuming.
+
+So: ~1 in 8 full system runs, in two different environments. That is frequent enough to cost real
+time and rare enough that a fix will be hard to prove — which is exactly the situation
+[engineering rule 6](engineering-rules.md) is about, so **nothing has been changed in the harness for
+it.**
+
+The next session that hits this should, in this order:
+1. **Capture the full output** (`bin/rails test:system 2>&1 | tee /tmp/system.log`) — one recorded
+   stack trace is worth more than another sighting, and this entry cannot progress without one.
+2. Only then consider the teardown experiment above (remove the unconditional driver quit, run 20×),
+   because the measurement has to be against a known baseline failure rate, and ~1 in 8 is now the
+   number to beat.
+
 ---
 
 ## Resolved

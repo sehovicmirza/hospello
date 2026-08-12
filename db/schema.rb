@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_11_160000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_11_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -497,6 +497,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_160000) do
     t.index ["phone_number_id"], name: "index_whatsapp_channels_on_phone_number_id", unique: true
   end
 
+  create_table "whatsapp_templates", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.string "name", null: false
+    t.string "locale", null: false
+    t.integer "category", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.text "body"
+    t.text "rejection_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "name", "locale"], name: "index_whatsapp_templates_on_hotel_id_and_name_and_locale", unique: true
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "ai_runs", "conversations", on_delete: :nullify
@@ -544,4 +557,5 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_160000) do
   add_foreign_key "users", "hotels"
   add_foreign_key "webhook_events", "hotels", on_delete: :nullify
   add_foreign_key "whatsapp_channels", "hotels", on_delete: :cascade
+  add_foreign_key "whatsapp_templates", "hotels", on_delete: :cascade
 end

@@ -1,0 +1,120 @@
+<%# The registry: what this hotel has registered with Meta, and what Meta
+    said about each one. Nothing here submits anything to Meta or sends
+    anything to a guest — templates are created and approved in Meta's own
+    Business Manager, and this is the hotel's note of that, so "is our
+    welcome message usable yet?" is answerable without logging in there.
+
+    The status is the whole point of the screen, so it is rendered as a word
+    and not as a coloured dot: "Waiting on Meta" and "Refused by Meta" are
+    different situations with different next steps, and a reader in a hurry
+    must not have to decode a colour to tell them apart. %>
+<section id="whatsapp-templates" class="mt-8 space-y-4">
+  <div>
+    <h2 class="text-lg font-medium text-gray-900"><%= t("staff.whatsapp_templates.section.heading") %></h2>
+    <p class="mt-1 max-w-2xl text-sm text-gray-600"><%= t("staff.whatsapp_templates.section.intro") %></p>
+  </div>
+
+  <% if templates.any? %>
+    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+      <% templates.each do |registered| %>
+        <li id="<%= dom_id(registered) %>" class="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+          <div class="min-w-0">
+            <p class="font-medium text-gray-900">
+              <%= registered.name %>
+              <span class="font-normal text-gray-500">· <%= registered.locale %></span>
+            </p>
+            <p class="text-xs text-gray-500">
+              <%= t("staff.common.whatsapp_template_category.#{registered.category}") %>
+            </p>
+            <% if registered.body.present? %>
+              <p class="mt-1 max-w-xl text-sm text-gray-700" dir="auto"><%= registered.body %></p>
+            <% end %>
+            <% if registered.rejection_reason.present? %>
+              <%# Meta's own words, verbatim: a hotel arguing with a rejection
+                  needs the reason it was actually given, not a paraphrase. %>
+              <p class="mt-1 max-w-xl text-xs text-red-800"><%= registered.rejection_reason %></p>
+            <% end %>
+          </div>
+
+          <div class="flex shrink-0 items-center gap-3">
+            <span class="rounded-full px-2 py-0.5 text-xs font-semibold <%= whatsapp_template_status_classes(registered) %>">
+              <%= t("staff.common.whatsapp_template_status.#{registered.status}") %>
+            </span>
+            <% if policy(registered).update? %>
+              <%= link_to t("staff.whatsapp_templates.section.edit"),
+                    edit_staff_whatsapp_template_path(registered),
+                    class: "text-sm font-medium text-blue-700 hover:text-blue-900" %>
+              <%= button_to t("staff.whatsapp_templates.section.delete"),
+                    staff_whatsapp_template_path(registered), method: :delete,
+                    form: { data: { turbo_confirm: t("staff.whatsapp_templates.section.delete_confirm", name: registered.name) } },
+                    class: "cursor-pointer text-sm font-medium text-gray-500 hover:text-red-700" %>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p id="whatsapp-templates-empty" class="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
+      <%= t("staff.whatsapp_templates.section.empty") %>
+    </p>
+  <% end %>
+
+  <% if policy(WhatsappTemplate.new).create? %>
+    <%= form_with model: template,
+          url: (template.persisted? ? staff_whatsapp_template_path(template) : staff_whatsapp_templates_path),
+          method: (template.persisted? ? :patch : :post),
+          class: "space-y-4 rounded-lg border border-gray-200 p-4" do |form| %>
+      <p class="text-sm font-medium text-gray-700">
+        <%= template.persisted? ? t("staff.whatsapp_templates.section.edit_legend", name: template.name) : t("staff.whatsapp_templates.section.new_legend") %>
+      </p>
+
+      <% if template.errors.any? %>
+        <div class="rounded-lg bg-red-50 p-3">
+          <ul class="list-inside list-disc text-sm text-red-700">
+            <% template.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <%= form.label :name, t("staff.whatsapp_templates.section.name_label"), class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-xs text-gray-500"><%= t("staff.whatsapp_templates.section.name_hint") %></p>
+          <%= form.text_field :name, required: true, class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2" %>
+        </div>
+
+        <div>
+          <%= form.label :locale, t("staff.whatsapp_templates.section.locale_label"), class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-xs text-gray-500"><%= t("staff.whatsapp_templates.section.locale_hint") %></p>
+          <%= form.text_field :locale, required: true, placeholder: "bs", class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2" %>
+        </div>
+
+        <div>
+          <%= form.label :category, t("staff.whatsapp_templates.section.category_label"), class: "block text-sm font-medium text-gray-700" %>
+          <%= form.select :category,
+                WhatsappTemplate.categories.keys.map { |category| [ t("staff.common.whatsapp_template_category.#{category}"), category ] },
+                {}, class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2" %>
+        </div>
+
+        <div>
+          <%= form.label :status, t("staff.whatsapp_templates.section.status_label"), class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-xs text-gray-500"><%= t("staff.whatsapp_templates.section.status_hint") %></p>
+          <%= form.select :status,
+                WhatsappTemplate.statuses.keys.map { |status| [ t("staff.common.whatsapp_template_status.#{status}"), status ] },
+                {}, class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2" %>
+        </div>
+      </div>
+
+      <div>
+        <%= form.label :body, t("staff.whatsapp_templates.section.body_label"), class: "block text-sm font-medium text-gray-700" %>
+        <p class="text-xs text-gray-500"><%= t("staff.whatsapp_templates.section.body_hint") %></p>
+        <%= form.text_area :body, rows: 3, class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2" %>
+      </div>
+
+      <%= form.submit t("staff.whatsapp_templates.section.save"),
+            class: "cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700" %>
+    <% end %>
+  <% end %>
+</section>

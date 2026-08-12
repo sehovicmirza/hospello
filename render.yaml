@@ -78,6 +78,44 @@ services:
       # - key: TRANSLATION_MODEL
       #   value: claude-haiku-4-5
 
+      # --- WhatsApp (Slice 6) ---------------------------------------------
+      #
+      # All four are optional in the same sense ANTHROPIC_API_KEY is: the app
+      # boots and every hotel's QR web chat works with none of them set. What
+      # stops working is WhatsApp specifically, and it stops *visibly* rather
+      # than silently — an outbound send raises a named Whatsapp::ApiError
+      # and the message is marked failed with a line the receptionist can
+      # read (see Whatsapp::SendMessageJob), and an unsigned webhook is
+      # refused rather than trusted.
+      #
+      # Set them only for an instance that actually has a hotel connected to
+      # a WhatsApp number; see docs/whatsapp-onboarding.md for where each
+      # value comes from and in what order to obtain them.
+
+      # The System User access token from Meta's WhatsApp Manager. This is
+      # what authorizes every outbound send.
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+
+      # The App Secret, used to verify the HMAC-SHA256 signature Meta puts on
+      # every webhook delivery (Whatsapp::WebhookSignature). **Without it
+      # every delivery is refused**, which is the correct failure — an
+      # unverifiable webhook is indistinguishable from a forged one.
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+
+      # A secret this app chooses, then types into Meta's Webhooks
+      # configuration. Meta echoes it back once, on the subscription
+      # handshake, and never again.
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+
+      # Meta's Graph API version. Defaults to the value in
+      # config/initializers/whatsapp.rb; set here only to pin or roll forward
+      # without a deploy.
+      # - key: WHATSAPP_API_VERSION
+      #   value: v22.0
+
       - key: RAILS_ENV
         value: production
       - key: RACK_ENV

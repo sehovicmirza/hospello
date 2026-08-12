@@ -1,0 +1,31 @@
+# Deliberately in different states, and deliberately not parallel between the
+# two hotels — see test/fixtures/rooms.yml's header for why. stari_grad has
+# one Meta approved and one it rejected (so "usable" and "not usable" can be
+# told apart without a test constructing its own); vrelo has the same template
+# name in a different language, which is the case the composite unique index
+# exists for: at Meta, name + language is the identity, so "welcome" in bs and
+# "welcome" in de are two separately-approved objects.
+stari_welcome_bs:
+  hotel: stari_grad
+  name: welcome
+  locale: bs
+  category: 0 # utility
+  status: 1 # approved
+  body: "Dobrodošli u {{1}}! Pišite nam ovdje ako vam nešto zatreba."
+
+stari_offer_bs:
+  hotel: stari_grad
+  name: summer_offer
+  locale: bs
+  category: 1 # marketing
+  status: 2 # rejected
+  body: "Ljetna ponuda: {{1}}"
+  rejection_reason: "Template content violates promotional messaging policy"
+
+vrelo_welcome_de:
+  hotel: vrelo
+  name: welcome
+  locale: de
+  category: 0 # utility
+  status: 0 # pending
+  body: "Willkommen im {{1}}!"

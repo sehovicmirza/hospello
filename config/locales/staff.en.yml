@@ -36,6 +36,14 @@ en:
       update:
         updated: "Language updated."
     common:
+      whatsapp_template_status:
+        pending: "Waiting on Meta"
+        approved: "Approved by Meta"
+        rejected: "Refused by Meta"
+      whatsapp_template_category:
+        utility: "Utility"
+        marketing: "Marketing"
+        authentication: "Authentication"
       whatsapp_status:
         pending: "Not confirmed yet"
         active: "Live"
@@ -538,3 +546,29 @@ en:
         help_body: "The IDs come from Meta's WhatsApp Manager. Approval times are Meta's, not ours — see docs/whatsapp-onboarding.md for what to expect and in what order."
       update:
         updated: "WhatsApp settings saved."
+    whatsapp_templates:
+      section:
+        heading: "Message templates"
+        intro: "Outside 24 hours since a guest last wrote to you, WhatsApp only allows messages Meta has already approved. Templates are created and approved in Meta's own Business Manager — record them here so everyone can see which ones are usable."
+        empty: "No templates recorded yet."
+        edit: "Edit"
+        delete: "Remove"
+        delete_confirm: "Remove %{name} from this list? It stays registered with Meta."
+        new_legend: "Record a template"
+        edit_legend: "Editing %{name}"
+        name_label: "Name"
+        name_hint: "Exactly as registered with Meta: lowercase letters, numbers and underscores."
+        locale_label: "Language"
+        locale_hint: "Meta's language code, e.g. bs, en, de, pt_BR. The same name in another language is a separate template."
+        category_label: "Category"
+        status_label: "What Meta said"
+        status_hint: "Copied from Meta's dashboard. Recording it here does not change it — only Meta decides."
+        body_label: "Approved text"
+        body_hint: "For your own reference. Meta fills in the {{1}} placeholders when the message is sent."
+        save: "Save template"
+      create:
+        created: "„%{name}” recorded."
+      update:
+        updated: "„%{name}” saved."
+      destroy:
+        deleted: "„%{name}” removed from the list."

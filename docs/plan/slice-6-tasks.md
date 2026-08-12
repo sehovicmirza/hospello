@@ -251,7 +251,7 @@ this: the guest has to message first" — not a stack trace and not silence.
 >   `Ai::TranslationWatchdogJob::BUDGET` so it always terminates, and the original goes when the
 >   wait runs out.
 
-- [ ] **Step 2: The template registry**
+- [x] **Step 2: The template registry**
 
 `whatsapp_templates`: `hotel_id`, `name`, `locale`, `category`, `status` (`pending/approved/rejected`),
 `body`, timestamps. Meta must approve each one; the registry is how a hotel knows whether its welcome
@@ -261,14 +261,14 @@ The welcome template is **utility**, sent only to numbers that opted in at check
 that names WhatsApp explicitly. Do not build a bulk-send UI in this slice: an un-opted-in send risks
 the hotel's number, which is the hotel's asset, not ours.
 
-- [ ] **Step 3: The channel settings screen and the guest-facing link**
+- [x] **Step 3: The channel settings screen and the guest-facing link**
 
 Staff see: the number, its status, display-name status, last inbound, last error, and a link to the
 onboarding runbook. The landing page grows a "Chat on WhatsApp" button — `wa.me/<number>` with a
 prefilled greeting — rendered **only** when the hotel has an `active` channel. No tokens in that
 link; room binding happens in conversation.
 
-- [ ] **Step 4: Onboarding docs, full suite, commit**
+- [x] **Step 4: Onboarding docs, full suite, commit**
 
 Update `docs/whatsapp-onboarding.md` so it separates **our** steps from **Meta's and the BSP's**
 timelines, and says plainly which waits are outside anyone's control here.
