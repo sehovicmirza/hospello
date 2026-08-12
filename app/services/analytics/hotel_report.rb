@@ -33,11 +33,19 @@ module Analytics
     # Long enough to see a trend, short enough that the answer is about now.
     DEFAULT_DAYS = 30
 
-    # A range wider than this scans more of the rollup than any question here
-    # justifies. Clamped rather than refused — a hotelier who types a wide
-    # range wants "as much as you have", not an error — and the page says which
-    # range it is really showing.
-    MAX_DAYS = 366
+    # How far back this page may be asked to look. Clamped rather than refused
+    # — a hotelier who types a wide range wants "as much as you have", not an
+    # error — and the page says which range it is really showing.
+    #
+    # **The number comes from the retention policy, not from query cost.** It
+    # used to be 366, chosen because a wider scan of the rollup was not worth
+    # paying for. Since Slice 7 Task 3 the conversations and messages three of
+    # the five questions on this page count are deleted at
+    # Retention::Policy::GUEST_CHAT_DAYS — so a year-long range would have
+    # shown a hotel nine months of zeros, which reads as a collapse in
+    # business rather than as a purge doing its job. A page that quietly shows
+    # something other than what it claims is the kind of wrong nobody catches.
+    MAX_DAYS = Retention::Policy.analytics_horizon_days
 
     # How many unanswered questions to name. A list, not a count, because
     # "guests keep asking about parking" is the one thing on this page that
