@@ -148,13 +148,21 @@ The traps, each of which has produced a wrong chart in some other product:
 Test the boundaries explicitly with `travel_to`: a run at 23:59 in Sarajevo belongs to that day, not
 to UTC's next one.
 
-- [ ] **Step 3: The platform rollup**
+- [x] **Step 3: The platform rollup**
 
 Every hotel, one row each, for the person who runs Hospello. Lives in `Platform::` — which is the one
 namespace allowed to cross tenants, and the tenancy grep test already knows it. Reads the same
 `Analytics::HotelReport`, so a hotel and the platform never see different numbers for the same thing.
 
-- [ ] **Step 4: Isolation, and a test that would catch the obvious mistake**
+> **As built, one thing the brief did not anticipate:** a report is *lazy*, so building one inside
+> `with_tenant` in the controller and reading it in a template ran every query outside the tenant and
+> raised `NoTenantSet` — the fail-closed behaviour catching a real mistake. Fixed in the report rather
+> than at the call site: each reader now runs inside its own hotel's tenant (`#for_hotel`), so a
+> report is safe to read anywhere, and `#top_unanswered` materializes rather than handing back a
+> relation. `with_tenant` narrows to one hotel and never widens past one, so it is not one of the
+> escape hatches the tenancy tripwire polices.
+
+- [x] **Step 4: Isolation, and a test that would catch the obvious mistake**
 
 The staff page must be unable to show another hotel's numbers — which is structural, since the
 report is built from `Current.hotel`. Prove it anyway with a second hotel that has *deliberately

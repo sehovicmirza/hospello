@@ -58,18 +58,18 @@ module Analytics
 
     # --- 1. How much was it used? --------------------------------------------
 
-    def conversations = scoped(Conversation).count
+    def conversations = for_hotel { scoped(Conversation).count }
 
     # Distinct guests, not conversations: one guest whose chat was resolved and
     # who started another is one person served, and counting them twice would
     # flatter the number in exactly the situation that is worst for them.
-    def guests = scoped(Conversation).distinct.count(:guest_session_id)
+    def guests = for_hotel { scoped(Conversation).distinct.count(:guest_session_id) }
 
-    def guest_messages = scoped(hotel.messages.where(sender_role: :guest)).count
+    def guest_messages = for_hotel { scoped(hotel.messages.where(sender_role: :guest)).count }
 
     # --- 2. What did the assistant handle? -----------------------------------
 
-    def escalated = scoped(Conversation).where.not(escalated_at: nil).count
+    def escalated = for_hotel { scoped(Conversation).where.not(escalated_at: nil).count }
 
     def handled_by_assistant = conversations - escalated
 
@@ -83,7 +83,7 @@ module Analytics
 
     # --- 3. What could this hotel not answer? --------------------------------
 
-    def unanswered_questions = scoped(hotel.unanswered_questions).count
+    def unanswered_questions = for_hotel { scoped(hotel.unanswered_questions).count }
 
     # Ordered by how often each was asked, not by recency: the question five
     # guests asked matters more than the one asked last night. A question
@@ -94,14 +94,16 @@ module Analytics
     # restated: this list and that screen must never disagree about which
     # questions are still outstanding.
     def top_unanswered
-      scoped(hotel.unanswered_questions).open_gaps.limit(TOP_QUESTIONS)
+      # .to_a, not a relation: a relation is lazy, and this is read by a view
+      # that runs outside whatever tenant block built the report. See #for_hotel.
+      for_hotel { scoped(hotel.unanswered_questions).open_gaps.limit(TOP_QUESTIONS).to_a }
     end
 
     # --- 4. Requests ----------------------------------------------------------
 
-    def requests = scoped(hotel.service_requests).count
+    def requests = for_hotel { scoped(hotel.service_requests).count }
 
-    def requests_completed = scoped(hotel.service_requests).where(status: :completed).count
+    def requests_completed = for_hotel { scoped(hotel.service_requests).where(status: :completed).count }
 
     # Median, not mean: one request nobody noticed over a weekend drags an
     # average into uselessness, and the number a hotel wants is "what usually
@@ -110,9 +112,10 @@ module Analytics
     # Measured to the moment a person *accepted* it, not to completion — that
     # is the number reception controls, and the one a guest feels.
     def median_response_minutes
-      seconds = scoped(hotel.service_requests).where.not(acknowledged_at: nil)
-                                              .pluck(:created_at, :acknowledged_at)
-                                              .map { |created, acknowledged| acknowledged - created }
+      seconds = for_hotel do
+        scoped(hotel.service_requests).where.not(acknowledged_at: nil)
+          .pluck(:created_at, :acknowledged_at).map { |created, acknowledged| acknowledged - created }
+      end
       return nil if seconds.empty?
 
       (median(seconds) / 60).round
@@ -122,17 +125,17 @@ module Analytics
     # about right now, and a request that went overdue last month and is still
     # sitting there is the most urgent thing on this page. Reads the same
     # ServiceRequest#overdue? every other screen does.
-    def overdue_now = hotel.service_requests.open_requests.select(&:overdue?).count
+    def overdue_now = for_hotel { hotel.service_requests.open_requests.select(&:overdue?).count }
 
     # --- 5. Is the assistant working? -----------------------------------------
 
-    def ai_runs = usage.sum(:runs)
+    def ai_runs = for_hotel { usage.sum(:runs) }
 
-    def ai_failures = usage.sum(:failures)
+    def ai_failures = for_hotel { usage.sum(:failures) }
 
-    def tokens = usage.sum(Arel.sql("input_tokens + output_tokens"))
+    def tokens = for_hotel { usage.sum(Arel.sql("input_tokens + output_tokens")) }
 
-    def tokens_by_kind = usage.group(:kind).sum(Arel.sql("input_tokens + output_tokens"))
+    def tokens_by_kind = for_hotel { usage.group(:kind).sum(Arel.sql("input_tokens + output_tokens")) }
 
     # Today's usage against this hotel's daily budget — the one AI number a
     # hotel can act on, because crossing it is what silences the assistant.
@@ -141,10 +144,24 @@ module Analytics
       budget = hotel.ai_daily_token_budget.to_i
       return nil if budget.zero?
 
-      AiRun.tokens_used_today(hotel).fdiv(budget)
+      for_hotel { AiRun.tokens_used_today(hotel) }.fdiv(budget)
     end
 
     private
+      # Every reader runs inside its own hotel's tenant, so a report is safe to
+      # read from anywhere — including a view rendering long after whatever
+      # block built it. That is not a convenience: the platform rollup builds
+      # one report per hotel in a controller and reads them all in a template,
+      # and without this every query lands outside the tenant and
+      # acts_as_tenant raises NoTenantSet. It did, which is the fail-closed
+      # behaviour working exactly as designed.
+      #
+      # Nesting is harmless where a tenant is already set (the staff page), and
+      # this is with_tenant — never one of the escape hatches
+      # test/tenancy/without_tenant_grep_test.rb polices, which is the whole
+      # point: the report narrows to one hotel, it never widens past one.
+      def for_hotel(&block) = ActsAsTenant.with_tenant(hotel, &block)
+
       # Every range is the hotel's own calendar, which is also how
       # AiUsageDay#usage_on is stored — so the rollup needs no conversion and
       # cannot disagree with the row-level queries beside it.

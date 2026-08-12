@@ -166,6 +166,11 @@ Rails.application.routes.draw do
   # Platform-admin back office. Filled in by later tasks; every controller here
   # inherits Platform::BaseController, which sets no ambient tenant.
   namespace :platform do
+    # Every hotel, one row each. Reads the same Analytics::HotelReport a
+    # hotel reads about itself, so the two can never show different
+    # numbers for the same thing.
+    resource :analytics, only: %i[show]
+
     resources :hotels, only: %i[index new create show edit update] do
       member do
         patch :suspend
