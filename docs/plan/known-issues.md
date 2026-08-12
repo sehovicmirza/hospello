@@ -57,8 +57,11 @@ one line in Mission Control.
 That is Chrome failing to launch at all, not any test's logic. Runs are all-or-nothing: either fully
 green or ~38 errors, never a middle.
 
-**Seen on CI three times** (runs 31489460738, 31573717093, 31575268079) — including on docs-only
-commits, which is what rules out the change under test as a cause.
+**Seen on CI four times** (runs 31489460738, 31573717093, 31575268079, 31581414922) — three of the
+four on **docs-only commits**, which is what rules out the change under test as a cause. In every
+one the unit suite, rubocop and brakeman were unaffected: only the "Run system tests" step failed,
+and the steps after it were skipped rather than run and failed. **That shape is how to recognise it
+on CI without opening the log.**
 
 **It reproduces locally**, contradicting the earlier note here that said it was CI-only. Measured
 2026-08-12: running the suite repeatedly, roughly one run in three comes back with the full 38, then
