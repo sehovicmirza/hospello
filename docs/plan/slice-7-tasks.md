@@ -109,7 +109,7 @@ it twice must not double the numbers, which is another use for the same upsert.
 - Create: `test/services/analytics/hotel_report_test.rb`
 - Modify: `config/routes.rb`, `app/helpers/staff_helper.rb` (nav), `config/locales/staff.{bs,en}.yml`
 
-- [ ] **Step 1: Decide what a hotelier actually asks, and compute only that**
+- [x] **Step 1: Decide what a hotelier actually asks, and compute only that**
 
 The temptation here is a dashboard of everything measurable. Resist it: a page with twelve numbers on
 it is a page nobody reads twice. The questions a hotel manager really has are:
@@ -123,11 +123,20 @@ it is a page nobody reads twice. The questions a hotel manager really has are:
 
 Everything else is decoration. If a number does not change what someone would *do*, leave it out.
 
+> **As built, one deliberate departure from the list above:** *"What is this costing us?"* is **not**
+> on the hotel's own page. A hotel does not pay per token — it pays Hospello — so a token count is a
+> number it cannot act on, and by this section's own test it does not belong. What it *can* act on is
+> proximity to the daily budget that will silence its assistant, so the page shows
+> `budget_used_fraction` instead. Tokens move to the platform page, where they really are the cost
+> driver. The page is also **hotel-admin only**: a receptionist reading "how often did the assistant
+> have to hand over to us" is reading a page about their own performance, and that is a conversation
+> a manager should choose to have rather than one the software starts.
+
 `Analytics::HotelReport` takes a hotel and a date range and returns one value object. Not a
 controller full of queries: the platform rollup asks the same questions of every hotel, and two
 implementations of "how many escalations" will disagree within a month.
 
-- [ ] **Step 2: Date ranges that cannot lie**
+- [x] **Step 2: Date ranges that cannot lie**
 
 Every range is in the **hotel's own timezone**, and the page says which range it is showing in words.
 The traps, each of which has produced a wrong chart in some other product:

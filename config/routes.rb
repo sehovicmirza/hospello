@@ -62,6 +62,12 @@ Rails.application.routes.draw do
   # nothing in this namespace takes a hotel id from the URL.
   namespace :staff do
     root "dashboard#show"
+
+    # What this hotel can see about its own use of the product.
+    # Singular and id-less like hotel_settings: always Current.hotel's.
+    # The date range is the only thing a request may say, and
+    # Analytics::HotelReport clamps whatever it is handed.
+    resource :analytics, only: %i[show]
     resource :hotel_settings, only: %i[edit update]
 
     # A staff member's own workspace language (User#locale) — a singular

@@ -1,0 +1,12 @@
+<%# One headline number. `note` is a secondary reading of the same figure (the
+    escalation rate beside the escalation count), never a second figure — two
+    numbers in one box is how a tile stops being readable at a glance. %>
+<div id="<%= id %>" class="rounded-lg border border-gray-200 bg-white p-4">
+  <p class="text-sm text-gray-600"><%= label %></p>
+  <p class="mt-1 text-2xl font-semibold text-gray-900">
+    <%= value %>
+    <% if local_assigns[:note].present? %>
+      <span class="text-sm font-normal text-gray-500"><%= note %></span>
+    <% end %>
+  </p>
+</div>

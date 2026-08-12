@@ -103,6 +103,13 @@ module StaffHelper
     if policy(UnansweredQuestion).index?
       items << { id: "knowledge-gaps", label: t("staff.nav.knowledge_gaps"), path: staff_unanswered_questions_path, badge: staff_knowledge_gap_count }
     end
+    # Hotel admins only (HotelAnalyticsPolicy) — a receptionist reading
+    # "how often did the assistant hand over to us" is reading a page
+    # about their own performance, which is a conversation a manager
+    # should choose to have rather than one the software starts.
+    if HotelAnalyticsPolicy.new(Current.user, Current.hotel).analytics?
+      items << { id: "analytics", label: t("staff.nav.analytics"), path: staff_analytics_path }
+    end
     items << { id: "hotel-settings", label: t("staff.nav.hotel_settings"), path: edit_staff_hotel_settings_path } if policy(Current.hotel).edit?
     items << { id: "rooms", label: t("staff.nav.rooms"), path: staff_rooms_path } if policy(Room).index?
     # Next to the QR code at the bottom, not next to the inbox: this is the
