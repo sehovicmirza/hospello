@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-12 (Slice 7 Task 3 — retention and the right to be forgotten) |
+| **Last updated** | 2026-08-12 (Slice 7 Task 4 — the demo seed) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1200 unit/integration green · 41 system green (run four times this session, no flake) · rubocop and brakeman clean |
+| **Tests** | 1213 unit/integration green · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green through `39447e6`** — checked, not assumed. Nothing since has been *observed* on CI by this session; every step was run locally instead (full suite, system suite, rubocop, brakeman). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–3 of 5 done |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · only Task 5 (hardening) left |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -979,6 +979,39 @@ one file, and every number anywhere else in this feature comes from it.
 - `docs/runbook.md` gained two real sections (a guest asks to be forgotten; the retention purge),
   replacing nothing — the three reserved placeholders are still reserved.
 
+**Slice 7 Task 4 — the demo seed.** `SEED_DEMO=1 bin/rails db:seed` produces a complete Hotel Stari
+Grad Sarajevo: 18 rooms, four staff, six request categories, 21 published knowledge entries, five
+conversations across bs/en/de/ar, requests in **all six** statuses, and three unanswered questions.
+
+- The knowledge base is the part that decides whether a demo lands, so every entry names something
+  concrete — a tram number, a street, a price, the ćevapi places we actually eat at. Twenty thin
+  entries read as a template; twenty specific ones read as a real hotel.
+- The Arabic conversation is on **WhatsApp**, which makes the RTL rendering *and* the channel badge
+  visible before a demo rather than during one. There is an escalation with a human reply, a
+  declined request and an overdue one, because a demo that only shows the happy path invites exactly
+  the question it does not answer.
+- Two guards make it safe to run against production, which someone eventually will: it **refuses
+  beside hotels it did not create**, and it is keyed on the slug so a second run changes nothing.
+- Everything is dated **inside the retention window**, which Task 3 made load-bearing: the purge
+  deletes guest chat after 90 days and the analytics pages cannot look further back, so
+  plausible-looking "six months ago" data would vanish overnight and be invisible on the very
+  screens it was seeded to fill.
+
+**It found two bugs in already-shipped code**, which is the whole argument for a seed test that
+loads the file rather than checking it parses:
+
+1. **`UnansweredQuestion.record!`'s race recovery only worked outside a transaction.** Postgres
+   aborts the whole transaction on a constraint violation, so the rescue's own `find_by!` failed too
+   and the `RecordNotUnique` escaped. Now a **savepoint** (`requires_new: true`). Nothing in the app
+   was a caller inside a transaction, which is exactly why nothing caught it.
+2. **`AiRun`'s `after_create_commit` wrote the rollup with no tenant set** — a commit fires where the
+   transaction *ends*, not where the record was built, so wrapping the seed in one transaction lost
+   all 125 rollup writes to `NoTenantSet`, silently (an after_commit failure rolls nothing back).
+   `AiUsageDay.record!` now takes its tenant from the run. **Fixing it then made the seed's own
+   workaround harmful**: an explicit `rebuild_for` *replaces* a day's counters while the callbacks
+   *add* to them, so every number came out exactly doubled. That is now a comment in the seed saying
+   "do not put it back".
+
 ---
 
 ## What to do next
@@ -993,20 +1026,26 @@ webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md`
    rather than the plan's one-paragraph summary; `docs/plan/implementation-plan.md` remains the
    contract if the two ever disagree.
 
-   **Tasks 1, 2 and 3 are done** (see their write-ups above). **Start at Task 4 — the demo seed**
-   (`db/seeds/demo.rb`, whose `SEED_DEMO=1` wiring already exists; only the content is missing),
-   then Task 5, hardening and the walkthrough that ends the project.
+   **Tasks 1–4 are done** (see their write-ups above). **Only Task 5 is left — hardening and the
+   walkthrough that ends the project** — and it is the task that **cannot be finished without a
+   human**. Four of its six steps need something no session has: an API key, a staging environment,
+   the real production database, or two phones.
 
-   Two things Task 3 leaves for Task 4 to get right, both cheap if you know them now and annoying
-   if you find out afterwards:
-   - **The seed's dates decide whether the demo shows anything.** Anything it creates more than
-     `Retention::Policy::GUEST_CHAT_DAYS` (90) days in the past is deleted by the first purge, and
-     anything older than 90 days is invisible to the analytics pages, whose `MAX_DAYS` is now that
-     same number. Seed inside the last few weeks.
-   - **The seed will eventually be run against production** (the slice's own traps section says so).
-     `Retention::PurgeExpiredGuestDataJob` is now scheduled daily in production, so a seed that
-     writes plausible old data is a seed whose data disappears overnight — which is the *safe*
-     direction, but it will look like a bug to whoever demos it.
+   What a session *can* do, and should do first:
+   - **Step 1, the readiness checklist** — what must be true before a hotel goes live. The breakdown
+     suggests considering a screen rather than a document, since a checklist a hotel can see its own
+     progress against is worth more than one in a repository they will never open.
+   - **Step 2, the runbook's three reserved placeholders** (AI outage, translation failure, WhatsApp
+     delivery) — with **exact commands**, not descriptions of commands. Write them for someone who
+     did not build this and is reading at 03:00.
+
+   What needs a person, and should be handed over rather than half-done:
+   - **Step 3, the chaos drill** — revoke the key in staging, watch the breaker open and the guest
+     get the pre-translated fallback, restore, confirm recovery without a deploy. Specified since
+     Slice 1 and never run.
+   - **Step 4, the PITR restore drill** — nobody knows the real recovery time until someone does it.
+   - **Step 5, all 13 acceptance scenarios as guest *and* receptionist on two devices.**
+   - **Step 6, `LIVE_AI=1`.**
 
    One item is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
    session, because no session has ever had an `ANTHROPIC_API_KEY`. Everything believed about prompt
