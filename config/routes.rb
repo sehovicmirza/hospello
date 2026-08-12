@@ -178,6 +178,19 @@ Rails.application.routes.draw do
       end
 
       resources :hotel_admins, only: %i[new create]
+
+      # The right to be forgotten, actioned by whoever runs Hospello rather
+      # than by the hotel — see GuestErasurePolicy for why that is not the
+      # same question as "who may read this data".
+      #
+      # #index finds the guest (a name, a room, a phone number, which is all
+      # a request ever arrives with), #new is the confirmation and names
+      # exactly what is about to be destroyed, #create destroys it. No
+      # #destroy verb on a member: the thing being erased is a person's data
+      # across five tables, not one row, and pretending otherwise would put
+      # an irreversible action behind a button that reads like any other
+      # delete.
+      resources :guest_erasures, only: %i[index new create]
     end
   end
 

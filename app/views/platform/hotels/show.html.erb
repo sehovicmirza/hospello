@@ -78,6 +78,13 @@
       <%= link_to "Edit hotel", edit_platform_hotel_path(@hotel),
             class: "rounded-md border border-gray-400 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50" %>
 
+      <%# The only way into an erasure. A screen nobody can find is a legal
+          obligation that gets actioned by someone opening a Rails console on
+          the production box, which is the "hidden manual step" this project's
+          own rules forbid. %>
+      <%= link_to "Erase a guest’s data", platform_hotel_guest_erasures_path(@hotel),
+            class: "rounded-md border border-gray-400 px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50" %>
+
       <% if @hotel.active? %>
         <%= button_to "Suspend hotel", suspend_platform_hotel_path(@hotel), method: :patch,
               class: "w-full rounded-md border border-amber-300 px-4 py-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50 cursor-pointer" %>

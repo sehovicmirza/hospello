@@ -1,0 +1,62 @@
+<% content_for :title, "Confirm erasure — #{@hotel.name}" %>
+
+<p class="mb-4">
+  <%= link_to "← Back to the guest list", platform_hotel_guest_erasures_path(@hotel),
+        class: "text-sm font-medium text-gray-600 hover:text-gray-900" %>
+</p>
+
+<h1 class="text-2xl font-semibold text-gray-900">
+  Erase <%= @guest_session.guest_name %>’s data at <%= @hotel.name %>
+</h1>
+
+<%# The confirmation names what is about to be destroyed rather than asking
+    "are you sure?". Nobody reads a yes/no dialog; a count of the messages
+    about to stop existing is read every time. Every number here comes from
+    Retention::GuestErasure's own scopes — the same ones that then do the
+    deleting, so this cannot describe something other than what happens. %>
+<div id="erasure-confirmation" class="mt-6 max-w-2xl rounded-lg border border-red-200 bg-red-50 p-6">
+  <p class="text-sm font-semibold text-red-800">This cannot be undone. There is no backup to restore from.</p>
+
+  <p class="mt-4 text-sm text-red-900">Deleted outright:</p>
+  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-red-900">
+    <li>
+      This guest’s identity — their name<%= ", their phone number" if @guest_session.phone_e164.present? %>,
+      their room<%= " (#{@guest_session.room.number})" if @guest_session.room %>, and the language they chose.
+    </li>
+    <li><strong><%= @tally.conversations %></strong> conversation<%= "s" unless @tally.conversations == 1 %>,
+      including every internal note staff wrote in <%= @tally.conversations == 1 ? "it" : "them" %>.</li>
+    <li><strong><%= @tally.messages %></strong> message<%= "s" unless @tally.messages == 1 %> — everything
+      either side wrote, and every translation of it.</li>
+    <% if @tally.webhook_events.positive? %>
+      <li><strong><%= @tally.webhook_events %></strong> raw WhatsApp delivery record<%= "s" unless @tally.webhook_events == 1 %>
+        held at this hotel.</li>
+    <% end %>
+  </ul>
+
+  <p class="mt-4 text-sm text-red-900">Kept, with this guest taken out of it:</p>
+  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-red-900">
+    <li>
+      <strong><%= @tally.service_requests %></strong> service request<%= "s" unless @tally.service_requests == 1 %>.
+      The hotel’s own record of work its staff did stays — what was asked for becomes the request’s
+      category, and the guest’s words, room and identity are cleared.
+    </li>
+    <% if @tally.knowledge_gaps.positive? %>
+      <li>
+        <strong><%= @tally.knowledge_gaps %></strong> unanswered question<%= "s" unless @tally.knowledge_gaps == 1 %>.
+        The hotel keeps the gap it exposed; this guest’s own wording of it is cleared.
+      </li>
+    <% end %>
+    <li>
+      An audit entry recording that this erasure happened, by whom, and how much it touched.
+      It names no guest.
+    </li>
+  </ul>
+
+  <div class="mt-6 flex items-center gap-4">
+    <%= button_to "Erase this guest’s data", platform_hotel_guest_erasures_path(@hotel),
+          params: { guest_session_id: @guest_session.id },
+          class: "rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500" %>
+    <%= link_to "Cancel", platform_hotel_guest_erasures_path(@hotel),
+          class: "text-sm font-medium text-gray-700 hover:text-gray-900" %>
+  </div>
+</div>

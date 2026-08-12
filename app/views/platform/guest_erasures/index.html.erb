@@ -1,0 +1,64 @@
+<% content_for :title, "Erase guest data — #{@hotel.name}" %>
+
+<p class="mb-4">
+  <%= link_to "← Back to #{@hotel.name}", platform_hotel_path(@hotel),
+        class: "text-sm font-medium text-gray-600 hover:text-gray-900" %>
+</p>
+
+<h1 class="text-2xl font-semibold text-gray-900">Erase guest data</h1>
+<p class="mt-1 max-w-2xl text-sm text-gray-600">
+  A guest of <%= @hotel.name %> asking to be forgotten. Find their stay below — an erasure request
+  usually arrives as a name, a room number or a phone number. Everything here is deleted on its own
+  schedule anyway (<%= Retention::Policy::GUEST_CHAT_DAYS %> days after a stay ends); this is for
+  when someone asks for it sooner.
+</p>
+
+<%= form_with url: platform_hotel_guest_erasures_path(@hotel), method: :get, class: "mt-6 flex gap-2" do |form| %>
+  <%= form.text_field :q, value: @query, placeholder: "Name, room number or phone",
+        class: "w-full max-w-sm rounded-md border-gray-300 text-sm shadow-sm" %>
+  <%= form.submit "Search", class: "rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700" %>
+<% end %>
+
+<% if @guest_sessions.any? %>
+  <table id="guest-sessions" class="mt-6 min-w-full divide-y divide-gray-200 text-sm">
+    <thead>
+      <tr class="text-left text-gray-500">
+        <th class="py-2 pr-4 font-medium">Guest</th>
+        <th class="py-2 pr-4 font-medium">Room</th>
+        <th class="py-2 pr-4 font-medium">Channel</th>
+        <th class="py-2 pr-4 font-medium">Last seen</th>
+        <th class="py-2 pr-4 font-medium">Stay ends</th>
+        <th class="py-2 pr-4 font-medium"><span class="sr-only">Erase</span></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      <% @guest_sessions.each do |session| %>
+        <tr id="<%= dom_id(session) %>">
+          <td class="py-2 pr-4 font-medium text-gray-900"><%= session.guest_name %></td>
+          <td class="py-2 pr-4 text-gray-600"><%= session.room&.number || "—" %></td>
+          <td class="py-2 pr-4 text-gray-600">
+            <%= session.whatsapp? ? "WhatsApp #{session.phone_e164}" : "Web" %>
+          </td>
+          <td class="py-2 pr-4 text-gray-600">
+            <%= session.last_seen_at ? "#{time_ago_in_words(session.last_seen_at)} ago" : "—" %>
+          </td>
+          <td class="py-2 pr-4 text-gray-600"><%= l(session.expires_at.to_date, format: :long) %></td>
+          <td class="py-2 pr-4">
+            <%= link_to "Erase…", new_platform_hotel_guest_erasure_path(@hotel, guest_session_id: session.id),
+                  class: "font-medium text-red-600 hover:text-red-500" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p id="no-guest-sessions" class="mt-6 rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-600">
+    <% if @query.present? %>
+      No stay at this hotel matches “<%= @query %>”. A stay that ended more than
+      <%= Retention::Policy::GUEST_CHAT_DAYS %> days ago has already been deleted — there may be
+      nothing left to erase.
+    <% else %>
+      This hotel has no guest stays on record.
+    <% end %>
+  </p>
+<% end %>
