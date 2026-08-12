@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-12 (Slice 7 Task 1 — the ai_usage_days rollup) |
+| **Last updated** | 2026-08-12 (Slice 7 Task 2 — the analytics pages) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1088 unit/integration green · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1132 unit/integration green · 41 system green · rubocop and brakeman clean |
 | **CI** | **Green through `39447e6`** — checked, not assumed: every commit of this session passed every step, including system tests, rubocop, brakeman and bundler-audit. **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Task 1 of 5 done |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–2 of 5 done |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -893,6 +893,35 @@ complete**: every step of all four tasks.
   plainly that `hotel.ai_runs` is *not* what it proves (under the rake task's `with_tenant`, a bare
   `AiRun.all` is scoped identically).
 
+**Slice 7 Task 2 — the analytics pages.** `Analytics::HotelReport` is one object, read by both the
+hotel's own screen and the platform rollup, so the two can never show different numbers for the same
+thing. A test asserts they agree.
+
+- It answers **five questions and nothing else**; the test applied to each candidate was whether it
+  changes what somebody would do. The unanswered questions come back as a **list, not a count**, and
+  are the largest thing on the page — "guests keep asking about parking" tells a hotel exactly what
+  to write down, which "7 unanswered" does not.
+- **"What is this costing us" is deliberately absent from the hotel's page**, departing from the
+  brief's own wording: a hotel pays Hospello, not per token, so a token count is a number it cannot
+  act on. It sees `budget_used_fraction` — proximity to the ceiling that silences its assistant —
+  and tokens appear on the platform page, where they really are the cost driver.
+- Response time is a **median** (one request nobody noticed over a weekend drags a mean into
+  uselessness) and measured to **acceptance**, not completion, because that is what reception
+  controls. `overdue_now` is deliberately **not** scoped to the range: "what is late" is about now.
+- `escalation_rate` is **nil, not 0**, when there was no traffic. "0% escalated" reads as a triumph,
+  and a hotel with no guests has not achieved one.
+- The hotel page is **hotel-admin only** (`HotelAnalyticsPolicy`). A receptionist reading "how often
+  did the assistant hand over to us" is reading a page about their own performance.
+- Ranges are clamped, never refused — a future end, a start after its end, a five-year span — and
+  the page **states the range it really showed**, because a page quietly showing something other than
+  what was asked for is the kind of wrong nobody catches.
+- **Two bugs found by the work rather than by review.** Four report tests initially passed against
+  nothing, because the setup held a `HotelReport` instead of a snapshot of its numbers and the object
+  re-queries on every call. And building the platform page raised `NoTenantSet` — a report is lazy,
+  so one built inside `with_tenant` in a controller ran its queries in the *template*, outside the
+  tenant. That is fail-closed working. Fixed in the report (`#for_hotel`), so a report is now safe to
+  read anywhere rather than carrying an unwritten requirement about ambient state.
+
 ---
 
 ## What to do next
@@ -907,17 +936,21 @@ webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md`
    rather than the plan's one-paragraph summary; `docs/plan/implementation-plan.md` remains the
    contract if the two ever disagree.
 
-   **Task 1 is done** (see its write-up above). **Start at Task 2 — the analytics pages.**
-   `Analytics::HotelReport` takes a hotel and a date range and returns one value object, because the
-   platform rollup asks the same questions of every hotel and two implementations of "how many
-   escalations" will disagree within a month. The breakdown names the five questions a hotelier
-   actually has; the discipline it asks for is to compute *only* those. Every date range is in the
-   hotel's own timezone — `AiUsageDay#usage_on` is already stored that way, so a range built from
-   `Date.current` would be off by a day for exactly the hotels that use this most.
+   **Tasks 1 and 2 are done** (see their write-ups above). **Start at Task 3 — retention and
+   erasure.** It is the task with legal weight and the one where a bug is unrecoverable in both
+   directions: data kept too long is a liability, data deleted wrongly is gone.
 
-   Task 3 (retention and erasure) is the one with legal weight and the one where a bug is
-   unrecoverable in both directions — worth reading its steps before starting Task 2, because the
-   retention policy affects how far back the analytics pages can honestly look.
+   Its first step is deliberately not code. Write `Retention::Policy` — what is kept, how long, and
+   *why* — before writing anything that deletes, so the answer to "why is this row still here?" is a
+   file rather than an archaeology exercise. The step that makes it stick is the last one: a test
+   that reads the policy's numbers and asserts they appear in the privacy notice, in all four
+   locales. Two sources of truth about a legal promise is the one kind of drift that cannot be fixed
+   retroactively.
+
+   Note for whoever writes it: it also bounds how far back the analytics pages can honestly look.
+   `Analytics::HotelReport::MAX_DAYS` is currently 366 and was chosen for query cost, not for
+   policy — if retention is shorter than that, the cap should follow the policy rather than the
+   other way round.
 
    One item in there is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
    session, because no session has ever had an `ANTHROPIC_API_KEY`. Everything believed about prompt
