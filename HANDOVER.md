@@ -875,11 +875,22 @@ files that show the whole thing working are `test/services/whatsapp/inbound_flow
 webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md` section 4
 (connecting a real number).
 
-1. **Slice 7 is next** (analytics, readiness checklist, retention/GDPR, demo seed, hardening — see
-   item 3 below and `docs/plan/implementation-plan.md`, which is the contract; do not redesign it
-   from this summary). **Write `docs/plan/slice-7-tasks.md` first**, the same way slices 4, 5 and 6
-   each got a task breakdown before any code was written, then follow the review loop in
-   `CLAUDE.md`.
+1. **Slice 7 — start at Task 1. [`docs/plan/slice-7-tasks.md`](docs/plan/slice-7-tasks.md) is
+   written**, five tasks with schemas, steps and traps, the same shape slices 4–6 used. Read it
+   rather than the plan's one-paragraph summary; `docs/plan/implementation-plan.md` remains the
+   contract if the two ever disagree.
+
+   Task 1 (`ai_usage_days`, an atomic daily rollup) is the one everything else reads, so it goes
+   first. Its hard property is that **Postgres does the addition** — a read-modify-write loses a
+   concurrent call and the loss is invisible, which is the same reasoning
+   `Message#claim_translation!` documents, applied to arithmetic. Task 3 (retention and erasure) is
+   the one with legal weight and the one where a bug is unrecoverable in both directions.
+
+   One item in there is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
+   session, because no session has ever had an `ANTHROPIC_API_KEY`. Everything believed about prompt
+   caching, real tool-call shapes and real token accounting rests on tests against `FakeClaude`.
+   Slice 7 Task 5 step 6 is where that gets settled — treat its first run as a source of findings
+   about Slices 3–5, not as a formality.
 
    Three things left undone in Slice 6, all deliberate, none blocking:
    - **A system test for the WhatsApp settings screen** (the brief names
