@@ -46,5 +46,20 @@ production:
     queue: low
     schedule: every minute
 
-  # Later slices add more recurring entries here: escalation reminders, and
-  # data-retention purges (Slice 7).
+  # What makes docs/plan/engineering-rules.md's promise to guests true, and
+  # app/services/retention/policy.rb the thing that decides it. Once a day,
+  # not hourly: every window it enforces is measured in months, so running it
+  # more often would only mean doing the same scan 23 more times to find
+  # nothing. 03:20 because the queue is otherwise idle then and this is the
+  # largest delete this app ever does — and at :20 rather than on the hour so
+  # it does not start alongside the hourly Solid Queue cleanup above.
+  #
+  # A run that is missed entirely (a deploy, an outage) costs nothing: the
+  # next one purges everything the missed one would have, because the cutoffs
+  # are computed from the moment it runs rather than from the last run.
+  purge_expired_guest_data:
+    class: Retention::PurgeExpiredGuestDataJob
+    queue: low
+    schedule: every day at 3:20am
+
+  # Later slices add more recurring entries here: escalation reminders.

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_12_080000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -284,6 +284,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_12_080000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "anonymized_at"
     t.index ["acknowledged_by_id"], name: "index_service_requests_on_acknowledged_by_id"
     t.index ["assigned_to_id"], name: "index_service_requests_on_assigned_to_id"
     t.index ["conversation_id"], name: "index_service_requests_on_conversation_id"

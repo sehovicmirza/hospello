@@ -108,6 +108,81 @@ class ServiceRequest < ApplicationRecord
     Digest::SHA256.hexdigest(parts.join("|"))
   end
 
+  # Rows whose guest data is still in them. Everything a purge or an erasure
+  # has already been through is skipped — see the migration for why this is a
+  # marker column rather than a derived "guest_session_id IS NULL".
+  scope :identifiable, -> { where(anonymized_at: nil) }
+
+  def anonymized? = anonymized_at.present?
+
+  # Takes the guest out of a request and leaves the hotel's record of it
+  # standing. Called on a relation (`hotel.service_requests.where(...)
+  # .anonymize_all!`) by both Retention::PurgeExpiredGuestDataJob, on the
+  # policy's clock, and Retention::GuestErasure, on a named person's request.
+  # One definition of what anonymizing means, because two would disagree
+  # about a column within a year and nobody would be able to say which rows
+  # got which treatment.
+  #
+  # **What goes, and why each:**
+  #
+  #   summary          → the request category's own name. It cannot simply be
+  #                      cleared (NOT NULL, and it is the line a receptionist
+  #                      reads on the board), and it currently holds the
+  #                      guest's confirmed words, translated. The category is
+  #                      the hotel's own vocabulary, describes the request
+  #                      without describing the person, and is already shown
+  #                      beside it — so an old card reads "Extra towels"
+  #                      instead of "two bath towels for Mr Halilović in 302".
+  #   details          → {}. Whatever the guest supplied for the category's
+  #                      own fields: times, quantities, and any name or note
+  #                      they chose to type into one.
+  #   details_original → NULL. Their words, verbatim, in their own language.
+  #   original_locale  → NULL. Which language a person writes in is a fact
+  #                      about them, and with details_original gone it
+  #                      describes nothing that is still here.
+  #   guest_session_id → NULL. The link to their identity.
+  #   conversation_id  → NULL. The link to the transcript. Redundant with the
+  #                      cascade once a conversation is purged, and not
+  #                      redundant at all for an erasure that runs first.
+  #   room_id          → NULL. Where a person slept on a given night, which
+  #                      with the hotel's own booking system is an identity.
+  #
+  # **What stays, and why:** status and every timestamp (the operational
+  # history this row exists for), request_category_id and department_id (what
+  # kind of work it was and who does it), the staff who accepted and were
+  # assigned it (staff, not guests — and "who was on shift" is the hotel's
+  # own record), priority, source and channel, and `dedupe_key`, which is a
+  # SHA-256 over inputs that no longer exist anywhere and is what stops two
+  # rows colliding on the unique index it backs.
+  #
+  # update_all, so no validation and no callback runs. That is deliberate
+  # twice over: this must be one statement per batch rather than one per row
+  # on the largest delete this app will ever do, and
+  # #details_original_is_immutable_after_creation would otherwise refuse the
+  # write — correctly, since it exists to stop a *translation* overwriting an
+  # original. Retention is the one thing allowed to clear it, and it has to
+  # be visibly a different kind of write to get there.
+  #
+  # @return [Integer] how many rows were anonymized
+  def self.anonymize_all!(now: Time.current)
+    redaction = <<~SQL.squish
+      summary = (
+        SELECT name FROM request_categories
+        WHERE request_categories.id = service_requests.request_category_id
+      ),
+      details = '{}'::jsonb,
+      details_original = NULL,
+      original_locale = NULL,
+      guest_session_id = NULL,
+      conversation_id = NULL,
+      room_id = NULL,
+      anonymized_at = ?,
+      updated_at = ?
+    SQL
+
+    identifiable.update_all([ redaction, now, now ])
+  end
+
   # The only way a status ever changes.
   #
   # Every change writes a RequestEvent, so "who accepted this and when" is

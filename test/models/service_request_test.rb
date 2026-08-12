@@ -218,6 +218,70 @@ class ServiceRequestTest < ActiveSupport::TestCase
     assert_includes request.errors[:details_original], "cannot be changed after creation"
   end
 
+  # --- retention: taking the guest out and leaving the work behind -----------
+
+  test "anonymizing keeps the request and drops every part of it that is about a person" do
+    request = create_request(quantity: "7", details_original: "Dodatni peškiri za g. Halilovića, soba 302",
+      original_locale: "bs")
+
+    ServiceRequest.where(id: request.id).anonymize_all!
+
+    request.reload
+    assert_nil request.details_original
+    assert_nil request.original_locale
+    assert_nil request.guest_session_id
+    assert_nil request.conversation_id
+    assert_nil request.room_id
+    assert_empty request.details
+    assert_equal request_categories(:stari_towels).name, request.summary
+    assert request.anonymized?
+  end
+
+  test "anonymizing leaves the hotel's own record of the work intact" do
+    request = create_request(quantity: "7", details_original: "Dodatni peškiri", original_locale: "bs")
+    request.transition!(to: :accepted, by: users(:stari_staff))
+    created_at, acknowledged_at = request.created_at, request.reload.acknowledged_at
+
+    ServiceRequest.where(id: request.id).anonymize_all!
+
+    request.reload
+    assert_equal "accepted", request.status
+    assert_equal request_categories(:stari_towels).id, request.request_category_id
+    assert_equal request_categories(:stari_towels).department_id, request.department_id
+    assert_equal users(:stari_staff).id, request.acknowledged_by_id
+    assert_equal acknowledged_at.to_i, request.acknowledged_at.to_i
+    assert_equal created_at.to_i, request.created_at.to_i
+  end
+
+  # Idempotence matters here more than it usually does: the nightly purge
+  # re-reads the same 365-day window every night, and a second pass that
+  # re-derived `summary` from a category, or moved `anonymized_at` forward,
+  # would quietly rewrite rows forever and lie about when the data went.
+  test "anonymizing a row a second time does nothing at all" do
+    request = create_request(quantity: "9", details_original: "Dodatni peškiri", original_locale: "bs")
+    ServiceRequest.where(id: request.id).anonymize_all!
+    first_pass = request.reload.anonymized_at
+
+    travel 1.day do
+      assert_equal 0, ServiceRequest.where(id: request.id).anonymize_all!
+    end
+
+    assert_equal first_pass.to_i, request.reload.anonymized_at.to_i
+  end
+
+  # The immutability validation above and this write are not in conflict:
+  # that guard exists to stop a *translation* overwriting an original, and
+  # retention is the one thing allowed past it — through update_all, which
+  # is visibly a different kind of write. The guard has to still be there
+  # afterwards, which is what this pins.
+  test "clearing the original for retention does not open the ordinary way in" do
+    request = create_request(quantity: "11", details_original: "Dodatni peškiri", original_locale: "bs")
+
+    assert_raises(ActiveRecord::RecordInvalid) do
+      request.update!(details_original: "something else entirely")
+    end
+  end
+
   private
 
   def create_request(quantity: "2", details_original: nil, original_locale: nil)
