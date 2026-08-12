@@ -232,7 +232,7 @@ the task: it is what stops the two from drifting the next time someone changes o
 - Modify: `db/seeds/demo.rb` (the wiring and the `SEED_DEMO=1` gate already exist)
 - Create: `test/seeds/demo_seed_test.rb`
 
-- [ ] **Step 1: One hotel, complete, credible, and safe to show**
+- [x] **Step 1: One hotel, complete, credible, and safe to show**
 
 "Hotel Stari Grad Sarajevo": rooms across two floors, 4 staff (one hotel admin, three reception),
 departments and request categories, **~20 knowledge entries** covering what guests actually ask —
@@ -243,7 +243,7 @@ The knowledge base is the part that decides whether the demo lands. Twenty thin 
 template; twenty specific ones ("breakfast is served in the Ćevabdžinica restaurant from 07:00 to
 10:30, and we can pack one to take away if you are leaving early") read as a real hotel.
 
-- [ ] **Step 2: Conversations that show the product, including its failures**
+- [x] **Step 2: Conversations that show the product, including its failures**
 
 Sample conversations in **bs, en, de and ar** — the Arabic one matters most, because it is the only
 way an RTL rendering problem is visible before a demo rather than during one. Requests in **every**
@@ -251,14 +251,27 @@ status, including one overdue and one declined. At least one unanswered question
 screen is not empty. At least one conversation showing the assistant handing over to a person: a demo
 that only shows the happy path invites exactly the question it does not answer.
 
-- [ ] **Step 3: Idempotent, and impossible to run against real data**
+- [x] **Step 3: Idempotent, and impossible to run against real data**
 
 Running it twice must not produce two hotels — key on the slug. **`SEED_DEMO=1` and nothing else**,
 never a default, and the seed should refuse outright if the database already contains a hotel it did
 not create. Someone will run this against production eventually; make that safe rather than
 unlikely.
 
-- [ ] **Step 4: A test that runs the seed**
+- [x] **Step 4: A test that runs the seed**
+
+> **As built, two bugs the seed found in code that was already shipped** — which is the argument for
+> a seed test that actually loads the file rather than checking it parses:
+> - `UnansweredQuestion.record!`'s "a repeat counts itself in" rescue only worked *outside* a
+>   transaction. Postgres aborts the whole transaction on a constraint violation, so the recovery's
+>   own `find_by!` failed too. Fixed with a savepoint (`requires_new: true`). Nothing in the app was
+>   a caller inside a transaction, which is exactly why nothing caught it.
+> - `AiRun`'s `after_create_commit` wrote the rollup with no tenant set, because a commit fires
+>   where the transaction ends rather than where the record was built — so wrapping the seed in one
+>   transaction lost all 125 rollup writes to `NoTenantSet`. Fixed in `AiUsageDay.record!`, which now
+>   takes its tenant from the run. Then removing the seed's workaround mattered too: with the
+>   callbacks working, an explicit `rebuild_for` alongside them *replaced* a day's counters while the
+>   callbacks *added* to them, and every number came out exactly doubled.
 
 Not "the file parses" — actually load it and assert the shape a demo depends on: the hotel exists,
 the KB has entries in more than one language, there is a request in each status, the RTL conversation

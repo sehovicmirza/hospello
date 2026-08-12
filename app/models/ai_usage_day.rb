@@ -39,12 +39,27 @@ class AiUsageDay < ApplicationRecord
     # and it is expressed as Rails' own upsert rather than raw SQL precisely
     # so it does not need one of the tenant-scope escape hatches
     # test/tenancy/without_tenant_grep_test.rb polices.
+    # Sets its own tenant from the run rather than relying on an ambient one.
+    #
+    # This is called from an `after_create_commit`, and a commit does not
+    # necessarily happen where the record was built: wrap an
+    # `ActsAsTenant.with_tenant(hotel) { AiRun.create!(...) }` in an outer
+    # transaction and the callback fires *after* that block has exited, with
+    # no tenant set, and every one of these raises `NoTenantSet`. Jobs happen
+    # not to do that — they hold the tenant for their whole duration — which is
+    # why nothing caught it until db/seeds/demo.rb wrapped a seed in one
+    # transaction and lost all 125 of its rollup writes.
+    #
+    # The run knows its own hotel, so nothing here needs to be told: narrowing
+    # to that hotel is always correct and never widens past one.
     def record!(run)
-      upsert_all(
-        [ row_for(run) ],
-        unique_by: %i[hotel_id usage_on kind],
-        on_duplicate: accumulate
-      )
+      ActsAsTenant.with_tenant(run.hotel) do
+        upsert_all(
+          [ row_for(run) ],
+          unique_by: %i[hotel_id usage_on kind],
+          on_duplicate: accumulate
+        )
+      end
     end
 
     # Rebuilds a hotel's rollup from the `ai_runs` rows that already exist —

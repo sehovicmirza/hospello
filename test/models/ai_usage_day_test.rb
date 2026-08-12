@@ -63,6 +63,26 @@ class AiUsageDayTest < ActiveSupport::TestCase
     end
   end
 
+  # An `after_create_commit` does not necessarily fire where the record was
+  # built: wrap `with_tenant { AiRun.create! }` in an outer transaction and the
+  # callback runs after that block has exited, with no tenant set. Every write
+  # then raised `NoTenantSet` and the rollup silently recorded nothing.
+  #
+  # Nothing caught this because jobs hold the tenant for their whole duration
+  # — db/seeds/demo.rb was the first caller with an enclosing transaction, and
+  # it lost all 125 of its rollup writes on the first run.
+  test "a run recorded from a commit outside any tenant still lands" do
+    ActsAsTenant.current_tenant = nil
+
+    ApplicationRecord.transaction do
+      ActsAsTenant.with_tenant(@hotel) do
+        AiRun.create!(hotel: @hotel, kind: :reply, status: :success, input_tokens: 250)
+      end
+    end
+
+    assert_equal 250, with_tenant(@hotel) { AiUsageDay.sole.input_tokens }
+  end
+
   # --- Failures ---------------------------------------------------------------
 
   # "How often did guests get the fallback message" is the health question

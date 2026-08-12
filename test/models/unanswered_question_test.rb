@@ -119,6 +119,31 @@ class UnansweredQuestionTest < ActiveSupport::TestCase
     end
   end
 
+  # The recovery path is a savepoint, not a bare rescue, and this is the test
+  # that distinguishes them.
+  #
+  # Postgres aborts an entire transaction on a constraint violation, so without
+  # `requires_new: true` the rescue's own `find_by!` fails too and the
+  # RecordNotUnique escapes — meaning "a repeat counts itself in" quietly held
+  # only for callers outside a transaction. Nothing in the app was one, which
+  # is exactly why nothing caught it; db/seeds/demo.rb was the first caller
+  # inside a transaction and it failed on its first run.
+  test "a repeat counts itself in even inside an enclosing transaction" do
+    with_tenant(@hotel) do
+      ApplicationRecord.transaction do
+        UnansweredQuestion.record!(hotel: @hotel, question: "Is there a pool?")
+        UnansweredQuestion.record!(hotel: @hotel, question: "Is there a pool?")
+
+        # The enclosing transaction has to still be usable afterwards — a
+        # savepoint rolls back only the failed INSERT.
+        UnansweredQuestion.record!(hotel: @hotel, question: "Something else entirely?")
+      end
+
+      assert_equal 2, UnansweredQuestion.find_by!(question: "Is there a pool?").asked_count
+      assert UnansweredQuestion.exists?(question: "Something else entirely?")
+    end
+  end
+
   # The model's own output can be arbitrarily long; the column and the staff
   # screen are not.
   test "an over-long question is truncated rather than rejected" do

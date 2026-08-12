@@ -45,11 +45,26 @@ class UnansweredQuestion < ApplicationRecord
       question = question.to_s.strip.truncate(MAX_QUESTION_LENGTH)
       digest = normalize_and_digest(question)
 
-      create!(
-        hotel: hotel, conversation: conversation, question: question,
-        question_original: question_original.presence&.truncate(MAX_QUESTION_LENGTH),
-        locale: locale, normalized_hash: digest
-      )
+      # requires_new: true — a SAVEPOINT, not merely a transaction.
+      #
+      # Without it the rescue below is a lie whenever this is called inside an
+      # outer transaction: Postgres aborts the whole transaction on a
+      # constraint violation, so the recovery's own `find_by!` fails too and
+      # the RecordNotUnique escapes anyway. Nothing in the app hit that
+      # (Ai::Tools#log_gap runs outside any transaction) but db/seeds/demo.rb
+      # did, immediately, on its first run — which is the useful kind of proof
+      # that a guarantee written for one call site was not general.
+      #
+      # A savepoint rolls back just the failed INSERT and leaves the enclosing
+      # transaction usable, so the "loser of the race counts itself in" path
+      # works from anywhere.
+      transaction(requires_new: true) do
+        create!(
+          hotel: hotel, conversation: conversation, question: question,
+          question_original: question_original.presence&.truncate(MAX_QUESTION_LENGTH),
+          locale: locale, normalized_hash: digest
+        )
+      end
     rescue ActiveRecord::RecordNotUnique
       existing = find_by!(normalized_hash: digest)
       existing.increment!(:asked_count)
