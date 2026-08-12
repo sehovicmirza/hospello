@@ -28,59 +28,51 @@ pre-translated system-notice body (the `degraded.*`/`requests.*` pattern this ap
 copy no model is allowed to write) and escalate rather than let the concierge answer a photo it
 cannot see.
 
-### WATCH: a mass browser-launch failure in CI (seen once, 2026-08-11)
+### OPEN: mass browser-launch failure — three hypotheses tested and closed
 
-CI run 31489460738 — a **docs-only commit** — failed with **38 errors out of 41 system tests**, every
-one of them inside `Selenium::WebDriver::Driver#create_session` with
-`NoMethodError: undefined method 'closed?' for nil`. That is Chrome failing to launch at all, not any
-test's logic. The very next run (31490526902, a real code change) was fully green, and local runs of
-the same commit passed, so the immediate cause is the runner, not this repository.
+**Symptom.** A system-test run errors on ~38 of its 41 tests, all inside
+`Selenium::WebDriver::Driver#create_session` with `NoMethodError: undefined method 'closed?' for nil`.
+That is Chrome failing to launch at all, not any test's logic. Runs are all-or-nothing: either fully
+green or ~38 errors, never a middle.
 
-**Recorded rather than dismissed, because there is a plausible contributor on our side.**
-`test/application_system_test_case.rb`'s `teardown` quits the driver after *every* test, so a full
-system run launches Chrome 41 separate times instead of once. On a contended GitHub runner that is
-41 chances to fail instead of one.
+**Seen on CI three times** (runs 31489460738, 31573717093, 31575268079) — including on docs-only
+commits, which is what rules out the change under test as a cause.
 
-That teardown was added in Slice 2 to stop a poisoned browser session leaking into whichever test ran
-next — and the root cause of that poisoning has **since been found and fixed properly** (Chrome's
-breached-password UI; see the entry below). So its original justification may no longer hold, and
-removing it would cut the failure surface by a factor of 41.
+**It reproduces locally**, contradicting the earlier note here that said it was CI-only. Measured
+2026-08-12: running the suite repeatedly, roughly one run in three comes back with the full 38, then
+recovers with no code change. That makes it diagnosable from a laptop, which it previously was not.
 
-**Do not just delete it.** The breached-password fix explains the *sign-in* poisoning; whether it
-also explains the `<select>`-popup input grab that `CloseNativeSelectPopup` handles is untested. If
-this recurs, the experiment is cheap and specific: remove the teardown, run the full system suite
-20 times locally and watch CI for a week. If a poisoned-session failure comes back, put it straight
-back — that is the mitigation earning its keep, and the answer is then to make the driver quit
-conditional rather than unconditional.
+#### Hypotheses tested, with the data
 
-One occurrence is not a pattern. Do not spend a session on this until it happens again.
+1. **"The per-test driver quit is the cause"** (the harness quits Chrome after every test, so a run
+   launches it 41 times instead of once — 41 chances to fail). **DISPROVEN, and the opposite is
+   true.** Removing that `teardown` and running the suite four times gave errors in *every* run
+   (9, 1, 8, 3) against zero with it in place. The teardown is load-bearing — it is still doing the
+   job it was added for. Put it back if you ever remove it.
 
-**Second sighting — 2026-08-11, locally this time, so it is now a pattern.**
-`bin/rails test:system` returned **38 errors out of 41** with only 7 assertions run — the same 38/41
-ratio as the CI sighting. What is known about it:
+2. **"Chrome is running out of shared memory (`/dev/shm`), the classic CI container failure"**, whose
+   standard remedy is `--disable-dev-shm-usage`. **NEUTRAL — not shipped.** An interleaved A/B (three
+   pairs, alternating with/without on the same machine state so drift hits both equally) gave
+   identical results in all three pairs, including a pair where **both** sides failed with the full
+   38. The flag changes nothing here. It was reverted rather than left in as a harmless-looking
+   mitigation, per rule 6: a change that cannot be shown to work does not belong in the harness.
 
-- It was **not** resource exhaustion: 25% disk used, 14GB RAM free.
-- It was **not** the chromedriver/Chrome version mismatch described in HANDOVER.md — the matching
-  driver was exported, and single-file runs before and after worked.
-- The **immediately preceding and immediately following** full-suite runs, on the same tree with the
-  same driver, were both **41/41 green**. Six other full runs that session were green.
-- **The error text was not captured** — the run's output was filtered to its tail, so it is *not*
-  confirmed to be the same `NoMethodError: undefined method 'closed?' for nil` CI saw. It may or may
-  not be the same fault. Say so rather than assuming.
+3. **"Leaked Chrome/chromedriver processes or exhausted file descriptors."** Ruled out by
+   observation: zero stray `chromedriver` or Chrome processes after a failing run, and `ulimit -n`
+   is 1048576.
 
-So: ~1 in 8 full system runs, in two different environments. That is frequent enough to cost real
-time and rare enough that a fix will be hard to prove — which is exactly the situation
-[engineering rule 6](engineering-rules.md) is about, so **nothing has been changed in the harness for
-it.**
+#### What is known, for whoever picks this up
 
-The next session that hits this should, in this order:
-1. **Capture the full output** (`bin/rails test:system 2>&1 | tee /tmp/system.log`) — one recorded
-   stack trace is worth more than another sighting, and this entry cannot progress without one.
-2. Only then consider the teardown experiment above (remove the unconditional driver quit, run 20×),
-   because the measurement has to be against a known baseline failure rate, and ~1 in 8 is now the
-   number to beat.
+It is environmental, periodic, recovers on its own, and hits browser *startup* rather than anything
+the tests do. The all-or-nothing shape suggests a resource or daemon that is briefly unavailable and
+then fine, rather than gradual exhaustion. The next things worth instrumenting are what
+`chromedriver` itself logs at launch (`Selenium::WebDriver.logger.level = :debug`, or
+`service.args << "--verbose"`) during a failing burst, and whether the failure correlates with the
+machine having just finished another heavy run.
 
----
+**Do not** let it block a slice, and do not add a mitigation you cannot demonstrate — two have been
+tried and closed above, and this project has already paid for that lesson twice.
+
 
 ## Resolved
 
