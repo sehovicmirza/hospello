@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-11 (**Slice 6 complete** — WhatsApp, end to end) |
+| **Last updated** | 2026-08-12 (Slice 7 Task 1 — the ai_usage_days rollup) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1067 unit/integration green (930 + 137 new) · 41 system green · rubocop and brakeman clean |
-| **CI** | **Green — checked, not assumed.** Runs 31526487350 and 31527775321 both passed every step (unit, system, rubocop, brakeman, bundler-audit). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–6 complete** · Slice 7 is next |
+| **Tests** | 1088 unit/integration green · 41 system green · rubocop and brakeman clean |
+| **CI** | **Green through `f84821c`** (Slice 6's last code commit) — checked, not assumed: every step passed, including system tests, rubocop, brakeman and bundler-audit. The two commits after it (`033c108` docs, `2e14f8c` the rollup) were pushed with their runs still in flight — **check the Actions tab** rather than trusting this row for those two. **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Task 1 of 5 done |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -866,6 +866,33 @@ complete**: every step of all four tasks.
   be the same fault CI saw. Nothing was changed in the harness for it (engineering rule 6); the entry
   now says to capture full output first and gives ~1 in 8 as the baseline to beat.
 
+**Slice 7 Task 1 — `ai_usage_days`, the rollup every analytics number and the budget guard read.**
+
+- One row per hotel per day per **kind**, because "what did the concierge cost us versus translation"
+  is the first question anyone asks and a rollup that has merged them cannot answer it. `enum :kind,
+  AiRun.kinds` — literally AiRun's own mapping, shared rather than copied, so the two cannot drift
+  about which integer means `translation`.
+- **Postgres does the addition**, via `upsert_all` with an `on_duplicate` that reads the row's
+  current value. Expressed as Rails' own upsert rather than raw SQL specifically so it needs none of
+  the tenant-scope escape hatches the grep tripwire polices.
+- Written from `AiRun`'s own `after_create_commit`, not from the two jobs that build runs — so a
+  third caller cannot forget it, the same reasoning `Conversation#broadcast_new_message` documents.
+- `AiUsageDay.rebuild_for` (the backfill, `rake ai_usage:backfill`) **replaces rather than
+  accumulates** — the opposite of the live path, which is why they are two methods named for what
+  they do rather than one with a flag. Run twice it gives the same numbers, and it is also the repair
+  to reach for if these are ever doubted.
+- `AiRun.tokens_used_today` now reads the rollup. Its own tests pass **untouched**, which was the
+  check that this stayed a refactor rather than a product change; `budget_exhausted_for?` still reads
+  zero as "exhausted, no AI".
+- **One test asserts the mechanism, not the outcome, and says so.** Every other test in the file
+  passes against a read-modify-write — *measured*, not assumed — because a single-threaded test never
+  produces the interleaving that loses an update. So it pins the SQL, the same way this project's
+  constant-time signature test asserts the comparison used rather than the timing. Two more tests
+  were strengthened after their first break came back green: the backfill's date test now uses two
+  timestamps that are the same UTC day and different Sarajevo days, and the isolation test now says
+  plainly that `hotel.ai_runs` is *not* what it proves (under the rake task's `with_tenant`, a bare
+  `AiRun.all` is scoped identically).
+
 ---
 
 ## What to do next
@@ -880,11 +907,17 @@ webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md`
    rather than the plan's one-paragraph summary; `docs/plan/implementation-plan.md` remains the
    contract if the two ever disagree.
 
-   Task 1 (`ai_usage_days`, an atomic daily rollup) is the one everything else reads, so it goes
-   first. Its hard property is that **Postgres does the addition** — a read-modify-write loses a
-   concurrent call and the loss is invisible, which is the same reasoning
-   `Message#claim_translation!` documents, applied to arithmetic. Task 3 (retention and erasure) is
-   the one with legal weight and the one where a bug is unrecoverable in both directions.
+   **Task 1 is done** (see its write-up above). **Start at Task 2 — the analytics pages.**
+   `Analytics::HotelReport` takes a hotel and a date range and returns one value object, because the
+   platform rollup asks the same questions of every hotel and two implementations of "how many
+   escalations" will disagree within a month. The breakdown names the five questions a hotelier
+   actually has; the discipline it asks for is to compute *only* those. Every date range is in the
+   hotel's own timezone — `AiUsageDay#usage_on` is already stored that way, so a range built from
+   `Date.current` would be off by a day for exactly the hotels that use this most.
+
+   Task 3 (retention and erasure) is the one with legal weight and the one where a bug is
+   unrecoverable in both directions — worth reading its steps before starting Task 2, because the
+   retention policy affects how far back the analytics pages can honestly look.
 
    One item in there is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
    session, because no session has ever had an `ANTHROPIC_API_KEY`. Everything believed about prompt
