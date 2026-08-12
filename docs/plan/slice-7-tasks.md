@@ -61,7 +61,11 @@ Sarajevo hotel's day is not UTC's) · `kind` integer null: false (mirrors `ai_ru
 `output_tokens`, `cache_read_tokens`, `failures` all integer null: false default 0 ·
 **unique index `[hotel_id, on, kind]`** · timestamps.
 
-- [ ] **Step 1: Failing tests for the atomic upsert**
+> **As built, one deviation:** the date column is **`usage_on`**, not `on`. `on` is close enough to
+> SQL/Rails vocabulary that a bare `where(on: ...)` reads as a typo and `AiUsageDay#on` reads as a
+> predicate; the extra four characters are worth it every time anyone reads a query.
+
+- [x] **Step 1: Failing tests for the atomic upsert**
 
 The whole table is one method, and it has one hard property: **two jobs finishing at the same instant
 must both be counted.** A read-modify-write loses one of them, and the loss is invisible — a number
@@ -73,7 +77,7 @@ asserting the sum, then by breaking it into a `find_or_initialize` + `save` and 
 red. Cover: a first call creates the row; a second adds to it; a failed run increments `failures` but
 still counts its tokens (a failed call is still billed); two kinds on one day are two rows.
 
-- [ ] **Step 2: Write it from where the tokens already are**
+- [x] **Step 2: Write it from where the tokens already are**
 
 `Ai::GenerateReplyJob` and `Ai::TranslateMessageJob` both already build an `AiRun`. Record the
 rollup in the same place — ideally from `AiRun` itself (an `after_create_commit`), so a future third
@@ -82,13 +86,13 @@ caller cannot forget it and the two cannot disagree. If you put it in the jobs i
 **The date is the hotel's, not the server's.** `AiRun.today_in(hotel.timezone)` already exists and
 already gets this right; use the same source rather than a second reading of "today".
 
-- [ ] **Step 3: Point the budget guard at the rollup, unchanged in meaning**
+- [x] **Step 3: Point the budget guard at the rollup, unchanged in meaning**
 
 `AiRun.tokens_used_today` becomes a rollup read. Its existing tests must pass **untouched** — if one
 needs editing, the meaning changed and that is a product decision, not a refactor. Keep
 `budget_exhausted_for?`'s zero-is-exhausted behaviour and its test.
 
-- [ ] **Step 4: Backfill, full suite, commit**
+- [x] **Step 4: Backfill, full suite, commit**
 
 A rake task or a migration that fills `ai_usage_days` from existing `ai_runs`. Idempotent — running
 it twice must not double the numbers, which is another use for the same upsert.

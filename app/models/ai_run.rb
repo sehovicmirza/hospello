@@ -22,6 +22,13 @@ class AiRun < ApplicationRecord
   belongs_to :conversation, optional: true
   belongs_to :message, optional: true
 
+  # Every run lands in its hotel's daily rollup, from here rather than from
+  # the two jobs that build runs — so a third caller cannot forget it and the
+  # two cannot drift. after_create_commit, not after_create: the rollup is
+  # read by things outside this transaction, and writing it before the run
+  # itself is durable would let a rolled-back transaction leave a count behind.
+  after_create_commit { AiUsageDay.record!(self) }
+
   scope :today_in, ->(timezone) {
     where(created_at: Time.current.in_time_zone(timezone).beginning_of_day..)
   }
@@ -33,9 +40,17 @@ class AiRun < ApplicationRecord
   #
   # Output tokens are counted too: they are five times the price of input,
   # so a budget that ignored them would be a budget in name only.
+  # Read from the daily rollup rather than by summing raw rows: this runs
+  # before every single AI call, and `ai_runs` grows by one row per call
+  # forever while `ai_usage_days` is bounded by hotels × days × 2. The
+  # *meaning* is unchanged, and its tests were not edited — if one had needed
+  # editing, that would have been a product decision rather than a refactor.
+  #
+  # `today` is the hotel's own today (see AiUsageDay.usage_date_for), which is
+  # what the previous implementation's `today_in(hotel.timezone)` also meant.
   def self.tokens_used_today(hotel)
-    where(hotel: hotel).today_in(hotel.timezone)
-      .sum(Arel.sql("COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)"))
+    AiUsageDay.where(hotel: hotel, usage_on: Time.current.in_time_zone(hotel.timezone).to_date)
+              .sum(Arel.sql("input_tokens + output_tokens"))
   end
 
   # True when this hotel has spent at least `fraction` of its daily budget.

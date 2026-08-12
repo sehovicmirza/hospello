@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_11_200000) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_12_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -61,6 +61,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_200000) do
     t.index ["hotel_id", "created_at"], name: "index_ai_runs_on_hotel_id_and_created_at"
     t.index ["hotel_id", "status", "created_at"], name: "index_ai_runs_on_hotel_id_and_status_and_created_at"
     t.index ["message_id"], name: "index_ai_runs_on_message_id"
+  end
+
+  create_table "ai_usage_days", force: :cascade do |t|
+    t.bigint "hotel_id", null: false
+    t.date "usage_on", null: false
+    t.integer "kind", null: false
+    t.integer "runs", default: 0, null: false
+    t.integer "input_tokens", default: 0, null: false
+    t.integer "output_tokens", default: 0, null: false
+    t.integer "cache_read_tokens", default: 0, null: false
+    t.integer "failures", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["hotel_id", "usage_on", "kind"], name: "index_ai_usage_days_on_hotel_id_and_usage_on_and_kind", unique: true
   end
 
   create_table "audit_logs", force: :cascade do |t|
@@ -515,6 +529,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_11_200000) do
   add_foreign_key "ai_runs", "conversations", on_delete: :nullify
   add_foreign_key "ai_runs", "hotels", on_delete: :cascade
   add_foreign_key "ai_runs", "messages", on_delete: :nullify
+  add_foreign_key "ai_usage_days", "hotels", on_delete: :cascade
   add_foreign_key "audit_logs", "hotels", on_delete: :nullify
   add_foreign_key "audit_logs", "users", column: "actor_user_id", on_delete: :nullify
   add_foreign_key "conversations", "guest_sessions", on_delete: :cascade
