@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-12 (Slice 7 Task 2 — the analytics pages) |
+| **Last updated** | 2026-08-12 (Slice 7 Task 3 — retention and the right to be forgotten) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1132 unit/integration green · 41 system green · rubocop and brakeman clean |
-| **CI** | **Green through `39447e6`** — checked, not assumed: every commit of this session passed every step, including system tests, rubocop, brakeman and bundler-audit. **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–2 of 5 done |
+| **Tests** | 1199 unit/integration green · 41 system green (run three times this session, no flake) · rubocop and brakeman clean |
+| **CI** | **Green through `39447e6`** — checked, not assumed. Nothing since has been *observed* on CI by this session; every step was run locally instead (full suite, system suite, rubocop, brakeman). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–3 of 5 done |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -922,6 +922,63 @@ thing. A test asserts they agree.
   tenant. That is fail-closed working. Fixed in the report (`#for_hotel`), so a report is now safe to
   read anywhere rather than carrying an unwritten requirement about ambient state.
 
+**Slice 7 Task 3 — retention, and the right to be forgotten.** Complete. The task with legal weight,
+and the one where a bug is unrecoverable in both directions: data kept too long is a liability, data
+deleted wrongly is gone. **Read `app/services/retention/policy.rb` first** — it is the whole task in
+one file, and every number anywhere else in this feature comes from it.
+
+- **The policy was written before anything that deletes**, deliberately, and it names *every* table
+  with a `hotel_id` — including the ones kept for as long as the hotel is a customer, because those
+  are the decisions most likely to be made by omission. A test scans the models the same way
+  `test/tenancy/tenant_declaration_test.rb` does, so a future table cannot arrive without a
+  retention decision. Three windows: **90 days** for the guest's own conversation (the purpose ends
+  with the stay; a quarter covers anything they will realistically raise afterwards), **365** for
+  the hotel's operational record of a request once the guest's part is stripped out of it, **30**
+  for raw provider callbacks, which are a verbatim second copy of data already held properly
+  elsewhere.
+- **`Analytics::HotelReport::MAX_DAYS` now reads the policy** (366 → 90), which is what the previous
+  handover asked for. Conversations and messages are deleted at 90 days, so a year-long range would
+  have shown a hotel nine months of zeros that read as a collapse in business rather than as a purge
+  working. The cap follows the policy, never the other way round.
+- **The purge has two anchors for the chat, not one.** Deleting expired guest sessions alone would
+  keep a WhatsApp regular's first conversation forever, because their identity is renewed every time
+  they write (`GuestSession#renew_for_whatsapp!`). So conversations are purged on their own last
+  message too, with `COALESCE` onto `created_at` — a conversation the guest opened and never wrote
+  in has a null `last_message_at`, and `NULL < cutoff` is not true, which is exactly the shape of
+  bug nobody notices for a year.
+- `webhook_events` is purged **outside** the per-hotel loop, and that is not an oversight: it is the
+  one non-tenant-scoped table, and a delivery that never routed has no hotel at all — a loop over
+  hotels would never reach one, and those rows carry a real phone number and a real message.
+- **`ServiceRequest.anonymize_all!` is one definition of what taking the guest out of a request
+  means**, called by both the nightly sweep and erasure-on-request. Every column it clears and every
+  column it keeps is named with why. It writes through `update_all`, which is what gets it past
+  `#details_original_is_immutable_after_creation` — that guard exists to stop a *translation*
+  overwriting an original, and retention has to be visibly a different kind of write to be allowed
+  past it. A test pins that the ordinary way in is still refused. New column `anonymized_at` makes
+  the sweep incremental rather than rewriting a year of rows every night.
+- **`Retention::GuestErasure`** is the purge's opposite in three ways and each changes the design:
+  immediate, for one identity (so it runs in a transaction), and **provable afterwards**. The audit
+  entry carries the guest session's id and counts and **never a name or a number** — the proof of an
+  erasure must not be a copy of what it erased, and a test scans the whole audit row for both.
+- `/platform/hotels/:id/guest_erasures`, linked from the hotel page. Platform-admin only, which is a
+  different question from "who may read this data": a hotel_admin deleting a guest's transcript is
+  indistinguishable from a hotel destroying a complaint. The confirmation **names what is about to
+  be destroyed** rather than asking "are you sure?", from the same scopes that then destroy it.
+- **The last step is the one that makes it stick.** `test/i18n/privacy_notice_retention_test.rb`
+  reads `Retention::Policy` and asserts its numbers appear in the guest privacy notice in all four
+  languages — **and the reverse**, that no notice states a period the code does not keep, so "180
+  days" cannot be added to the German copy alone and sit there for a year. The copy carries literal
+  numbers rather than interpolating them from the policy **on purpose**: interpolation would make
+  the test unable to fail, and a promise changing from 90 days to 60 has to be a change somebody
+  makes to the sentence a guest reads, in every language, deliberately.
+- **26 deliberate breaks, each restored**, and three of them found tests that could not fail: a
+  batching test whose rows were really being removed by a cascade, an `ai_runs` cutoff with no
+  fixture between the two windows, and two guarantees held by two independent layers each (the
+  platform-admin check, and the cross-hotel lookup) where removing either alone left everything
+  green. All three are recorded in the test files so nobody deletes a layer as redundant.
+- `docs/runbook.md` gained two real sections (a guest asks to be forgotten; the retention purge),
+  replacing nothing — the three reserved placeholders are still reserved.
+
 ---
 
 ## What to do next
@@ -931,28 +988,27 @@ files that show the whole thing working are `test/services/whatsapp/inbound_flow
 webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md` section 4
 (connecting a real number).
 
-1. **Slice 7 — start at Task 1. [`docs/plan/slice-7-tasks.md`](docs/plan/slice-7-tasks.md) is
-   written**, five tasks with schemas, steps and traps, the same shape slices 4–6 used. Read it
+1. **Slice 7 — start at Task 4, the demo seed. [`docs/plan/slice-7-tasks.md`](docs/plan/slice-7-tasks.md)
+   is written**, five tasks with schemas, steps and traps, the same shape slices 4–6 used. Read it
    rather than the plan's one-paragraph summary; `docs/plan/implementation-plan.md` remains the
    contract if the two ever disagree.
 
-   **Tasks 1 and 2 are done** (see their write-ups above). **Start at Task 3 — retention and
-   erasure.** It is the task with legal weight and the one where a bug is unrecoverable in both
-   directions: data kept too long is a liability, data deleted wrongly is gone.
+   **Tasks 1, 2 and 3 are done** (see their write-ups above). **Start at Task 4 — the demo seed**
+   (`db/seeds/demo.rb`, whose `SEED_DEMO=1` wiring already exists; only the content is missing),
+   then Task 5, hardening and the walkthrough that ends the project.
 
-   Its first step is deliberately not code. Write `Retention::Policy` — what is kept, how long, and
-   *why* — before writing anything that deletes, so the answer to "why is this row still here?" is a
-   file rather than an archaeology exercise. The step that makes it stick is the last one: a test
-   that reads the policy's numbers and asserts they appear in the privacy notice, in all four
-   locales. Two sources of truth about a legal promise is the one kind of drift that cannot be fixed
-   retroactively.
+   Two things Task 3 leaves for Task 4 to get right, both cheap if you know them now and annoying
+   if you find out afterwards:
+   - **The seed's dates decide whether the demo shows anything.** Anything it creates more than
+     `Retention::Policy::GUEST_CHAT_DAYS` (90) days in the past is deleted by the first purge, and
+     anything older than 90 days is invisible to the analytics pages, whose `MAX_DAYS` is now that
+     same number. Seed inside the last few weeks.
+   - **The seed will eventually be run against production** (the slice's own traps section says so).
+     `Retention::PurgeExpiredGuestDataJob` is now scheduled daily in production, so a seed that
+     writes plausible old data is a seed whose data disappears overnight — which is the *safe*
+     direction, but it will look like a bug to whoever demos it.
 
-   Note for whoever writes it: it also bounds how far back the analytics pages can honestly look.
-   `Analytics::HotelReport::MAX_DAYS` is currently 366 and was chosen for query cost, not for
-   policy — if retention is shorter than that, the cap should follow the policy rather than the
-   other way round.
-
-   One item in there is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
+   One item is worth flagging on its own: **`LIVE_AI=1` has still never run**, in any
    session, because no session has ever had an `ANTHROPIC_API_KEY`. Everything believed about prompt
    caching, real tool-call shapes and real token accounting rests on tests against `FakeClaude`.
    Slice 7 Task 5 step 6 is where that gets settled — treat its first run as a source of findings
@@ -975,8 +1031,12 @@ webhook payload through to a `ServiceRequest`) and `docs/whatsapp-onboarding.md`
    verification, no BSP decision needed. `docs/whatsapp-onboarding.md` section 4 is the checklist.
 2. **Bump Rails before 2026-10-07**, when 8.0.5.1 leaves support. Brakeman already says so on every
    run; it no longer fails the build (`-w2`), so this needs a human to actually schedule it.
-3. Slice 7 (analytics, readiness checklist, retention/GDPR, demo seed, hardening) — specified in the
-   plan, task breakdown not yet written.
+3. **Have a lawyer read the privacy notice before a pilot, and now there is a specific thing to ask
+   about.** The notice states real numbers as of Task 3 (90 days for the chat, 365 for the
+   anonymized request record) and those are *product* decisions defended in
+   `app/services/retention/policy.rb`, not legal advice. The pending-legal-review marker is still on
+   the notice and still test-protected. If a lawyer changes a number, change it in the policy — the
+   four locale files then fail their test until they are updated, which is the point.
 4. **Small, deliberate gaps left by Slice 5 Task 4**, worth a decision before a pilot rather than
    fixing on a hunch: ActiveRecord attribute names inside composed validation errors are still
    hardcoded English (rails-i18n translates the error text itself, not the field name — a Bosnian
@@ -1011,6 +1071,20 @@ far, so the seam is verified against WebMock only.
 - **Read [docs/plan/engineering-rules.md](docs/plan/engineering-rules.md).** The single most common
   defect here, by a wide margin, is a test that passes against broken code — 20+ instances so far.
   Break the code and watch the test go red before you trust it.
+- **There is a job that deletes things now, and it runs every night in production.** Anything you
+  add that stores something about a guest needs a line in `app/services/retention/policy.rb` —
+  `test/services/retention/policy_test.rb` fails on any new table with a `hotel_id` that has no
+  decision written against it, which is deliberate and is not a test to route around. And if you
+  ever change one of the policy's numbers, the guest privacy notice in **all four** languages has to
+  change in the same commit; `test/i18n/privacy_notice_retention_test.rb` fails in both directions
+  until it does.
+- **Fixture accessors query the database, so reading one *after* a deletion raises
+  `RecordNotFound`** — which reads as a broken test rather than as the deletion the test exists to
+  assert. In any test that erases or purges, capture `messages(:x).id` into a local *before* the
+  call. Cost twenty minutes in this session.
+- **`Analytics::HotelReport::MAX_DAYS` is 90 now, not 366**, and it is derived from the retention
+  policy rather than typed. If an analytics page ever needs to look further back, the question to
+  answer first is "does that data still exist", not "can we raise the cap".
 - **Check [docs/plan/known-issues.md](docs/plan/known-issues.md) before fixing anything that looks
   broken.** Several things that look like bugs are deliberate and documented, and two plausible-
   sounding claims in there have been investigated and are false.

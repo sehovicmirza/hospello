@@ -18,7 +18,7 @@ de:
       privacy_notice:
         title: "Datenschutzhinweis"
         pending_review_marker: "ENTWURF — rechtliche Prüfung ausstehend"
-        body: "Wir verwenden Ihren Namen, Ihre Zimmernummer und Ihre Nachrichten, damit das Hotelpersonal Ihnen während Ihres Aufenthalts helfen kann. Ihre Telefonnummer, falls angegeben, wird nur verwendet, um Sie bezüglich Ihres Aufenthalts zu erreichen. Diese Angaben werden nur so lange aufbewahrt, wie es für Ihren Aufenthalt und kurz danach erforderlich ist, und werden nicht außerhalb des Hotels und Hospellos verkauft oder weitergegeben."
+        body: "Wir verwenden Ihren Namen, Ihre Zimmernummer und Ihre Nachrichten, damit das Hotelpersonal Ihnen während Ihres Aufenthalts helfen kann. Ihre Telefonnummer, falls angegeben, wird nur verwendet, um Sie bezüglich Ihres Aufenthalts zu erreichen. Ihren Chat — Ihren Namen, Ihr Zimmer und alles, was beide Seiten geschrieben haben — bewahren wir 90 Tage nach Ende Ihres Aufenthalts auf und löschen ihn dann. Eine Aufzeichnung dessen, worum Sie das Personal gebeten haben, wird 365 Tage für den Hotelbetrieb aufbewahrt; Ihr Name, Ihr Zimmer und Ihre eigenen Worte werden nach 90 Tagen daraus entfernt. Diese Angaben werden nicht verkauft und nicht außerhalb des Hotels und Hospellos weitergegeben. Wenn Sie eine frühere Löschung wünschen, wenden Sie sich an die Rezeption."
       unavailable:
         title: "Dieses Hotel nimmt derzeit keine Gäste-Chats an"
         body: "Bitte wenden Sie sich direkt an die Rezeption."

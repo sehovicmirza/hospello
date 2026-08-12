@@ -18,7 +18,7 @@ en:
       privacy_notice:
         title: "Privacy notice"
         pending_review_marker: "DRAFT — pending legal review"
-        body: "We use your name, room number, and messages to help hotel staff assist you during your stay. Your phone number, if you give one, is used only to reach you about your stay. This information is kept only as long as needed for your stay and a short period after, and is not sold or shared outside the hotel and Hospello."
+        body: "We use your name, room number, and messages to help hotel staff assist you during your stay. Your phone number, if you give one, is used only to reach you about your stay. We keep your chat — your name, your room, and everything either side wrote — for 90 days after your stay ends, and then delete it. A record of anything you asked staff to do is kept for 365 days for the hotel's own operations, with your name, your room and your own words removed from it after 90 days. This information is not sold or shared outside the hotel and Hospello. If you would like it deleted sooner, ask reception."
       unavailable:
         title: "This hotel isn't currently accepting guest chats"
         body: "Please contact the front desk directly for assistance."

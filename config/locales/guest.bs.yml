@@ -18,7 +18,7 @@ bs:
       privacy_notice:
         title: "Obavještenje o privatnosti"
         pending_review_marker: "NACRT — čeka pravnu reviziju"
-        body: "Koristimo vaše ime, broj sobe i poruke kako bi osoblje hotela moglo da vam pomogne tokom boravka. Vaš broj telefona, ako ga navedete, koristi se samo za kontakt u vezi sa vašim boravkom. Ovi podaci se čuvaju samo onoliko dugo koliko je potrebno za vaš boravak i kratko nakon toga, i ne prodaju se niti dijele van hotela i Hospella."
+        body: "Koristimo vaše ime, broj sobe i poruke kako bi osoblje hotela moglo da vam pomogne tokom boravka. Vaš broj telefona, ako ga navedete, koristi se samo za kontakt u vezi sa vašim boravkom. Vaš razgovor — vaše ime, vašu sobu i sve što je napisano s obje strane — čuvamo 90 dana nakon završetka boravka, a zatim ga brišemo. Evidencija o onome što ste tražili od osoblja čuva se 365 dana za potrebe rada hotela, s tim da se vaše ime, vaša soba i vaše riječi iz nje uklanjaju nakon 90 dana. Ovi podaci se ne prodaju niti dijele van hotela i Hospella. Ako želite da ih izbrišemo ranije, recite recepciji."
       unavailable:
         title: "Ovaj hotel trenutno ne prima goste putem chata"
         body: "Molimo obratite se direktno recepciji za pomoć."

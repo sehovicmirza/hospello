@@ -136,6 +136,70 @@ have to reprint and redistribute the physical cards.
    physical card is now a dead link. Communicate that to the hotel in
    advance so their front desk isn't fielding confused guests.
 
+## A guest asks to be forgotten
+
+**The request arrives at the hotel, and the hotel forwards it to us.** Only a
+platform admin can action one (`GuestErasurePolicy`), deliberately: a hotel
+deleting a guest's transcript is indistinguishable, from the outside, from a
+hotel destroying a complaint.
+
+1. Sign in as a platform admin, open the hotel, click **Erase a guest's
+   data** (`/platform/hotels/:id/guest_erasures`).
+2. Find the stay. The search covers guest name, room number and phone
+   number, which is all an erasure request ever arrives with. **A guest with
+   two stays has two rows** — this app has no cross-stay guest record by
+   design, so erase each one you find. Search by phone number where you have
+   one; it is the only field that reliably spans stays.
+3. Click **Erase…**. The confirmation names exactly what is about to go —
+   how many conversations, how many messages, how many service requests will
+   lose their guest. Read the numbers to the person asking if they want to
+   know; they come from the same query that then does the deleting.
+4. Confirm. It is **irreversible and there is no backup to restore from.**
+5. The erasure writes an `AuditLog` row (`guest_data.erase`) naming you, the
+   hotel, and counts of what it touched. **It deliberately does not record
+   the guest's name or number** — the proof of an erasure must not be a copy
+   of what it erased. If you need to tie a specific request to a specific
+   audit row, keep that mapping in whatever system the request arrived in.
+
+**What survives, and what to say if asked:** the hotel keeps its operational
+record of any service the guest requested — with the guest's name, room,
+words and identity stripped out of it, so the row says "Extra towels,
+completed at 14:20" and nothing about who asked. That is the hotel's record
+of work its own staff did, not the guest's personal data.
+
+**One residual, and it is honest to state it:** a raw WhatsApp delivery that
+never routed to a hotel (an unknown number, or one payload spanning two
+hotels) is not deleted by an erasure, because it belongs to no single
+hotel's records. Those rows are purged on their own 30-day clock, so an
+erasure is complete within a month even in that case.
+
+## The retention purge
+
+`Retention::PurgeExpiredGuestDataJob`, every day at 03:20 (see
+`config/recurring.yml`). Everything about *what* it deletes and *why* is in
+`app/services/retention/policy.rb` — read that file, not the job.
+
+**Checking it ran:** Mission Control at `/platform/jobs` → **Recurring
+tasks** → `purge_expired_guest_data`. A missed run costs nothing: the next
+one purges everything the missed one would have, because every cutoff is
+computed from the moment the job runs rather than from the last run.
+
+**If it has not run for weeks**, the queue is the problem, not the job — go
+to "Checking queue health right now" above. Data kept past its window is a
+liability, so this one is worth chasing rather than waiting out.
+
+**Do not "fix" it by running a delete by hand.** Everything it does is
+already one method per record type in that job; run the job itself
+(`Retention::PurgeExpiredGuestDataJob.perform_now` from a console) rather
+than composing a delete at a psql prompt, where there is no tenant scope,
+no batching, and no second chance.
+
+**If the policy's numbers ever change**, the guest-facing privacy notice in
+all four languages must change with them in the same commit —
+`test/i18n/privacy_notice_retention_test.rb` fails until it does, in both
+directions. That test is not an obstacle to route around; it is the only
+thing keeping a legal promise and the code that keeps it in the same story.
+
 ## Placeholder: AI outage
 
 *To be filled in when the AI concierge ships (Slice 3). Expected content:
