@@ -52,7 +52,18 @@ module Ai
     end
 
     test "answers from the knowledge base, calls a real tool, and caches the prefix" do
-      first = @client.chat(system: system_blocks, messages: [ ask("When is breakfast served?") ])
+      # Both calls send the same tools, because Ai::Concierge always does
+      # (it passes Tools.definitions on every turn) and because the API's
+      # cacheable prefix is ordered tools -> system -> messages. Sending tools
+      # on only one of the two calls changes the prefix *ahead* of the cached
+      # knowledge block, so nothing can be reused and the cache assertion below
+      # fails for a reason that has nothing to do with this app: it measures
+      # the test's own inconsistency rather than the prompt layout.
+      first = @client.chat(
+        system: system_blocks,
+        messages: [ ask("When is breakfast served?") ],
+        tools: [ ESCALATE_TOOL ]
+      )
 
       assert_equal "end_turn", first.stop_reason, "expected a plain answer, got #{first.stop_reason}"
       assert_match(/07:00|7:00|7 ?am/i, first.text, "the answer should come from the knowledge base")
@@ -75,6 +86,14 @@ module Ai
       assert second.usage.cached?,
              "no cache read on the second call (cache_read_input_tokens was " \
              "#{second.usage.cache_read_input_tokens}) — the cached prefix is not stable"
+
+      # Printed, not asserted. Whoever runs this before a release is deciding
+      # whether the cost model still holds, and "it cached" is a weaker answer
+      # than the numbers. A cache read costs a tenth of a fresh input token, so
+      # the second figure is what makes a long hotel knowledge base affordable
+      # on every turn rather than only the first.
+      puts "\n  prompt cache: call 2 read #{second.usage.cache_read_input_tokens} cached tokens " \
+           "and paid full price for #{second.usage.input_tokens}"
     end
 
     private
