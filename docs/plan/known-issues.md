@@ -50,71 +50,61 @@ one line in Mission Control.
 
 **If you see these in the failed-jobs table after an erasure, that is this, and it is expected.**
 
-### OPEN: mass browser-launch failure — three hypotheses tested and closed
+### OPEN: mass browser-launch failure — narrowed to the harness, cause still unfound
 
 **Symptom.** A system-test run errors on ~38 of its 41 tests, all inside
-`Selenium::WebDriver::Driver#create_session` with `NoMethodError: undefined method 'closed?' for nil`.
-That is Chrome failing to launch at all, not any test's logic. Runs are all-or-nothing: either fully
-green or ~38 errors, never a middle.
+`Selenium::WebDriver::Driver#create_session` with `NoMethodError: undefined method 'closed?' for nil`
+— Chrome failing to launch at all. Seen on CI four times and reproduces locally, historically about
+one run in three.
 
-**Seen on CI four times** (runs 31489460738, 31573717093, 31575268079, 31581414922) — three of the
-four on **docs-only commits**, which is what rules out the change under test as a cause. In every
-one the unit suite, rubocop and brakeman were unaffected: only the "Run system tests" step failed,
-and the steps after it were skipped rather than run and failed. **That shape is how to recognise it
-on CI without opening the log.**
+**It is all-or-nothing, and that is the most useful fact about it.** A failing run typically passes
+its first two or three tests and then every remaining one fails. So this is **one failure that wedges
+the run**, not 38 independent races — which means the thing to find is what breaks after a few
+driver cycles, not why a single launch is flaky.
 
-**It reproduces locally**, contradicting the earlier note here that said it was CI-only. Measured
-2026-08-12: running the suite repeatedly, roughly one run in three comes back with the full 38, then
-recovers with no code change. That makes it diagnosable from a laptop, which it previously was not.
+#### Closed by experiment — do not re-test these
 
-#### Hypotheses tested, with the data
+1. **The per-test driver quit in `teardown`.** DISPROVEN, and the opposite is true: removing it gave
+   errors in all four runs (9, 1, 8, 3) against zero with it. It is load-bearing.
+2. **`--disable-dev-shm-usage`** (the textbook remedy). NEUTRAL. Interleaved A/B, three alternating
+   pairs on the same machine state: identical results every pair, including one where both sides
+   failed. Not shipped.
+3. **Leaked processes / file-descriptor exhaustion.** Ruled out by observation — zero stray
+   `chromedriver` or Chrome processes after a failing run; `ulimit -n` is 1048576.
+4. **Chrome, chromedriver, or macOS Gatekeeper.** RULED OUT decisively. A bare Selenium script that
+   launches and quits headless Chrome 41 times — no Rails, no Capybara, no Puma, no database —
+   passed **41/41, twice**: once plain, once with this harness's exact Chrome preferences and
+   arguments. `spctl` does report `rejected` for the cached drivers, but that is expected for an
+   ad-hoc/linker-signed binary and does not block execution: the driver runs and reports its version
+   fine. No `com.apple.quarantine` is present, and no new driver is downloaded during a failing run
+   (mtimes identical before and after).
+5. **A shared `Selenium::WebDriver::Service`** (one chromedriver process instead of one per driver).
+   Does not fix it — failed on the first run of four.
 
-1. **"The per-test driver quit is the cause"** (the harness quits Chrome after every test, so a run
-   launches it 41 times instead of once — 41 chances to fail). **DISPROVEN, and the opposite is
-   true.** Removing that `teardown` and running the suite four times gave errors in *every* run
-   (9, 1, 8, 3) against zero with it in place. The teardown is load-bearing — it is still doing the
-   job it was added for. Put it back if you ever remove it.
+#### What is established
 
-2. **"Chrome is running out of shared memory (`/dev/shm`), the classic CI container failure"**, whose
-   standard remedy is `--disable-dev-shm-usage`. **NEUTRAL — not shipped.** An interleaved A/B (three
-   pairs, alternating with/without on the same machine state so drift hits both equally) gave
-   identical results in all three pairs, including a pair where **both** sides failed with the full
-   38. The flag changes nothing here. It was reverted rather than left in as a harmless-looking
-   mitigation, per rule 6: a change that cannot be shown to work does not belong in the harness.
+- **It is our harness, not the environment.** Bare Selenium cannot reproduce it; the Rails system
+  suite reproduces it readily on the same machine, same Chrome, same driver, same options.
+- **It is timing-sensitive, and instrumentation hides it.** Enabling chromedriver's own verbose
+  logging gave **8 consecutive clean runs** where the baseline was ~1 in 3 — and the shared Service
+  those runs also used was independently shown not to be the cause. This is the second time on this
+  project that adding I/O latency has masked a system-test race (see the click-delivery entry below),
+  so treat any "fix" that also adds a round trip with suspicion until it is A/B'd.
 
-3. **"Leaked Chrome/chromedriver processes or exhausted file descriptors."** Ruled out by
-   observation: zero stray `chromedriver` or Chrome processes after a failing run, and `ulimit -n`
-   is 1048576.
+#### Where to look next
 
-#### What is known, for whoever picks this up
+What differs between bare Selenium and the harness: Puma, the database, Capybara's session cache, and
+**two things both managing the driver lifecycle** — Rails' own `SystemTestCase` teardown and this
+project's added `driver.quit`. Since one failure appears to wedge the rest of the run, the question
+worth answering first is what state survives a failed `create_session` and poisons the next one.
 
-It is environmental, periodic, recovers on its own, and hits browser *startup* rather than anything
-the tests do. The all-or-nothing shape suggests a resource or daemon that is briefly unavailable and
-then fine, rather than gradual exhaustion. The next things worth instrumenting are what
-`chromedriver` itself logs at launch (`Selenium::WebDriver.logger.level = :debug`, or
-`service.args << "--verbose"`) during a failing burst, and whether the failure correlates with the
-machine having just finished another heavy run.
+Instrument in a way that does not perturb timing — an in-memory record dumped at exit, rather than
+per-launch logging.
 
-**Do not** let it block a slice, and do not add a mitigation you cannot demonstrate — two have been
-tried and closed above, and this project has already paid for that lesson twice.
+**Do not** let it block a slice, and do not ship a mitigation that has not been A/B'd against a
+baseline measured in the same session. Four hypotheses are closed above; this project has already
+paid twice for shipping unproven ones.
 
-
-## Resolved
-
-### DECIDED: what "delivered" means on the web channel
-
-**Resolved in Slice 5 Task 2, on the second reading below.** A message broadcasts the instant it is
-written; the translation lands afterwards as an overlay and the reader's page updates itself. The
-15-second budget was kept but now governs how long a reader waits before the original becomes the
-final answer, rather than how long a message is withheld. `messages.delivered_at` is still unused
-and belongs to Slice 6, where a message really is sent once.
-
-**This is reversible in about an hour** if a pilot says otherwise: hold the broadcast in
-`Conversation#post_guest_message!` / `#post_staff_message!` until `Ai::TranslateMessageJob` finishes
-or the watchdog fires, and move the claim from `translation_status` to `delivered_at`. The original
-reasoning follows, unchanged, because the argument matters more than the outcome.
-
----
 
 #### The question as it stood
 
