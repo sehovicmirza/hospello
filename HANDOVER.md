@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-12 (Slice 7 Task 4 — the demo seed) |
+| **Last updated** | 2026-08-13 (five demo hotels, four of them real pilot prospects) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1213 unit/integration green · 41 system green · rubocop and brakeman clean |
-| **CI** | **Green through `39447e6`** — checked, not assumed. Nothing since has been *observed* on CI by this session; every step was run locally instead (full suite, system suite, rubocop, brakeman). **`bin/rails test:system` locally needs a chromedriver matching the container's Chrome** — see "What will bite you". |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · only Task 5 (hardening) left |
+| **Tests** | 1217 unit/integration green · 41 system green · rubocop and brakeman clean |
+| **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · demo seed now carries five hotels |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -1013,6 +1013,41 @@ loads the file rather than checking it parses:
    "do not put it back".
 
 ---
+
+## The demo seed now carries five hotels, four of them real
+
+`db/seeds/demo.rb` was one flat script for one fictional hotel. It is now an orchestrator plus a
+catalogue: one data file per hotel under `db/seeds/demo/hotels/`, built by `DemoHotelBuilder`.
+Adding a sixth prospect means writing one data file and adding its name to
+`DemoCatalogue.hotel_names`.
+
+- **Hotel Stari Grad Sarajevo** — fictional, unchanged, and the one to show any audience where a
+  real business's name on screen would raise questions.
+- **Hotel Hills Sarajevo**, **Hotel Hollywood Sarajevo**, **Hotel Vema Visoko**, **ibis Styles
+  Sarajevo** — real hotels being approached as pilot candidates.
+
+**Every knowledge-base entry is marked `# SOURCED: <domain>` or `# INVENTED`.** The sourced ones are
+the hotels' own published facts (Hollywood's 15:00/11:30 check-in, ibis's 1984 Restaurant and Igman
+Bar, Vema's free parking, Hills's thermal spa and 330 rooms). The invented ones are plausible filler
+so the demo is complete — deliberately kept off price and legal terms. If you correct one, keep the
+marker honest: it is the only thing telling the next person which lines are the hotel's words.
+
+The user chose to seed these with **no demo marker and real slugs**, as live customers. `robots.txt`
+disallows `/h/` and `/guest/` so the pages are at least not indexed under a real hotel's name.
+
+Two guard subtleties worth not undoing:
+
+- The "refuses beside hotels it did not create" check is evaluated **once, before the loop, against
+  the whole slug set**. Per hotel, demo hotel #1 counts as "another hotel" when #2 runs and nothing
+  past the first ever seeds — which looks like success, because one hotel does appear. There is a
+  test for exactly this.
+- The idempotency check is **per hotel**, so a half-seeded set completes on the next run.
+
+`test/seeds/demo_seed_test.rb` hardcodes the five expected slugs rather than reading
+`DemoCatalogue` — deriving the expected list from the thing under test would let a hotel silently
+disappear from the catalogue and still pass. Verified by dropping one: 12 tests go red.
+
+Suite cost of five hotels instead of one: negligible. 1217 tests in ~11s wall clock, unchanged.
 
 ## What to do next
 

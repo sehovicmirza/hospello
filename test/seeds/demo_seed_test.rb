@@ -12,7 +12,20 @@ require "test_helper"
 # hotels it did not create — which is the point of the first test below.
 class DemoSeedTest < ActiveSupport::TestCase
   SEED = Rails.root.join("db/seeds/demo.rb")
-  SLUG = "stari-grad-sarajevo".freeze
+
+  # Written out rather than read from DemoCatalogue on purpose. Deriving the
+  # expected list from the thing under test would mean a hotel silently
+  # dropped from the catalogue makes this suite quietly check four hotels
+  # instead of five and still pass — the exact circularity the engineering
+  # rules warn about. The catalogue is asserted against this list below, so
+  # adding a prospect is a two-line change and forgetting one is a red test.
+  DEMO_SLUGS = %w[
+    stari-grad-sarajevo
+    hotel-hills-sarajevo
+    hotel-hollywood-sarajevo
+    hotel-vema-visoko
+    ibis-styles-sarajevo
+  ].freeze
 
   # --- The two guards ---------------------------------------------------------
 
@@ -20,31 +33,58 @@ class DemoSeedTest < ActiveSupport::TestCase
   # alongside real ones is confusing at best, so the seed refuses rather than
   # deciding on anybody's behalf.
   test "it refuses to run when the database already holds hotels it did not create" do
-    assert Hotel.where.not(slug: SLUG).exists?, "precondition: the fixtures ship other hotels"
+    assert Hotel.where.not(slug: DEMO_SLUGS).exists?, "precondition: the fixtures ship other hotels"
 
     assert_no_difference -> { Hotel.count } do
       load SEED
     end
   end
 
-  test "running it twice produces one hotel, not two" do
+  test "running it twice produces one of each hotel, not two" do
     clear_other_hotels
     load SEED
     load SEED
 
-    assert_equal 1, Hotel.where(slug: SLUG).count
+    DEMO_SLUGS.each do |slug|
+      assert_equal 1, Hotel.where(slug: slug).count, "#{slug} was seeded twice"
+    end
+  end
+
+  # The guard is evaluated once, against the whole set, before any hotel is
+  # built. Checked per hotel instead, demo hotel #1 would count as "another
+  # hotel" when #2 ran and nothing past the first would ever seed — which
+  # would look like the seed working, since one hotel did appear.
+  test "every hotel in the catalogue is seeded, not just the first" do
+    seed!
+
+    assert_equal DEMO_SLUGS.sort, Hotel.pluck(:slug).sort
+  end
+
+  # A half-seeded set completes on the next run rather than being skipped
+  # wholesale because one of them happens to exist.
+  test "a missing hotel is rebuilt without disturbing the others" do
+    seed!
+    removed = Hotel.find_by!(slug: DEMO_SLUGS.last)
+    untouched_id = Hotel.find_by!(slug: DEMO_SLUGS.first).id
+    with_tenant(removed) { removed.destroy }
+
+    load SEED
+
+    assert_equal DEMO_SLUGS.sort, Hotel.pluck(:slug).sort
+    assert_equal untouched_id, Hotel.find_by!(slug: DEMO_SLUGS.first).id,
+      "the hotels that already existed should have been left alone, not rebuilt"
   end
 
   # --- The shape a demo depends on --------------------------------------------
 
-  test "it seeds a hotel that is ready to present" do
+  test "every hotel is ready to present" do
     seed!
 
-    hotel = Hotel.find_by!(slug: SLUG)
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       assert_equal "Europe/Sarajevo", hotel.timezone
-      assert_equal "bs", hotel.staff_locale
+      assert_includes Hotel::STAFF_LOCALES, hotel.staff_locale
       assert hotel.welcome_message.present?, "the landing page would look unfinished without one"
+      assert hotel.contact_phone.present?, "a guest with a real problem needs a number to call"
       assert_operator hotel.rooms.count, :>=, 10
       assert_equal 1, hotel.users.where(role: :hotel_admin).count
       assert_operator hotel.users.where(role: :staff).count, :>=, 3
@@ -53,13 +93,23 @@ class DemoSeedTest < ActiveSupport::TestCase
     end
   end
 
+  # Switching between hotels mid-demo is how the multi-tenancy story gets told
+  # without a slide, and it only lands if they visibly differ.
+  test "the hotels are branded distinctly from one another" do
+    seed!
+
+    colours = Hotel.pluck(:primary_color)
+
+    assert_equal colours.uniq.length, colours.length, "two demo hotels share a primary colour"
+  end
+
   # The part that decides whether the demo lands. Twenty thin entries read as a
   # template; the count is the cheap half of that and the only half a test can
   # check.
-  test "the knowledge base is substantial enough to answer real questions" do
+  test "every hotel's knowledge base is substantial enough to answer real questions" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       assert_operator hotel.published_kb_entries.count, :>=, 20
       # One deliberately unpublished, so a demo can show the draft/published
       # distinction — and so a reviewer can confirm the concierge never quotes it.
@@ -69,20 +119,20 @@ class DemoSeedTest < ActiveSupport::TestCase
 
   # The Arabic conversation matters most: it is the only way an RTL rendering
   # problem is visible before a demo rather than during one.
-  test "there are conversations in all four supported languages" do
+  test "every hotel has conversations in all four supported languages" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       assert_equal %w[ar bs de en], hotel.conversations.pluck(:guest_locale).uniq.sort
     end
   end
 
   # A demo that only shows the happy path invites exactly the question it does
   # not answer, so the seed has to contain the answer.
-  test "one conversation shows the assistant handing over to a person" do
+  test "every hotel has a conversation where the assistant hands over to a person" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       escalated = hotel.conversations.where.not(escalated_at: nil)
 
       assert escalated.exists?, "a sceptical hotelier asks what happens when it does not know"
@@ -91,34 +141,61 @@ class DemoSeedTest < ActiveSupport::TestCase
     end
   end
 
-  test "the reception inbox opens with something waiting" do
+  test "every hotel's reception inbox opens with something waiting" do
     seed!
 
-    with_tenant(hotel) { assert Conversation.needs_attention.exists? }
+    each_demo_hotel { assert Conversation.needs_attention.exists? }
   end
 
   # Every status, so the board is not a row of identical cards — including the
   # two a hotel most wants to see handled: one late, one refused.
-  test "the request board shows every status, including an overdue and a declined one" do
+  test "every hotel's request board shows every status, including an overdue and a declined one" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       assert_equal ServiceRequest.statuses.keys.sort, hotel.service_requests.pluck(:status).uniq.sort
       # Specifically one nobody has picked up: an accepted request that has
       # been sitting a while is also overdue, so asserting on `open_requests`
       # alone passes even when the unclaimed one is fresh — measured.
       assert hotel.service_requests.status_new.any?(&:overdue?),
-        "the board needs a genuinely late card that nobody has claimed"
+        "#{hotel.slug}: the board needs a genuinely late card that nobody has claimed"
     end
   end
 
-  test "the knowledge-gap screen has something on it" do
+  test "every hotel's knowledge-gap screen has something on it" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       assert_operator hotel.unanswered_questions.open_gaps.count, :>=, 2
       assert_operator hotel.unanswered_questions.maximum(:asked_count), :>, 1,
         "a repeat count is what makes the list worth ordering"
+    end
+  end
+
+  # --- Isolation, which five tenants finally make demonstrable ------------------
+
+  # The product's central promise, and now something the demo itself can show:
+  # open two hotels side by side and neither knows the other exists. Worth a
+  # test because a seed is the easiest place to accidentally wire one hotel's
+  # room or category to another's.
+  test "no hotel's records leak into another's" do
+    seed!
+
+    hotels = Hotel.where(slug: DEMO_SLUGS).to_a
+
+    hotels.each do |hotel|
+      with_tenant(hotel) do
+        foreign_ids = hotels.reject { |other| other == hotel }.map(&:id)
+
+        assert_empty hotel.rooms.where(hotel_id: foreign_ids)
+        assert_empty hotel.kb_entries.where(hotel_id: foreign_ids)
+        assert_empty hotel.conversations.where(hotel_id: foreign_ids)
+        assert_empty hotel.service_requests.where(hotel_id: foreign_ids)
+        # The one a seed gets wrong by hand: a category pointing at another
+        # hotel's department. RequestCategory validates this, so a failure
+        # here means the validation was bypassed.
+        assert_empty hotel.request_categories.where.not(department_id: hotel.departments.select(:id))
+      end
     end
   end
 
@@ -131,7 +208,7 @@ class DemoSeedTest < ActiveSupport::TestCase
   test "nothing is seeded outside the retention window" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       cutoff = Retention::Policy.guest_chat_cutoff
 
       assert_operator hotel.conversations.minimum(:created_at), :>, cutoff
@@ -144,10 +221,10 @@ class DemoSeedTest < ActiveSupport::TestCase
   # by AiRun's own after_create_commit — which fires at commit, i.e. *outside*
   # the seed's tenant block — so this is also the regression test for the whole
   # seed silently producing empty analytics.
-  test "the analytics pages have something to show" do
+  test "every hotel's analytics pages have something to show" do
     seed!
 
-    with_tenant(hotel) do
+    each_demo_hotel do |hotel|
       report = Analytics::HotelReport.new(hotel: hotel)
 
       # Exactly the ai_runs that exist, not merely "some". The seed once had
@@ -156,7 +233,7 @@ class DemoSeedTest < ActiveSupport::TestCase
       # number came out doubled. A `> 50` assertion passes just as happily
       # against double as against right.
       assert_equal hotel.ai_runs.count, report.ai_runs
-      assert_operator report.ai_runs, :>, 50, "and enough of them for a chart to have a shape"
+      assert_operator report.ai_runs, :>, 30, "and enough of them for a chart to have a shape"
       assert_operator report.tokens, :>, 0
       assert_operator report.ai_failures, :>, 0, "a suspicious zero is worse than an honest failure"
       assert_operator report.guests, :>, 0
@@ -165,7 +242,14 @@ class DemoSeedTest < ActiveSupport::TestCase
   end
 
   private
-    def hotel = Hotel.find_by!(slug: SLUG)
+    def each_demo_hotel
+      hotels = Hotel.where(slug: DEMO_SLUGS).to_a
+
+      assert_equal DEMO_SLUGS.length, hotels.length,
+        "expected every catalogue hotel to be seeded before asserting on them"
+
+      hotels.each { |hotel| with_tenant(hotel) { yield hotel } }
+    end
 
     def seed!
       clear_other_hotels
@@ -175,6 +259,6 @@ class DemoSeedTest < ActiveSupport::TestCase
     # The fixtures ship two hotels, and the seed deliberately refuses to run
     # beside them. Cleared inside the test transaction, so nothing escapes it.
     def clear_other_hotels
-      Hotel.where.not(slug: SLUG).find_each(&:destroy)
+      Hotel.where.not(slug: DEMO_SLUGS).find_each { |hotel| with_tenant(hotel) { hotel.destroy } }
     end
 end

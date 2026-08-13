@@ -1,1 +1,18 @@
 # See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+
+# The guest entry points are per-hotel URLs (/h/<slug>) that a guest reaches by
+# scanning a printed QR code in their room. There is nothing for a search engine
+# to usefully index there, and two reasons not to.
+#
+# On a demo instance, several of the seeded hotels are real businesses being
+# approached as pilot candidates (see db/seeds/demo/hotels/). Their pages carry
+# the hotel's own name and a knowledge base that is only partly their published
+# information — fine in a sales conversation where everyone knows what they are
+# looking at, misleading if a guest of that hotel found it through a search
+# result instead.
+#
+# On a real installation, a hotel's guest chat is not a page it wants ranking
+# against its own website.
+User-agent: *
+Disallow: /h/
+Disallow: /guest/

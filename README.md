@@ -92,7 +92,7 @@ development. **Never commit real values for any of these.**
 | `RAILS_MASTER_KEY` | Yes | Decrypts `config/credentials.yml.enc` |
 | `PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD` | Only for first boot | Seeds the first Hospello operator account (idempotent) |
 | `PLATFORM_ADMIN_NAME` | No | Defaults to "Hospello Operator" |
-| `SEED_DEMO` | No | Set to `1` to also load `db/seeds/demo.rb` (currently a stub) |
+| `SEED_DEMO` | No | Set to `1` to also load `db/seeds/demo.rb` — five fully configured demo hotels (see `db/seeds/demo/hotels/`). Refuses to run if the database holds a hotel it did not create, and is keyed on slug so re-running changes nothing |
 | `SOLID_QUEUE_IN_PUMA` | Yes (pilot topology) | Runs the job supervisor inside the web process — no separate worker service |
 | `WEB_CONCURRENCY` | No | Puma worker process count (default 1) |
 | `RAILS_MAX_THREADS` | No | Puma thread count and the DB connection pool size (default 5) |
