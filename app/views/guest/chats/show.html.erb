@@ -35,7 +35,7 @@
   <p id="not-emergency-notice" class="border-b border-gray-100 px-4 py-2 text-xs text-gray-500" dir="auto">
     <%= t("guest.entries.show.not_emergency_notice") %>
     <% if Current.hotel.contact_phone.present? %>
-      <%= link_to Current.hotel.contact_phone, "tel:#{Current.hotel.contact_phone.gsub(/\s+/, '')}",
+      <%= link_to Current.hotel.contact_phone, "tel:#{dialable_phone(Current.hotel.contact_phone)}",
             class: "font-medium underline" %>
     <% end %>
   </p>

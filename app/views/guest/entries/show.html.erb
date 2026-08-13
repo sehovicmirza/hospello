@@ -19,7 +19,7 @@
   <% if @hotel.contact_phone.present? %>
     <p id="contact-phone" class="text-center text-sm text-gray-600">
       <%= t(".call_reception") %>
-      <%= link_to @hotel.contact_phone, "tel:#{@hotel.contact_phone.gsub(/\s+/, '')}",
+      <%= link_to @hotel.contact_phone, "tel:#{dialable_phone(@hotel.contact_phone)}",
             class: "font-medium underline", style: "color:var(--brand-primary)" %>
     </p>
   <% end %>

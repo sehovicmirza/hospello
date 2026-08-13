@@ -6,7 +6,7 @@
 
   <% if @hotel.contact_phone.present? %>
     <p>
-      <%= link_to @hotel.contact_phone, "tel:#{@hotel.contact_phone.gsub(/\s+/, '')}", class: "font-medium underline" %>
+      <%= link_to @hotel.contact_phone, "tel:#{dialable_phone(@hotel.contact_phone)}", class: "font-medium underline" %>
     </p>
   <% end %>
 </div>
