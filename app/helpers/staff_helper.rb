@@ -82,7 +82,9 @@ module StaffHelper
     # and never incremented client-side, so it cannot drift away from what
     # is really waiting (see the plan's realtime section).
     if policy(Conversation).index?
-      items << { id: "inbox", label: t("staff.nav.inbox"), path: staff_conversations_path, badge: staff_inbox_badge_count }
+      count = staff_inbox_badge_count
+      items << { id: "inbox", label: t("staff.nav.inbox"), path: staff_conversations_path,
+                 badge: count, badge_sr: badge_sr_for(:conversations, count) }
     end
     # Directly after Inbox: the knowledge base is the other thing a hotel
     # touches regularly once the concierge is live, and burying it is how a
@@ -92,7 +94,9 @@ module StaffHelper
     # than everything open — a number that never reaches zero is a number
     # nobody reads.
     if policy(ServiceRequest).index?
-      items << { id: "requests", label: t("staff.nav.requests"), path: staff_service_requests_path, badge: staff_new_request_count }
+      count = staff_new_request_count
+      items << { id: "requests", label: t("staff.nav.requests"), path: staff_service_requests_path,
+                 badge: count, badge_sr: badge_sr_for(:requests, count) }
     end
     items << { id: "kb", label: t("staff.nav.knowledge_base"), path: staff_kb_entries_path } if policy(KbEntry).index?
     # Immediately under the knowledge base, and badged, because this screen
@@ -101,7 +105,9 @@ module StaffHelper
     # nothing. Same server-computed rule as the inbox badge — nil rather
     # than 0, so the number always means something.
     if policy(UnansweredQuestion).index?
-      items << { id: "knowledge-gaps", label: t("staff.nav.knowledge_gaps"), path: staff_unanswered_questions_path, badge: staff_knowledge_gap_count }
+      count = staff_knowledge_gap_count
+      items << { id: "knowledge-gaps", label: t("staff.nav.knowledge_gaps"), path: staff_unanswered_questions_path,
+                 badge: count, badge_sr: badge_sr_for(:knowledge_gaps, count) }
     end
     # Hotel admins only (HotelAnalyticsPolicy) — a receptionist reading
     # "how often did the assistant hand over to us" is reading a page
@@ -158,6 +164,19 @@ module StaffHelper
     when "system" then "border border-dashed border-gray-300 bg-gray-50 italic text-gray-600"
     else "bg-blue-600 text-white" # staff, assistant — what the guest sees from the hotel
     end
+  end
+
+  # What a screen reader hears instead of a bare number beside a word.
+  #
+  # Every badge used to share one string — "conversations need attention" —
+  # so the Requests badge announced "2 conversations need attention" and the
+  # knowledge-gap badge "4 conversations need attention". Sighted users never
+  # saw it because the span is sr-only, which is exactly why it survived.
+  #
+  # Pluralised because Bosnian needs three forms where English needs two, and
+  # a badge is nothing but a count (see config/initializers/pluralization.rb).
+  def badge_sr_for(kind, count)
+    t("staff.layout.badge_sr.#{kind}", count: count.to_i)
   end
 
   # nil rather than 0 when nothing is waiting: a badge reading "0" is worse

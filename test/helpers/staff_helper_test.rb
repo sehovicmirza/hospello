@@ -30,4 +30,40 @@ class StaffHelperTest < ActionView::TestCase
 
     assert_nil staff_time(nil)
   end
+
+  # Every nav badge used to share one screen-reader string, so Requests
+  # announced "2 conversations need attention" and the knowledge-gap badge
+  # "4 conversations need attention". The span is sr-only, so nobody looking
+  # at the page could see it was wrong — which is exactly why it needs a test
+  # rather than an eyeball.
+  test "each nav badge tells a screen reader what it is actually counting" do
+    conversations = badge_sr_for(:conversations, 3)
+    requests = badge_sr_for(:requests, 3)
+    gaps = badge_sr_for(:knowledge_gaps, 3)
+
+    assert_equal 3, [ conversations, requests, gaps ].uniq.length,
+      "two badges share a label: #{[ conversations, requests, gaps ].inspect}"
+    assert_match(/conversation/i, conversations)
+    assert_match(/request/i, requests)
+    assert_match(/question/i, gaps)
+  end
+
+  # Bosnian takes three plural forms where English takes two, and a badge is
+  # nothing but a count — so this is the most plural-sensitive string in the
+  # staff workspace.
+  test "badge labels pluralise correctly in both staff languages" do
+    I18n.with_locale(:en) do
+      assert_match(/\bconversation needs\b/, badge_sr_for(:conversations, 1))
+      assert_match(/\bconversations need\b/, badge_sr_for(:conversations, 5))
+    end
+
+    I18n.with_locale(:bs) do
+      one = badge_sr_for(:conversations, 1)
+      few = badge_sr_for(:conversations, 3)
+      many = badge_sr_for(:conversations, 8)
+
+      assert_equal 3, [ one, few, many ].uniq.length,
+        "Bosnian needs one/few/other to read naturally: #{[ one, few, many ].inspect}"
+    end
+  end
 end

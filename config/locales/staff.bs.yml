@@ -21,7 +21,19 @@ bs:
       preferences_link: "Jezik"
       sign_out: "Odjava"
       coming_soon: "Uskoro dostupno"
-      badge_sr: "razgovora zahtijeva pažnju"
+      badge_sr:
+        conversations:
+          one: "razgovor zahtijeva pažnju"
+          few: "razgovora zahtijevaju pažnju"
+          other: "razgovora zahtijeva pažnju"
+        requests:
+          one: "zahtjev čeka da ga neko preuzme"
+          few: "zahtjeva čekaju da ih neko preuzme"
+          other: "zahtjeva čeka da ih neko preuzme"
+        knowledge_gaps:
+          one: "pitanje na koje nismo znali odgovor"
+          few: "pitanja na koja nismo znali odgovor"
+          other: "pitanja na koja nismo znali odgovor"
     preferences:
       edit:
         title: "Jezik — %{hotel_name}"

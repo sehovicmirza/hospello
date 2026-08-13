@@ -26,7 +26,16 @@ en:
       preferences_link: "Language"
       sign_out: "Sign out"
       coming_soon: "Coming soon"
-      badge_sr: "conversations need attention"
+      badge_sr:
+        conversations:
+          one: "conversation needs attention"
+          other: "conversations need attention"
+        requests:
+          one: "request waiting to be picked up"
+          other: "requests waiting to be picked up"
+        knowledge_gaps:
+          one: "question we could not answer"
+          other: "questions we could not answer"
     preferences:
       edit:
         title: "Language — %{hotel_name}"
