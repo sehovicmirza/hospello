@@ -1049,6 +1049,29 @@ disappear from the catalogue and still pass. Verified by dropping one: 12 tests 
 
 Suite cost of five hotels instead of one: negligible. 1217 tests in ~11s wall clock, unchanged.
 
+## Verified live on hospello.onrender.com (2026-08-13)
+
+`SEED_DEMO=1` is set and all five hotels are live. Checked from outside, not assumed:
+
+- Every `/h/<slug>` returns 200 with its own name, its own `--brand-primary`, and its own real
+  reception number.
+- A guest session was created on Hotel Hills (room 207) and asked, in English, about the thermal
+  spa. The concierge answered **from Hills' Bosnian knowledge base, in English** — 10 treatment
+  rooms, mud baths, Ilidža's thermal water, breakfast 06:30–10:30.
+- Then asked Hills about **ibis Styles' "1984 Restaurant" and "Igman Bar"** — facts that exist in
+  the same database, under a different tenant. It answered: *"I don't have anything written down
+  about a '1984 Restaurant' or an 'Igman Bar'"*, offered what it does have, and asked whether to
+  pass the question to reception.
+
+That second one is acceptance scenarios 1 and 5 demonstrated together on production data: no
+invention, no cross-tenant leak, and an honest handoff. It is also the single best thing to show a
+sceptical hotelier, because it answers the question they ask first.
+
+**One piece of litter to clear:** that verification left a "Test Guest" conversation in Hotel Hills
+room 207. It is harmless but looks untidy mid-demo. Erase it from the staff UI (Slice 7 Task 3's
+per-guest erasure), which also exercises that feature — or leave it; the nightly purge takes it in
+90 days.
+
 ## What to do next
 
 **Slice 6 is complete** — every step of all four tasks. The write-ups above cover each; the two
