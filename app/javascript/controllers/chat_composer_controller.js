@@ -23,9 +23,34 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["form", "input", "clientMessageId", "offlineNotice"]
 
+  connect() {
+    this.#resize()
+  }
+
   fillFromChip(event) {
     this.inputTarget.value = event.currentTarget.dataset.prefillText
+    this.#resize()
+    // Focus last, and only after the textarea has been resized: focusing
+    // first makes the browser scroll a one-line box into view and then grow
+    // it underneath the guest, which reads as the page jumping. The cursor
+    // goes to the end so the guest can keep typing rather than having to tap
+    // again to get past the prefilled sentence.
     this.inputTarget.focus()
+    this.inputTarget.setSelectionRange(this.inputTarget.value.length, this.inputTarget.value.length)
+  }
+
+  autoGrow() {
+    this.#resize()
+  }
+
+  // One line is too little to compose a real request on a phone, and a fixed
+  // taller box wastes transcript on every guest who only types "thanks". The
+  // max height is enforced in CSS (max-h-32) so the transcript can never be
+  // squeezed out entirely by a long message.
+  #resize() {
+    const input = this.inputTarget
+    input.style.height = "auto"
+    input.style.height = `${input.scrollHeight}px`
   }
 
   submitEnd(event) {
@@ -34,9 +59,22 @@ export default class extends Controller {
     if (event.detail.success) {
       this.inputTarget.value = ""
       this.#regenerateClientMessageId()
+      this.#resize()
     }
 
-    this.inputTarget.focus()
+    // Keeping focus keeps the keyboard up, which is what a guest sending a
+    // second message wants — but only when the keyboard was already up.
+    // Re-focusing on a phone the guest had put down would summon it uninvited
+    // and scroll the transcript out from under them.
+    if (document.activeElement === this.inputTarget || this.#keyboardLikelyOpen()) {
+      this.inputTarget.focus()
+    }
+  }
+
+  #keyboardLikelyOpen() {
+    if (!window.visualViewport) return false
+
+    return window.visualViewport.height < window.innerHeight - 120
   }
 
   // Turbo's own default handling for a failed fetch is meant for page

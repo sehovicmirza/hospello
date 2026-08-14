@@ -8,3 +8,23 @@
  *
  * Consider organizing styles into separate files for maintainability.
  */
+
+/*
+ * The guest chat pins the page; every other guest page scrolls normally.
+ *
+ * This is a stylesheet rule rather than a class on <html> because Turbo Drive
+ * replaces <body> and merges <head> on a visit but never touches the <html>
+ * element's attributes — so a class put there on the chat's own render is
+ * simply not present when a guest arrives from the entry form, which is how
+ * every real guest arrives. Measured: <body> pinned correctly at 701px while
+ * <html> stayed 1275px and the page still dragged 574px behind a composer
+ * that was exactly where it should be.
+ *
+ * :has() rather than JavaScript because the selector is the whole logic, and
+ * this app already requires a browser modern enough for it (allow_browser
+ * versions: :modern in ApplicationController).
+ */
+html:has(> body.app-shell) {
+  height: 100dvh;
+  overflow: hidden;
+}

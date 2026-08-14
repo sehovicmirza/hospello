@@ -1,4 +1,8 @@
 <% content_for :title, t(".title") %>
+<%# See the layout: this is the chat and only the chat. The shell below is a
+    fixed height, but a fixed-height shell inside a body that can still grow
+    leaves the document draggable behind it. %>
+<% content_for :body_class, "app-shell h-dvh overflow-hidden" %>
 
 <%# Current.hotel, not @guest_session.hotel: this line exists specifically
     to make Guest::BaseController#scope_to_guest_hotel's own work visible
@@ -14,25 +18,40 @@
     can reach the composer's textarea target. One shared ancestor keeps
     all three Stimulus controllers' target lookups working without any
     inline script. %>
-<div class="mx-auto flex min-h-dvh max-w-md flex-col"
+<%# h-dvh, not min-h-dvh. This is the whole reason the composer used to end up
+    below the fold: with a minimum height the shell grows to fit the
+    transcript, so the *page* scrolls and the input slides off the bottom of
+    the screen. Measured on an emulated iPhone with seven messages — the
+    composer sat 412px past the fold, which is exactly the "I have to scroll
+    back" a guest reports. A fixed height makes the transcript the only thing
+    that scrolls and pins the composer where a thumb expects it. %>
+<div class="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-white"
      data-controller="chat-scroll chat-resilience chat-composer"
      data-chat-resilience-after-url-value="<%= guest_messages_path %>"
      data-chat-resilience-last-id-value="<%= @messages.last&.id.to_i || 0 %>">
 
-  <header class="flex flex-col gap-0.5 border-b border-gray-200 px-4 py-3">
-    <p id="hotel-name" class="text-sm font-medium" style="color:var(--brand-primary)"><%= Current.hotel.name %></p>
-    <h1 id="chat-greeting" class="text-lg font-semibold" dir="auto">
-      <%= t(".greeting", name: @guest_session.guest_name) %>
-    </h1>
+  <%# Two lines instead of three. Every pixel here is one the transcript does
+      not get, and on a 390px-wide phone the header was taking a fifth of the
+      screen to say things the guest already knows — they are standing in the
+      hotel. The name stays because a QR code can be scanned in the wrong
+      lobby; the room stays because it is what the request will be delivered
+      to and getting it wrong is expensive. %>
+  <header class="flex shrink-0 items-baseline justify-between gap-3 border-b border-gray-200 px-4 py-2.5">
+    <div class="min-w-0">
+      <p id="hotel-name" class="truncate text-sm font-semibold" style="color:var(--brand-primary)"><%= Current.hotel.name %></p>
+      <h1 id="chat-greeting" class="truncate text-xs text-gray-500" dir="auto">
+        <%= t(".greeting", name: @guest_session.guest_name) %>
+      </h1>
+    </div>
     <% if @guest_session.room %>
-      <p id="chat-room" class="text-xs text-gray-500" dir="auto"><%= t(".room_label", room: @guest_session.room.number) %></p>
+      <p id="chat-room" class="shrink-0 text-xs text-gray-500" dir="auto"><%= t(".room_label", room: @guest_session.room.number) %></p>
     <% end %>
   </header>
 
   <%# The chat is not an emergency channel — the same notice the landing
       page shows (Guest::EntriesController), reused verbatim rather than a
       second copy of the same guarantee, kept reachable here too. %>
-  <p id="not-emergency-notice" class="border-b border-gray-100 px-4 py-2 text-xs text-gray-500" dir="auto">
+  <p id="not-emergency-notice" class="shrink-0 border-b border-gray-100 px-4 py-1.5 text-start text-xs leading-snug text-gray-500" dir="auto">
     <%= t("guest.entries.show.not_emergency_notice") %>
     <% if Current.hotel.contact_phone.present? %>
       <%= link_to Current.hotel.contact_phone, "tel:#{dialable_phone(Current.hotel.contact_phone)}",
@@ -45,7 +64,13 @@
     <%= t("guest.chats.composer.offline_banner") %>
   </p>
 
-  <div id="chat-messages" class="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
+  <%# min-h-0 is load-bearing next to flex-1. A flex item defaults to
+      min-height:auto, which refuses to shrink below its content — so without
+      it this element never becomes a scroller no matter what overflow-y says,
+      and the shell grows instead. overscroll-contain stops a flick at the top
+      of the transcript from dragging the whole page behind it, which on iOS
+      reads as the screen coming loose. %>
+  <div id="chat-messages" class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-4"
        data-chat-scroll-target="messages" data-chat-resilience-target="messages">
     <% if @messages.empty? %>
       <%# A warm greeting from the hotel — never "the AI" or "the

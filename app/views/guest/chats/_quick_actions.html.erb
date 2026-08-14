@@ -5,15 +5,26 @@
     textarea (chat_composer_controller.js#fillFromChip); it never submits
     anything by itself, so a request the guest didn't read and confirm can
     never be sent. Free typing is always available regardless. %>
-<div id="quick-actions" class="flex flex-wrap gap-2 px-4 pb-2" role="group"
+<%# A single horizontal row that scrolls sideways, rather than a wrapping
+    block. Wrapped chips on a narrow phone grew to three or four rows and
+    pushed the composer off the bottom of the screen; one row costs a fixed
+    amount of vertical space no matter how many categories a hotel has
+    configured, which is the number this page cannot predict.
+
+    min-h-11 (44px) on each chip: the old ones measured 34px, below the size
+    a thumb hits reliably, and these are the first thing a guest touches. %>
+<div id="quick-actions" class="shrink-0" role="group"
      aria-label="<%= t("guest.chats.quick_actions.heading") %>">
-  <% quick_actions.each_with_index do |action, index| %>
-    <button type="button" id="quick-action-<%= index %>" dir="auto"
-            class="rounded-full border px-3 py-1.5 text-sm"
-            style="border-color:var(--brand-secondary)"
-            data-action="click->chat-composer#fillFromChip"
-            data-prefill-text="<%= action.prefill %>">
-      <%= action.label %>
-    </button>
-  <% end %>
+  <div class="flex gap-2 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <% quick_actions.each_with_index do |action, index| %>
+      <button type="button" id="quick-action-<%= index %>" dir="auto"
+              class="min-h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-sm font-medium
+                     active:opacity-70"
+              style="border-color:var(--brand-secondary)"
+              data-action="click->chat-composer#fillFromChip"
+              data-prefill-text="<%= action.prefill %>">
+        <%= action.label %>
+      </button>
+    <% end %>
+  </div>
 </div>

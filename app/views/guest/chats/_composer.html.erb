@@ -14,7 +14,7 @@
         chat_composer_target: "form",
         action: "turbo:submit-end->chat-composer#submitEnd turbo:fetch-request-error->chat-composer#networkError"
       },
-      class: "flex flex-col gap-2 border-t border-gray-200 bg-white px-3 py-3" do %>
+      class: "flex shrink-0 flex-col gap-2 border-t border-gray-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" do %>
   <% if error.present? %>
     <p id="composer-error" class="text-sm text-red-600" role="alert" dir="auto"><%= error %></p>
   <% end %>
@@ -26,13 +26,27 @@
   <div class="flex items-end gap-2">
     <%= hidden_field_tag "message[client_message_id]", SecureRandom.uuid,
           data: { chat_composer_target: "clientMessageId" } %>
+    <%# text-base, not text-sm. iOS Safari zooms the whole page in when a
+        focused field is under 16px, and never zooms back out — so tapping a
+        quick-action chip magnified the page and threw the guest's place away.
+        That is the single biggest cause of the "focus gets lost and I have to
+        scroll back" this page was reported for. 16px is the floor, not a
+        preference.
+
+        max-h-32 with the auto-grow in chat_composer_controller.js: one line
+        is too little to compose a real request on a phone, and unbounded
+        growth would eat the transcript. %>
     <%= text_area_tag "message[body]", nil, rows: 1, maxlength: Message::MAX_BODY_LENGTH, dir: "auto",
           placeholder: t("guest.chats.composer.placeholder"), required: true,
-          data: { chat_composer_target: "input" },
-          class: "flex-1 resize-none rounded-md border border-gray-300 px-3 py-2 text-sm" %>
+          data: { chat_composer_target: "input", action: "input->chat-composer#autoGrow" },
+          class: "max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2.5 " \
+                 "text-base leading-snug focus:border-transparent focus:outline-none focus:ring-2" %>
+    <%# min-h-11 is 44px, the smallest target a thumb hits reliably. The brand
+        colour lives here and on the guest's own bubbles and nowhere else —
+        this is the hotel's page, so Hospello does not get a palette on it. %>
     <%= submit_tag t("guest.chats.composer.send"), id: "composer-send",
           data: { turbo_submits_with: t("guest.chats.composer.sending") },
           style: "background-color:var(--brand-primary); color:var(--brand-on-primary);",
-          class: "shrink-0 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50" %>
+          class: "min-h-11 shrink-0 rounded-xl px-4 text-sm font-semibold disabled:opacity-50" %>
   </div>
 <% end %>
