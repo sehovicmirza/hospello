@@ -44,6 +44,34 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       "the transcript is not the scroller, so its content is overflowing somewhere else"
   end
 
+  # The other half of "the transcript is the scroller": a guest who scrolled up
+  # to reread something must stay there when a new message arrives. This is the
+  # behaviour chat_scroll_controller.js's NEAR_BOTTOM_PX exists for, and it was
+  # never tested — easy to lose while changing which element scrolls, and the
+  # symptom (being yanked to the bottom mid-sentence) reads as exactly the
+  # flakiness this page was reported for.
+  test "a guest who scrolled up to reread is not yanked back down" do
+    visit_chat_on_phone
+
+    8.times { |i| send_message("Poruka #{i + 1} — pitanje o doručku, spa centru i transferu.") }
+
+    page.execute_script("document.getElementById('chat-messages').scrollTop = 0")
+    assert_equal 0, transcript_scroll_top
+
+    # A message arriving from anywhere other than this guest's own composer:
+    # the live broadcast and the resilience resync both append here too.
+    page.execute_script(<<~JS)
+      const list = document.getElementById('chat-messages');
+      const p = document.createElement('p');
+      p.textContent = 'Poruka koja stiže dok gost čita ranije poruke.';
+      list.appendChild(p);
+    JS
+    sleep 0.3
+
+    assert_equal 0, transcript_scroll_top,
+      "a new message dragged the guest back to the bottom while they were reading"
+  end
+
   # iOS Safari zooms the whole page in when a focused field is under 16px and
   # never zooms back out. That is a font-size rule, not a preference: the page
   # was at 14px and every tap on the composer threw the guest's place away.
@@ -133,6 +161,10 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       fill_in "message_body", with: body
       find("#composer-send").click
       assert_selector "#chat-messages", text: body.truncate(20, omission: "")
+    end
+
+    def transcript_scroll_top
+      page.evaluate_script("Math.round(document.getElementById('chat-messages').scrollTop)")
     end
 
     def composer_fully_visible?
