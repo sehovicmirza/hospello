@@ -175,6 +175,25 @@ driver cycles, not why a single launch is flaky.
   project that adding I/O latency has masked a system-test race (see the click-delivery entry below),
   so treat any "fix" that also adds a round trip with suspicion until it is A/B'd.
 
+#### New evidence: it scales with how many times Chrome is launched
+
+Recorded 2026-08-14. The system suite grew from 47 tests to 51 (four typing-indicator tests). At 47
+it passed CI reliably; at 51 it failed **twice in a row on the same commit**, with 21 and then 30
+errors — every one of them `create_session`, zero actual test failures, and the 1223 unit tests green
+in the same runs.
+
+That is the first quantitative handle anyone has had on this. The harness quits the driver after
+every test, so tests and browser launches are one-to-one: 51 launches per run rather than 47. A
+failure rate that rises with launch count is consistent with the all-or-nothing shape — one launch
+fails and wedges the rest — and it means the flake gets *worse* as the suite grows, which it will.
+
+It also sharpens the trade-off already recorded above: removing the teardown was measured as worse
+(errors in all four runs), so launches cannot simply be reduced by keeping one browser. The
+remaining shape worth trying is making the launch itself resilient — retrying `create_session` once
+on failure, at the exact point that fails — rather than reducing how often it happens. That is a
+sixth hypothesis and it has **not** been tested; do not ship it without an A/B measured in the same
+session, per rule 6.
+
 #### Where to look next
 
 What differs between bare Selenium and the harness: Puma, the database, Capybara's session cache, and
