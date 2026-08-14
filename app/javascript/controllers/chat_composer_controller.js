@@ -21,10 +21,51 @@ import { Controller } from "@hotwired/stimulus"
 // a descendant of it — both need to be inside the same controller's scope
 // for a chip's click action to reach the composer's own targets.
 export default class extends Controller {
-  static targets = ["form", "input", "clientMessageId", "offlineNotice"]
+  static targets = ["form", "input", "clientMessageId", "offlineNotice", "typingIndicator"]
+  static values = { expectReply: Boolean }
+
+  // How long the indicator may run before it gives up on its own.
+  //
+  // Ai::GenerateReplyJob allows the model 25s and retries once, and every
+  // failure path past that posts a degraded notice — so a reply or an honest
+  // "someone will get to this" should always arrive well inside this. The
+  // timeout is not the mechanism, it is the backstop for the case the
+  // mechanism cannot cover: a job that dies without running its own rescue,
+  // where nothing will ever arrive to clear the indicator. Dots that animate
+  // forever are a worse lie than no dots at all.
+  static TYPING_TIMEOUT_MS = 75_000
 
   connect() {
     this.#resize()
+
+    // The transcript is where every reply lands, from any source — the live
+    // broadcast, the resilience layer's resync, a staff message. Watching it
+    // means the indicator clears on whichever actually arrives, without this
+    // controller needing to know which.
+    //
+    // But NOT on the guest's own message. Turbo appends that after
+    // turbo:submit-end fires, so an observer that hides on any mutation hides
+    // the indicator a few milliseconds after showing it — measured in a real
+    // browser, it never became visible at all. The sender role is the only
+    // thing that distinguishes "your message arrived" from "a reply arrived",
+    // which is why _message.html.erb carries it.
+    this.transcriptObserver = new MutationObserver((mutations) => {
+      const reply = mutations.some((mutation) =>
+        Array.from(mutation.addedNodes).some((node) =>
+          node.nodeType === Node.ELEMENT_NODE &&
+          node.dataset?.senderRole &&
+          node.dataset.senderRole !== "guest"
+        )
+      )
+
+      if (reply) this.#hideTyping()
+    })
+    this.transcriptObserver.observe(this.#transcript, { childList: true })
+  }
+
+  disconnect() {
+    this.transcriptObserver?.disconnect()
+    clearTimeout(this.typingTimeout)
   }
 
   fillFromChip(event) {
@@ -60,6 +101,7 @@ export default class extends Controller {
       this.inputTarget.value = ""
       this.#regenerateClientMessageId()
       this.#resize()
+      this.#showTypingIfReplyExpected()
     }
 
     // Keeping focus keeps the keyboard up, which is what a guest sending a
@@ -83,6 +125,42 @@ export default class extends Controller {
   networkError(event) {
     event.preventDefault()
     this.offlineNoticeTarget.classList.remove("hidden")
+    // The message never reached the server, so nothing is coming back.
+    this.#hideTyping()
+  }
+
+  // Only when an answer is genuinely on its way. expectReply is false while
+  // reception has taken the conversation over or the hotel has the assistant
+  // switched off — a person will reply, in their own time, and dots implying
+  // otherwise would be inventing activity that is not happening.
+  #showTypingIfReplyExpected() {
+    if (!this.expectReplyValue || !this.hasTypingIndicatorTarget) return
+
+    this.typingIndicatorTarget.classList.remove("hidden")
+    this.typingIndicatorTarget.classList.add("flex")
+    this.#scrollTranscriptToBottom()
+
+    clearTimeout(this.typingTimeout)
+    this.typingTimeout = setTimeout(() => this.#hideTyping(), this.constructor.TYPING_TIMEOUT_MS)
+  }
+
+  #hideTyping() {
+    clearTimeout(this.typingTimeout)
+    if (!this.hasTypingIndicatorTarget) return
+
+    this.typingIndicatorTarget.classList.add("hidden")
+    this.typingIndicatorTarget.classList.remove("flex")
+  }
+
+  get #transcript() {
+    return this.element.querySelector("#chat-messages")
+  }
+
+  // The indicator is the last thing in the transcript, so it is the thing a
+  // guest needs to be able to see the moment it appears.
+  #scrollTranscriptToBottom() {
+    const transcript = this.#transcript
+    if (transcript) transcript.scrollTop = transcript.scrollHeight
   }
 
   #regenerateClientMessageId() {

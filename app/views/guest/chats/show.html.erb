@@ -45,7 +45,13 @@
 <div class="mx-auto flex h-dvh max-w-md flex-col overflow-hidden bg-white"
      data-controller="chat-scroll chat-resilience chat-composer"
      data-chat-resilience-after-url-value="<%= guest_messages_path %>"
-     data-chat-resilience-last-id-value="<%= @messages.last&.id.to_i || 0 %>">
+     data-chat-resilience-last-id-value="<%= @messages.last&.id.to_i || 0 %>"
+     <%# Whether a guest who sends a message right now can expect an answer
+         without a person doing something first. False while reception has
+         taken the conversation over or the hotel has the assistant switched
+         off — in both cases the job returns in silence, so promising a reply
+         would be a lie. See Conversation#assistant_reply_expected?. %>
+     data-chat-composer-expect-reply-value="<%= @conversation.assistant_reply_expected? %>">
 
   <%# Two lines instead of three. Every pixel here is one the transcript does
       not get, and on a 390px-wide phone the header was taking a fifth of the
@@ -99,6 +105,10 @@
     <% else %>
       <%= render partial: "guest/messages/message", collection: @messages, as: :message %>
     <% end %>
+
+    <%# Last child of the transcript, so it appears exactly where the reply
+        will and the existing scroll-to-bottom behaviour carries it. %>
+    <%= render "guest/chats/typing_indicator" %>
   </div>
 
   <% if @messages.empty? %>

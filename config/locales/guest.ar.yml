@@ -38,6 +38,8 @@ ar:
         assistant: "مساعد الفندق"
         system: "النظام"
     chats:
+      typing:
+        sr_label: "في انتظار الرد"
       show:
         title: "محادثة"
         greeting: "مرحباً، %{name}!"

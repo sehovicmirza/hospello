@@ -248,6 +248,28 @@ class Conversation < ApplicationRecord
     set_ai_mode!(:auto, user: user, notice: "Reception handed the conversation back.")
   end
 
+  # Whether a guest who sends a message right now can expect an answer back
+  # without a person having to do something first.
+  #
+  # This exists for the typing indicator, and the honesty of that indicator is
+  # the whole point. Ai::GenerateReplyJob's first two guards
+  # (`conversation.auto?` and `hotel.ai_enabled?`) return **in silence** — no
+  # reply, no degraded notice, nothing at all — because in both cases a human
+  # has deliberately taken the conversation. Showing "typing…" then would tell
+  # a guest something is coming when the truthful answer is "a person will get
+  # to this", and inventing activity that is not happening is the one thing
+  # this product cannot do.
+  #
+  # The breaker and budget guards further down that job are deliberately NOT
+  # part of this: those *do* post a degraded notice, so something really does
+  # arrive and the indicator was right to appear.
+  #
+  # Deliberately not memoised: the staff inbox can pause the assistant while a
+  # guest is mid-sentence, and this is read per request.
+  def assistant_reply_expected?
+    auto? && hotel.ai_enabled?
+  end
+
   # The assistant's own reply to the guest.
   #
   # It clears staff_unread_count for the same reason a staff reply does: the

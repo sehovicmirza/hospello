@@ -1,0 +1,37 @@
+<%# Shown between a guest's message and the reply to it, because several
+    seconds of nothing reads as "this is broken" on a phone — the guest has
+    no other signal that anything is happening.
+
+    Inside #chat-messages rather than pinned above the composer, so it sits
+    where the reply itself will appear and scrolls with the transcript. A
+    guest who has scrolled up to reread something does not get a fixed banner
+    following them down the screen.
+
+    aria-live="polite" rather than "assertive": a screen-reader user should
+    hear this when they reach a natural pause, not have it interrupt the
+    message they are still reading. role="status" carries the same meaning
+    for anything that does not read aria-live.
+
+    Hidden by default and shown by chat_composer_controller.js — it is not
+    rendered per-reply by the server, because the server does not know when
+    the guest pressed send, only when the job finished. %>
+<div id="typing-indicator" class="hidden items-center gap-2 self-start rounded-lg bg-gray-50 px-3 py-2"
+     role="status" aria-live="polite" data-chat-composer-target="typingIndicator">
+  <span class="sr-only"><%= t("guest.chats.typing.sr_label") %></span>
+
+  <%# Three dots rather than words, so nothing has to be translated into a
+      claim about who is typing. The concierge is not a person and the guest
+      surface never says "AI", so any sentence here would have to pick one —
+      the animation says "working on it" without asserting either.
+
+      motion-reduce:animate-none, not a media query around the whole element:
+      someone who has asked for less motion still gets the indicator, just
+      without the bounce. Removing it entirely would take away the
+      reassurance the element exists for. %>
+  <span class="flex items-center gap-1" aria-hidden="true">
+    <% 3.times do |dot| %>
+      <span class="size-1.5 animate-bounce rounded-full bg-gray-400 motion-reduce:animate-none"
+            style="animation-delay: <%= dot * 150 %>ms"></span>
+    <% end %>
+  </span>
+</div>

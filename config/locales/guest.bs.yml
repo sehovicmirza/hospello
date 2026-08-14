@@ -38,6 +38,8 @@ bs:
         assistant: "Hotelski asistent"
         system: "Sistem"
     chats:
+      typing:
+        sr_label: "Čeka se odgovor"
       show:
         title: "Razgovor"
         greeting: "Zdravo, %{name}!"

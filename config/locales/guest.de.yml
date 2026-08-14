@@ -38,6 +38,8 @@ de:
         assistant: "Hotel-Assistent"
         system: "System"
     chats:
+      typing:
+        sr_label: "Warten auf eine Antwort"
       show:
         title: "Chat"
         greeting: "Hallo, %{name}!"

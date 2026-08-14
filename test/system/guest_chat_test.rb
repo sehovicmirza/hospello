@@ -110,17 +110,84 @@ class GuestChatTest < ApplicationSystemTestCase
     assert_text "Housekeeping is on its way up."
   end
 
+  # Several seconds of nothing after pressing send reads as "this is broken"
+  # on a phone — the guest has no other signal that anything is happening.
+  test "sending a message shows that a reply is on its way" do
+    visit_chat_as_guest(locale: "en")
+
+    assert_no_selector "#typing-indicator", visible: true
+
+    fill_in "message_body", with: "When does the spa close?"
+    find("#composer-send").click
+
+    assert_selector "#typing-indicator", visible: true
+  end
+
+  # The honesty condition, and the reason this is not simply "show dots after
+  # every send". Ai::GenerateReplyJob returns in silence when reception has
+  # taken the conversation over — no reply, no notice, nothing — so a guest
+  # waits for a person. Dots would promise something that is not coming.
+  test "no reply is promised when reception has taken the conversation over" do
+    visit_chat_as_guest(locale: "en", ai_mode: :paused)
+
+    fill_in "message_body", with: "When does the spa close?"
+    find("#composer-send").click
+
+    assert_selector "#chat-messages", text: "When does the spa close?"
+    assert_no_selector "#typing-indicator", visible: true
+  end
+
+  # Same silence, different cause: a hotel that has switched the assistant off
+  # entirely.
+  test "no reply is promised when the hotel has the assistant switched off" do
+    visit_chat_as_guest(locale: "en", ai_enabled: false)
+
+    fill_in "message_body", with: "When does the spa close?"
+    find("#composer-send").click
+
+    assert_selector "#chat-messages", text: "When does the spa close?"
+    assert_no_selector "#typing-indicator", visible: true
+  end
+
+  # Whatever arrives clears it — the reply, a degraded "someone will get to
+  # this", or a staff message. The controller watches the transcript rather
+  # than any one source, so this covers all three.
+  test "the indicator clears when something actually arrives" do
+    visit_chat_as_guest(locale: "en")
+
+    fill_in "message_body", with: "When does the spa close?"
+    find("#composer-send").click
+    assert_selector "#typing-indicator", visible: true
+
+    conversation = Conversation.unscoped.order(:id).last
+    ActsAsTenant.with_tenant(conversation.hotel) do
+      conversation.post_assistant_reply!(body: "The spa closes at 22:00.")
+    end
+
+    assert_selector "#chat-messages", text: "The spa closes at 22:00."
+    assert_no_selector "#typing-indicator", visible: true
+  end
+
   private
-    def visit_chat_as_guest(locale:)
-      hotel = Hotel.create!(name: "System Test Hotel #{SecureRandom.hex(4)}", slug: "system-test-#{SecureRandom.hex(4)}")
+    # ai_mode / ai_enabled are parameters because the typing indicator's whole
+    # correctness is "only when a reply is genuinely coming", and the two ways
+    # it is not coming are a paused conversation and a hotel with the
+    # assistant switched off.
+    def visit_chat_as_guest(locale:, ai_mode: :auto, ai_enabled: true)
+      hotel = Hotel.create!(name: "System Test Hotel #{SecureRandom.hex(4)}",
+                            slug: "system-test-#{SecureRandom.hex(4)}", ai_enabled: ai_enabled)
       room = ActsAsTenant.with_tenant(hotel) { hotel.rooms.create!(number: "701") }
       raw_token = SecureRandom.urlsafe_base64(32)
       ActsAsTenant.with_tenant(hotel) do
-        hotel.guest_sessions.create!(
+        session = hotel.guest_sessions.create!(
           guest_name: "System Test Guest", room: room, locale: locale,
           privacy_accepted_at: Time.current, expires_at: 7.days.from_now,
           token_digest: GuestSession.digest(raw_token)
         )
+        # The chat creates the conversation lazily on first visit, so a
+        # non-default ai_mode has to exist before the page renders — the page
+        # reads it once, to decide whether a reply can honestly be promised.
+        Conversation.live_for(session).update!(ai_mode: ai_mode) unless ai_mode == :auto
       end
 
       # A cookie can only be set for a domain the browser has already

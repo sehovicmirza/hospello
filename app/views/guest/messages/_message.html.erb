@@ -4,7 +4,12 @@
     dir="auto" on the bubble itself — a guest's own text and a staff
     reply may be in different scripts, so each bubble resolves its own
     direction rather than inheriting the page's. %>
+<%# data-sender-role is read by chat_composer_controller.js: the typing
+    indicator has to clear when a *reply* lands and stay up when the guest's
+    own message does, and those are indistinguishable from the outside
+    without it. %>
 <div id="<%= dom_id(message) %>" data-message-id="<%= message.id %>"
+     data-sender-role="<%= message.sender_role %>"
      class="flex flex-col gap-1 <%= message.guest? ? "items-end" : "items-start" %>">
   <div class="flex max-w-[85%] flex-col gap-0.5 <%= message.guest? ? "items-end" : "items-start" %>">
     <span class="sr-only"><%= guest_sender_label(message) %></span>
