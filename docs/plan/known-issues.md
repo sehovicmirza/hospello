@@ -7,6 +7,90 @@ looks like a passing test and is a hole.
 
 ## Open
 
+### DECISION NEEDED (product, not engineering): a guest on Safari below 17.2 hits a hard 406
+
+**Raised 2026-08-14 while testing the guest chat on emulated phones. Not fixed, deliberately — this
+is a product call with real engineering consequences either way, and it should be made by a human
+rather than patched quietly by whoever hits it next.**
+
+`ApplicationController` carries `allow_browser versions: :modern` (one line,
+`app/controllers/application_controller.rb:6`). Every guest controller inherits it, including
+`Guest::EntriesController` — so the gate is on **the landing page the printed QR code points at**,
+before a guest has typed anything.
+
+**The exact threshold.** Rails' `:modern` set is
+`{ safari: 17.2, chrome: 120, firefox: 121, opera: 106, ie: false }`
+(`ActionController::AllowBrowser::BrowserBlocker::SETS`, actionpack 8.1.3.1). Measured against
+production, not read off the source — `https://hospello.onrender.com/h/hotel-hills-sarajevo` with
+spoofed user agents:
+
+| User agent | Response |
+|---|---|
+| iOS Safari 16.6 | **406** |
+| iOS Safari 17.0 | **406** |
+| iOS Safari 17.1 | **406** |
+| iOS Safari 17.2 | 200 |
+| iOS Safari 17.3 | 200 |
+| Android Chrome 119 | **406** |
+| Android Chrome 120 | 200 |
+| no `User-Agent` header at all | 200 |
+
+That last row is Rails' own rule, not an accident: `BrowserBlocker#blocked?` requires a *reported*
+version, so anything that sends no user agent — including every bot, and `curl` — sails through.
+The gate stops phones, not scrapers.
+
+**What the guest sees.** `public/406-unsupported-browser.html`, unchanged from the Rails generator:
+a Rails "406" logo and one English sentence, *"Your browser is not supported. Please upgrade your
+browser to continue."* No hotel name, no branding, no reception phone number, no other way to reach
+anyone — and in English regardless of the four languages this product is otherwise careful to speak.
+A guest standing in a room having just scanned the hotel's QR code gets a dead end, which is
+`engineering-rules.md` rule 8's "no dead ends" broken at the very first request.
+
+**Who this actually is.** Any iPhone that cannot run iOS 17 is capped at Safari 16.x — that is the
+iPhone X, 8 and 8 Plus and everything older, plus every iPhone whose owner simply has not updated
+past 17.0/17.1. Apple's own support matrix is the source for the device list; it has not been
+measured here and is worth checking against real numbers before deciding. The right evidence is
+production traffic: Rails emits a `browser_block.action_controller` notification on every block
+(see the `allow_browser` docs), and **nothing subscribes to it today** — so we currently cannot say
+whether this has ever happened to a real guest. Wiring that to Sentry or to a counter is a small,
+non-committal first step and would turn this from an argument into a number.
+
+**Why relaxing it is not free.** The gate is currently load-bearing in at least three places, each
+of which would need re-checking against whatever the new floor is:
+
+- **`html:has(> body.app-shell)`** in `app/assets/stylesheets/application.css` — `:has()` is Safari
+  15.4+/Chrome 105+, comfortably below 17.2, so this one survives a relaxation to ~Safari 16.
+- **The CSP nonce** — `config/initializers/content_security_policy.rb` reasons explicitly that
+  "every browser Hospello supports understands nonces", which is what lets `style-src` keep
+  `'unsafe-inline'` (and therefore what makes every hotel's inline `style=""` branding render at
+  all). Nonce support is old (CSP2), so this also survives, but the comment states the dependency
+  and should be revisited rather than assumed.
+- **Import maps** — the guest chat's entire JavaScript (Stimulus, Turbo, the composer, the
+  resilience layer) loads through `javascript_importmap_tags` with no bundled fallback. Native
+  import maps are **Safari 16.4+**. Below that the chat renders but nothing in it works: no live
+  updates, no auto-grow, no offline banner. That is the real floor, and it is 16.4, not 17.2.
+
+**The options, in the order they cost:**
+
+1. **Do nothing, but measure.** Subscribe to `browser_block.action_controller` and report the count.
+   Decide when there is a number. Cheapest, and it does not close any door.
+2. **Keep the gate, replace the page.** Serve a hotel-branded, four-language "this phone is too old"
+   page that gives the reception phone number and the room's own extension — the block stays, the
+   dead end does not. This is the smallest change that satisfies rule 8, and it needs no front-end
+   re-verification at all. It is not a one-liner: the 406 is rendered by a `before_action` from a
+   static `public/` file with no tenant resolved yet, so a branded version means resolving the hotel
+   from the slug before the gate runs.
+3. **Lower the floor to Safari 16.4 / Chrome 105** (`allow_browser versions: { safari: 16.4,
+   chrome: 105, firefox: 108, ie: false }`), the true import-map/`:has()` line. Buys back the iPhone
+   X/8 generation. Requires actually testing the guest chat on a Safari 16.4 device or emulator —
+   this repo's system suite runs one Chrome version and cannot speak for it.
+4. **Remove the gate for the guest namespace only** and accept that an old phone gets a degraded
+   chat. Cheapest to write, hardest to reason about, and it converts a clear failure into a silent
+   one, which is the trade this codebase has consistently refused elsewhere.
+
+**Do not "fix" this by deleting the `allow_browser` line.** Whatever is chosen, the CSP and
+import-map dependencies above are the things that make it a decision rather than a cleanup.
+
 ### DEFERRED: a WhatsApp guest who sends a photo gets silence (Slice 6 Task 3)
 
 Meta's inbound webhook carries `image`, `location`, `audio`, `document`, `sticker` and `contacts`
