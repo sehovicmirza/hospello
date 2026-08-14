@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-13 (five demo hotels, four of them real pilot prospects) |
+| **Last updated** | 2026-08-14 (the guest chat behaves like a phone app; mobile regression suite green) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1217 unit/integration green · 41 system green · rubocop and brakeman clean |
+| **Tests** | 1223 unit/integration green · 46 system green · rubocop and brakeman clean |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · demo seed now carries five hotels |
 
@@ -1071,6 +1071,50 @@ sceptical hotelier, because it answers the question they ask first.
 room 207. It is harmless but looks untidy mid-demo. Erase it from the staff UI (Slice 7 Task 3's
 per-guest erasure), which also exercises that feature — or leave it; the nightly purge takes it in
 90 days.
+
+## The guest chat on a phone, and the 20px that took two sessions (2026-08-14)
+
+`255432d` made the chat behave like a phone app — a pinned `h-dvh` shell, a 16px input so iOS
+stops zooming on focus, one scrolling row of quick actions, `interactive-widget=resizes-content`.
+`test/system/guest_chat_mobile_test.rb` (5 tests, at 390×844) is the regression suite; read its
+comments before touching anything on that page, because none of it is visible on a desktop browser
+and that is exactly how it shipped broken.
+
+**The last failing test is fixed, and the cause was not any of the things it looked like.** The
+page still scrolled 20px behind a correctly pinned composer. Ruled out by measurement, not by
+reading: `min-h-screen` on the body (already gone — body sat at exactly 701px with
+`scrollHeight` 701), a class on `<html>` (Turbo Drive never touches `<html>` attributes, so it is
+absent for every guest arriving from the entry form), and the `html:has(> body.app-shell)` rule
+failing to apply (it applies — `getComputedStyle(document.documentElement)` reported
+`overflow-y: hidden` and `height: 701px`).
+
+The real cause: **`.sr-only` is `position: absolute`**, and every message bubble has one (the
+sender label that makes guest/staff/system distinguishable to a screen reader, not just by colour
+— `app/views/guest/messages/_message.html.erb`). An absolutely positioned element is clipped by an
+ancestor's `overflow` only if that ancestor is in its **containing block** chain, and nothing on
+the page was positioned — so their containing block was the initial containing block, `overflow-hidden`
+on the body never touched them, and the label of a message scrolled below the fold sat outside the
+root's client box. Root `scrollHeight` 721 against `clientHeight` 701; the single element ending at
+exactly 721 was that span.
+
+The fix is the word `relative` in the chat's `body_class`. Proven, in the live page, by toggling
+one property at a time and re-measuring: making the spans `position: static` → 0px; restoring them
+and making the body (or the shell, or `#chat-messages`) the containing block → 0px; reverting
+either → 20px again. The body was chosen because it is the outermost pinned box, so the guarantee
+covers anything absolutely positioned anywhere in the chat rather than only today's one label.
+Then verified the ordinary way: removing that one word turns exactly one test red at exactly 20.
+
+**Two things worth keeping straight if you touch this test:**
+
+- `attempted_page_scroll_offset` does a **programmatic** `scrollTo`, deliberately. `overflow: hidden`
+  propagates to the viewport and stops a *finger* from dragging the page, but it does not stop
+  `scrollTo`, nor the scrolls the browser performs itself to bring a focused field into view — which
+  is the exact mechanism this page was reported for. That is why the 20px was worth chasing rather
+  than tolerating, and why the assertion stayed at 0 instead of gaining a tolerance.
+- `app/assets/builds/tailwind.css` is gitignored, so **a fresh clone or a new worktree has no
+  compiled CSS** and this suite fails in a way that looks like a real regression (a `text-base`
+  textarea measures 13.33px, the browser default). Run `bin/rails tailwindcss:build` first.
+  `bin/dev` does it for you; `bin/rails test:system` does not.
 
 ## What to do next
 

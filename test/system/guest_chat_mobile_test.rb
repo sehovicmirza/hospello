@@ -145,6 +145,17 @@ class GuestChatMobileTest < ApplicationSystemTestCase
     # Asks the browser to scroll as far as it can and reports where it landed.
     # A pinned shell reports 0; a document that still grows behind the chat
     # reports whatever it managed.
+    #
+    # This is deliberately a *programmatic* scroll, and that is what makes it a
+    # strict test rather than a lenient one. `overflow: hidden` propagates to
+    # the viewport and stops a finger from dragging the page, but it does not
+    # stop `scrollTo` — nor the scrolls the browser itself performs to bring a
+    # focused field into view, which is the exact mechanism this whole page was
+    # reported for. So a non-zero answer here means the document genuinely has
+    # scrollable overflow behind the chat, whether or not a drag can reach it.
+    # It caught 20px of it that `overflow: hidden` alone was hiding: the
+    # `.sr-only` sender label on each bubble is `position: absolute`, so until
+    # the body became its containing block it was clipped by nothing.
     def attempted_page_scroll_offset
       page.evaluate_script(
         "(() => { window.scrollTo(0, 5000); const y = Math.round(window.scrollY); " \

@@ -1,8 +1,25 @@
 <% content_for :title, t(".title") %>
 <%# See the layout: this is the chat and only the chat. The shell below is a
     fixed height, but a fixed-height shell inside a body that can still grow
-    leaves the document draggable behind it. %>
-<% content_for :body_class, "app-shell h-dvh overflow-hidden" %>
+    leaves the document draggable behind it.
+
+    `relative` is not decoration and it is not here for a child to position
+    against — it is what finishes the job `overflow-hidden` starts. An
+    absolutely positioned element is only clipped by an ancestor's overflow
+    if that ancestor is in its *containing block* chain, and a containing
+    block is the nearest positioned ancestor. Every message bubble carries a
+    `.sr-only` sender label, which Tailwind implements as `position:absolute`
+    — with nothing on this page positioned, their containing block was the
+    initial containing block, so `overflow-hidden` on the body never touched
+    them and the label of a message scrolled below the fold sat outside the
+    root's client box. Measured: the root reported scrollHeight 721 against
+    clientHeight 701 with body itself correctly at 701, and the document
+    still scrolled 20px. Making the body the containing block clips them and
+    takes it to 0 — proven by toggling this one property in the live page,
+    both directions, twice. It is stated on the body rather than on
+    #chat-messages so the guarantee covers anything absolutely positioned
+    anywhere in the chat, not only today's one label. %>
+<% content_for :body_class, "app-shell relative h-dvh overflow-hidden" %>
 
 <%# Current.hotel, not @guest_session.hotel: this line exists specifically
     to make Guest::BaseController#scope_to_guest_hotel's own work visible
