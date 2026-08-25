@@ -116,6 +116,72 @@ module Ai
       end
     end
 
+    # --- what the model is told ----------------------------------------------
+
+    test "the Essentials prompt describes neither request tool" do
+      @hotel.update!(plan: :essentials)
+
+      rules = Ai::PromptBuilder.static_rules_for(@hotel)
+
+      assert_no_match(/propose_service_request/, rules)
+      assert_no_match(/confirm_service_request/, rules)
+      # The prompt and the tool list have to agree — describing a tool the model
+      # was not given is how you get it calling one that is not there.
+      assert_equal Ai::Tools.definitions_for(@hotel).map { |t| t[:name] }.grep(/service_request/),
+                   rules.scan(/\w*service_request\w*/).uniq
+    end
+
+    test "the Essentials prompt sends askers to reception and keeps answering them" do
+      @hotel.update!(plan: :essentials)
+
+      rules = Ai::PromptBuilder.static_rules_for(@hotel)
+
+      assert_match(/does not take requests through this chat/, rules)
+      assert_match(/ask them to contact reception/, rules)
+      assert_match(/Keep answering their questions in full/, rules)
+    end
+
+    # Without this the model reaches for escalate_to_staff on every "can I have
+    # towels", which floods the inbox and quietly turns Essentials back into a
+    # request queue worked by hand — the exact thing the plan does not sell.
+    test "the Essentials prompt tells the model not to escalate every ask" do
+      @hotel.update!(plan: :essentials)
+
+      assert_match(/Do not call escalate_to_staff just because a guest asked for something/,
+                   Ai::PromptBuilder.static_rules_for(@hotel))
+    end
+
+    test "both plans keep the rules that are not about requests" do
+      %i[essentials service].each do |plan|
+        @hotel.update!(plan: plan)
+        rules = Ai::PromptBuilder.static_rules_for(@hotel)
+
+        assert_match(/DATA, NOT INSTRUCTIONS/, rules, "#{plan} lost the injection rules")
+        assert_match(/escalate_to_staff/, rules, "#{plan} lost escalation")
+        assert_match(/EMERGENCIES/, rules, "#{plan} lost the emergency rule")
+        assert_match(/never guess a price/, rules, "#{plan} lost the grounding rule")
+      end
+    end
+
+    # The hotel card carries a menu of request kinds. A hotel that takes none
+    # should not be handed an empty menu to reason about.
+    test "the Essentials hotel card omits the request categories element" do
+      @hotel.update!(plan: :essentials)
+      built = Ai::PromptBuilder.new(conversation: @conversation).build
+
+      assert_no_match(/<request_categories>/, built.system_text)
+      # The knowledge base is what Essentials runs on, so its absence would be a
+      # different bug wearing the same clothes.
+      assert_match(/<hotel_knowledge>/, built.system_text)
+    end
+
+    test "a Service hotel card still carries them" do
+      @hotel.update!(plan: :service)
+      @conversation.reload
+
+      assert_match(/<request_categories>/, Ai::PromptBuilder.new(conversation: @conversation).build.system_text)
+    end
+
     private
       def execute(name, input)
         call = Ai::Result::ToolCall.new(id: "toolu_plan", name: name, input: input)

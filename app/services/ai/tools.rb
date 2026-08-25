@@ -151,8 +151,8 @@ module Ai
               "Record which room this guest is staying in, and their name. Guests who reach the " \
               "hotel over WhatsApp arrive with neither, and the prompt tells you when that is the " \
               "case. Ask for both in one short message, in the guest's own language, and call this " \
-              "as soon as they answer — before answering questions and before starting any " \
-              "request. If the reply is an error the room number was not one of this hotel's; tell " \
+              "as soon as they answer, before helping them with anything else. If the reply is an " \
+              "error the room number was not one of this hotel's; tell " \
               "the guest and ask again. It records what the guest said; nobody has checked it, so " \
               "never treat it as proof of anything.",
             input_schema: {
