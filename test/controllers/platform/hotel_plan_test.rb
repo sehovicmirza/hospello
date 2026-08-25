@@ -95,4 +95,49 @@ class Platform::HotelPlanTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
     assert_equal "service", @hotel.reload.plan
   end
+
+  # --- the screens themselves ----------------------------------------------
+  #
+  # These exist because everything above is patch/post: an ERB error in the new
+  # plan panel or the index column would not have failed a single assertion in
+  # this file, and the platform surface has thin render coverage generally.
+
+  test "the hotel page shows the plan panel with the current plan selected" do
+    @hotel.update!(plan: :essentials, room_limit: 30)
+
+    get platform_hotel_path(@hotel)
+
+    assert_response :success
+    assert_select "form[action=?]", plan_platform_hotel_path(@hotel) do
+      assert_select "option[value=essentials][selected]"
+      assert_select "input[name=?][value=?]", "hotel[room_limit]", "30"
+    end
+  end
+
+  test "the hotel list shows each hotel's plan and its rooms against the ceiling" do
+    @hotel.update!(plan: :essentials, room_limit: 20)
+
+    get platform_hotels_path
+
+    assert_response :success
+    assert_match(/Essentials/, response.body)
+    assert_match(/of 20/, response.body, "rooms only mean something next to the ceiling")
+  end
+
+  test "the new-hotel form offers a plan and preselects Essentials" do
+    get new_platform_hotel_path
+
+    assert_response :success
+    assert_select "select[name=?]", "hotel[plan]" do
+      assert_select "option[value=essentials][selected]"
+    end
+  end
+
+  # The audited action is the only way in, so the edit form must not offer one.
+  test "the edit form does not offer a plan" do
+    get edit_platform_hotel_path(@hotel)
+
+    assert_response :success
+    assert_select "select[name=?]", "hotel[plan]", count: 0
+  end
 end

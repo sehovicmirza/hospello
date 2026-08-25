@@ -30,7 +30,12 @@ module Platform
     end
 
     def new
-      @hotel = Hotel.new
+      # Essentials, because that is the plan being sold — not the column
+      # default, which is `service` for an unrelated reason (see the migration:
+      # it means "the app as built" so that existing tests and existing hotels
+      # keep the product they were written against). The two defaults answer
+      # two different questions and this is the one a human sees.
+      @hotel = Hotel.new(plan: :essentials)
       authorize @hotel
     end
 

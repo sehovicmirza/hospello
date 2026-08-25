@@ -43,15 +43,14 @@
       it here on edit as well would give plan changes two doors, one of them
       unlogged.
 
-      Preselected to Essentials — that is the plan being sold. The column
-      default is `service` for a different reason (see the migration): it means
-      "the app as built", so the eighteen tests that create a Hotel inline
-      without naming a plan keep the product they were written against. %>
+      The preselection is #new's job, not this form's: the column default is
+      `service` for an unrelated reason (see the migration) and the two answer
+      different questions. %>
   <% if hotel.new_record? %>
     <div>
       <%= form.label :plan, "Plan", class: "block text-sm font-medium text-gray-700" %>
       <%= form.select :plan,
-            options_for_select(Hotel.plans.keys.map { |p| [ p.capitalize, p ] }, hotel.plan || "essentials"),
+            options_for_select(Hotel.plans.keys.map { |p| [ p.capitalize, p ] }, hotel.plan),
             {},
             class: field_classes %>
     </div>
