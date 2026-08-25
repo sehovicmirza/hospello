@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-14 (the guest chat behaves like a phone app; mobile regression suite green) |
+| **Last updated** | 2026-08-25 (three subscription plans: task 1 of 9 landed) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1223 unit/integration green · 46 system green · rubocop and brakeman clean |
+| **Tests** | 1231 unit/integration green (7.9s), rubocop clean. **System tests not run this session** — the browser-launch flake below still fails CI. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · demo seed now carries five hotels |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans in flight — task 1 of 9 done** |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -40,6 +40,55 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > - **Brakeman runs at `-w2`** (medium confidence and up). Its weak band includes "support for Rails
 >   8.0.5.1 ends on 2026-10-07", which would otherwise fail every build from now on. That date is
 >   real — see "What to do next".
+
+---
+
+## IN FLIGHT: three subscription plans (started 2026-08-25)
+
+The owner is packaging Hospello into three plans so it can be sold. **This work is partly done —
+read this before touching anything.**
+
+| Plan | What the hotel gets |
+|---|---|
+| **Essentials** | Q&A only. A guest who *asks for something* is told to call reception; no ticket is ever created. Dashboard is analytics + inbox + knowledge base. Capped at 20 rooms. |
+| **Service** | Essentials + service requests. Exactly what was built through Slice 6. |
+| **Revenue** | Service + WhatsApp upselling offers. **Not built.** The enum value exists and nothing else. |
+
+The full approved plan is at `~/.claude/plans/hospello-mvp-you-are-sorted-quilt.md`. Its nine tasks,
+in order: (1) column + predicate, (2) staff gate, (3) nav/analytics/settings, (4) AI tools,
+(5) prompt, (6) quick-action chips, (7) room cap, (8) platform admin plan screen, (9) demo seed.
+
+**Done: task 1** (`f4f2c33`). `hotels.plan` enum, `Hotel#plan_allows?(feature)`, `PLAN_FEATURES`,
+`PLAN_ROOM_LIMITS`, fixtures pinned to `service`, `test/models/hotel_plan_test.rb`.
+
+**Next: task 2** — a `PlanGated` concern giving `requires_plan_feature :requests`, applied to
+`Staff::ServiceRequestsController`, `RequestEventsController`, `RequestCategoriesController` and
+`DepartmentsController`, rendering a real translated "not on your plan" page rather than
+`ApplicationController#not_authorized`'s bare `render plain: "Not authorized"`.
+
+### Four things about this work that will catch you out
+
+1. **The plan column defaults to `service`, not `essentials`.** Deliberate, and explained at length
+   in the migration. Eighteen tests build a `Hotel` inline without naming a plan; defaulting to
+   essentials turns them red for reasons unrelated to what they assert. "What we sell" belongs in
+   the platform create form, not the schema.
+2. **Gating the tool list is not enough to stop the assistant creating requests.** `Ai::Tools#execute`
+   is a `case` on the tool name and will run `propose_service_request` whether or not it was offered
+   — models emit tools they were not shown. Task 4 gates *both* the definitions and the dispatch.
+   The dispatch gate is the one carrying the guarantee.
+3. **`/staff/request_categories` has no nav item.** It is reached only through a link inside
+   `departments/index.html.erb`. Hiding the Departments nav item leaves the URL fully working. This
+   is engineering rule 3 — guard the idiomatic way in, not just the obvious one.
+4. **The quick-action chips are built from request categories** (`GuestChatHelper#guest_quick_actions`).
+   On Essentials they invite exactly what the plan cannot do. Task 6 rebuilds them from the hotel's
+   published KB entries, which are guaranteed answerable.
+
+### Not started, and deliberately
+
+Revenue-tier upselling. It needs an offer model, targeting, marketing consent *separate* from what
+guests agree to today, and Meta-approved `marketing` templates. The live privacy notice tells every
+guest their phone number "is used only to reach you about your stay" — offers to that number
+contradict it. Own design pass required before any of it ships.
 
 ---
 
