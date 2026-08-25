@@ -9,6 +9,11 @@ module Staff
   # history, and tells the guest. A controller that set `status` itself would
   # produce a board that quietly disagreed with the guest's own chat.
   class ServiceRequestsController < BaseController
+    # Service requests are what the Service plan buys. On Essentials the whole
+    # queue does not exist, so this screen is refused with an explanation
+    # rather than shown empty (see PlanGated).
+    requires_plan_feature :requests
+
     # An upper bound on one screen, not a pagination scheme: a hotel with
     # more than this waiting has a staffing problem the software cannot fix,
     # and rendering 2000 cards would make the board unusable exactly when it

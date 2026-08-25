@@ -9,6 +9,11 @@ module Staff
   # a transition's note through — the same boundary Message#visibility draws
   # in the chat, for the same reason.
   class RequestEventsController < BaseController
+    # Service requests are what the Service plan buys. On Essentials the whole
+    # queue does not exist, so this screen is refused with an explanation
+    # rather than shown empty (see PlanGated).
+    requires_plan_feature :requests
+
     def create
       @request = Current.hotel.service_requests.find(params[:service_request_id])
       authorize @request, :note?

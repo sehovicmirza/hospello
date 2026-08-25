@@ -1,5 +1,10 @@
 module Staff
   class DepartmentsController < BaseController
+    # Service requests are what the Service plan buys. On Essentials the whole
+    # queue does not exist, so this screen is refused with an explanation
+    # rather than shown empty (see PlanGated).
+    requires_plan_feature :requests
+
     before_action :set_department, only: %i[edit update destroy]
 
     def index

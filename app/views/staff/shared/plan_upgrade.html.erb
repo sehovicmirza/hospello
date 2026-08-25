@@ -1,0 +1,29 @@
+<%# Shown instead of a screen the hotel's plan does not include.
+
+    A page rather than a bare 403 because these URLs are guessable and
+    bookmarkable — a receptionist who had /staff/requests open yesterday and
+    whose hotel moved to Essentials overnight lands here, and "Not authorized"
+    would read as a permissions bug to be reported rather than as what it is.
+
+    It names the plan the hotel is actually on. A refusal that does not say
+    what you have is a refusal you cannot act on. %>
+<% content_for :title, t("staff.plan_upgrade.title") %>
+
+<div class="mx-auto max-w-lg py-12 text-center">
+  <p class="text-sm font-medium uppercase tracking-wide text-gray-500">
+    <%= t("staff.plan_upgrade.current_plan", plan: t("staff.common.plans.#{Current.hotel.plan}")) %>
+  </p>
+
+  <h1 class="mt-3 text-2xl font-semibold text-gray-900">
+    <%= t("staff.plan_upgrade.features.#{feature}.heading") %>
+  </h1>
+
+  <p class="mt-3 text-sm leading-relaxed text-gray-600">
+    <%= t("staff.plan_upgrade.features.#{feature}.body") %>
+  </p>
+
+  <p class="mt-6 text-sm text-gray-500"><%= t("staff.plan_upgrade.how_to_upgrade") %></p>
+
+  <%= link_to t("staff.plan_upgrade.back"), staff_root_path,
+        class: "mt-8 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500" %>
+</div>

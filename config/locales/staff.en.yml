@@ -45,7 +45,20 @@ en:
         save: "Save"
       update:
         updated: "Language updated."
+    plan_upgrade:
+      title: "Not on your plan"
+      current_plan: "Your plan: %{plan}"
+      how_to_upgrade: "To change your plan, get in touch with Hospello."
+      back: "Back to Dashboard"
+      features:
+        requests:
+          heading: "Guest requests are not part of Essentials"
+          body: "On Essentials your assistant answers guests' questions about the hotel, and asks anyone who needs something done to call reception. The request board, departments and request categories come with Service."
     common:
+      plans:
+        essentials: "Essentials"
+        service: "Service"
+        revenue: "Revenue"
       whatsapp_template_status:
         pending: "Waiting on Meta"
         approved: "Approved by Meta"

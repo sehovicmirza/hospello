@@ -1,6 +1,7 @@
 module Staff
   class BaseController < ApplicationController
     include StaffLocalization
+    include PlanGated
 
     layout "staff"
 

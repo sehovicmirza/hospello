@@ -43,7 +43,20 @@ bs:
         save: "Sačuvaj"
       update:
         updated: "Jezik ažuriran."
+    plan_upgrade:
+      title: "Nije uključeno u vaš plan"
+      current_plan: "Vaš plan: %{plan}"
+      how_to_upgrade: "Za promjenu plana javite se Hospellu."
+      back: "Nazad na Početnu"
+      features:
+        requests:
+          heading: "Zahtjevi gostiju nisu dio Essentials plana"
+          body: "Uz Essentials vaš asistent odgovara na pitanja gostiju o hotelu, a svakoga kome nešto treba uputi da nazove recepciju. Tabla zahtjeva, odjeljenja i kategorije zahtjeva dolaze uz Service."
     common:
+      plans:
+        essentials: "Essentials"
+        service: "Service"
+        revenue: "Revenue"
       whatsapp_template_status:
         pending: "Čeka se Meta"
         approved: "Meta odobrila"

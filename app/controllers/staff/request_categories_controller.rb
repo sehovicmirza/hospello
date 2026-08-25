@@ -5,6 +5,11 @@ module Staff
   # AI, not just displayed to staff. A hotel is free to rename any of it
   # (including into Bosnian); the AI uses whatever ends up stored here.
   class RequestCategoriesController < BaseController
+    # Service requests are what the Service plan buys. On Essentials the whole
+    # queue does not exist, so this screen is refused with an explanation
+    # rather than shown empty (see PlanGated).
+    requires_plan_feature :requests
+
     before_action :set_category, only: %i[edit update destroy]
     before_action :set_department_options, only: %i[index create edit update]
 
