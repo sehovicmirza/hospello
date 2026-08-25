@@ -52,6 +52,7 @@ de:
         contact_reception_label: "Rezeption kontaktieren"
         contact_reception_prefill: "Könnten Sie mich bitte mit der Rezeption verbinden?"
         category_prefill: "Ich möchte gerne Folgendes anfragen: %{category}"
+        topic_prefill: "Erzählen Sie mir mehr über: %{topic}"
       composer:
         placeholder: "Nachricht eingeben…"
         send: "Senden"

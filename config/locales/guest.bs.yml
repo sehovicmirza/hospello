@@ -52,6 +52,7 @@ bs:
         contact_reception_label: "Kontaktiraj recepciju"
         contact_reception_prefill: "Možete li me povezati sa recepcijom?"
         category_prefill: "Želio/la bih zatražiti: %{category}"
+        topic_prefill: "Recite mi nešto o: %{topic}"
       composer:
         placeholder: "Unesite poruku…"
         send: "Pošalji"

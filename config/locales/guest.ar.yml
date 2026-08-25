@@ -52,6 +52,7 @@ ar:
         contact_reception_label: "التواصل مع الاستقبال"
         contact_reception_prefill: "هل يمكنكم توصيلي بالاستقبال من فضلكم؟"
         category_prefill: "أرغب في طلب: %{category}"
+        topic_prefill: "أخبرني عن: %{topic}"
       composer:
         placeholder: "اكتب رسالة…"
         send: "إرسال"

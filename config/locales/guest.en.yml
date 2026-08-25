@@ -52,6 +52,7 @@ en:
         contact_reception_label: "Contact reception"
         contact_reception_prefill: "Could you please connect me with reception?"
         category_prefill: "I'd like to request: %{category}"
+        topic_prefill: "Tell me about: %{topic}"
       composer:
         placeholder: "Type a message…"
         send: "Send"

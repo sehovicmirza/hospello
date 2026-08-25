@@ -87,16 +87,47 @@ module GuestChatHelper
         label: t("guest.chats.quick_actions.ask_question_label"),
         prefill: t("guest.chats.quick_actions.ask_question_prefill")
       ),
-      *hotel.request_categories.active.ordered.map do |category|
-        GuestQuickAction.new(
-          label: category.name,
-          prefill: t("guest.chats.quick_actions.category_prefill", category: category.name)
-        )
-      end,
+      *guest_quick_action_topics(hotel),
       GuestQuickAction.new(
         label: t("guest.chats.quick_actions.contact_reception_label"),
         prefill: t("guest.chats.quick_actions.contact_reception_prefill")
       )
     ]
+  end
+
+  # The middle chips, and the only part of the strip that depends on the plan.
+  #
+  # A hotel that takes requests offers its request categories, because tapping
+  # "Extra towels" starts something the hotel can actually do. A hotel that does
+  # not take requests must not offer them: the chip would be an invitation to
+  # the one thing the assistant is going to refuse, and a guest who taps it gets
+  # told to phone reception — a worse first impression than no chip at all.
+  #
+  # In its place, the hotel's own published knowledge base. Those make better
+  # chips than a hand-written list would: they are the hotel's words, they are
+  # already in the hotel's language like the category names they replace, and
+  # every one of them is guaranteed answerable, because the knowledge base is
+  # exactly what the assistant is allowed to answer from.
+  #
+  # Capped at five. These wrap onto their own rows on a 390px phone, and the
+  # composer has to stay on screen (see test/system/guest_chat_mobile_test.rb).
+  MAX_TOPIC_CHIPS = 5
+
+  def guest_quick_action_topics(hotel)
+    if hotel.plan_allows?(:requests)
+      hotel.request_categories.active.ordered.map do |category|
+        GuestQuickAction.new(
+          label: category.name,
+          prefill: t("guest.chats.quick_actions.category_prefill", category: category.name)
+        )
+      end
+    else
+      hotel.published_kb_entries.limit(MAX_TOPIC_CHIPS).map do |entry|
+        GuestQuickAction.new(
+          label: entry.title,
+          prefill: t("guest.chats.quick_actions.topic_prefill", topic: entry.title)
+        )
+      end
+    end
   end
 end
