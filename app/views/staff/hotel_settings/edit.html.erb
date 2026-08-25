@@ -119,6 +119,12 @@
         </div>
       </fieldset>
 
+      <%# Both fields here are about service requests — where an overdue one is
+          escalated, and how long "overdue" is. An Essentials hotel has no
+          requests, so this asks it to configure something that cannot happen.
+          Hidden here AND dropped from the permitted params: a hidden field
+          that is still permitted is not gated, only harder to find. %>
+      <% if Current.hotel.plan_allows?(:requests) %>
       <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
         <legend class="px-1 text-sm font-medium text-gray-700"><%= t(".escalation_legend") %></legend>
 
@@ -133,6 +139,7 @@
           <%= form.number_field :overdue_after_minutes, min: 1, class: field_classes %>
         </div>
       </fieldset>
+      <% end %>
 
       <div>
         <%= form.submit t("staff.common.actions.save_changes"), class: "rounded-md bg-blue-600 px-4 py-2.5 font-medium text-white hover:bg-blue-500 cursor-pointer" %>

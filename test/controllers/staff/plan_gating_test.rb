@@ -73,4 +73,88 @@ class Staff::PlanGatingTest < ActionDispatch::IntegrationTest
       assert_response :success, "#{name} was refused on Service"
     end
   end
+
+  # --- What an Essentials hotel's workspace actually looks like -------------
+
+  test "the nav offers no Requests and no Departments on Essentials" do
+    @hotel.update!(plan: :essentials)
+    sign_in users(:stari_admin)
+
+    get staff_root_path
+
+    assert_response :success
+    assert_select "nav a[href=?]", staff_service_requests_path, count: 0
+    assert_select "nav a[href=?]", staff_departments_path, count: 0
+    # The inbox and knowledge base are what Essentials *is*, so their absence
+    # would be a different bug wearing the same clothes.
+    assert_select "nav a[href=?]", staff_conversations_path, count: 1
+    assert_select "nav a[href=?]", staff_kb_entries_path, count: 1
+  end
+
+  test "the nav offers both on Service" do
+    @hotel.update!(plan: :service)
+    sign_in users(:stari_admin)
+
+    get staff_root_path
+
+    assert_response :success
+    assert_select "nav a[href=?]", staff_service_requests_path, count: 1
+    assert_select "nav a[href=?]", staff_departments_path, count: 1
+  end
+
+  test "analytics hides the requests panel on Essentials and shows it on Service" do
+    sign_in users(:stari_admin)
+
+    @hotel.update!(plan: :essentials)
+    get staff_analytics_path
+    assert_response :success
+    assert_select "#requests-total", count: 0
+    assert_select "#requests-overdue", count: 0
+    # The assistant panel is not request-specific and must survive.
+    assert_select "#assistant-runs", count: 1
+
+    @hotel.update!(plan: :service)
+    get staff_analytics_path
+    assert_response :success
+    assert_select "#requests-total", count: 1
+  end
+
+  test "hotel settings hides the escalation fieldset on Essentials" do
+    @hotel.update!(plan: :essentials)
+    sign_in users(:stari_admin)
+
+    get edit_staff_hotel_settings_path
+
+    assert_response :success
+    assert_select "input[name=?]", "hotel[escalation_email]", count: 0
+    assert_select "input[name=?]", "hotel[overdue_after_minutes]", count: 0
+    # A field that is genuinely part of Essentials, to prove the form rendered.
+    assert_select "input[name=?]", "hotel[concierge_name]", count: 1
+  end
+
+  # The one that matters: hiding a field is a UI decision, not a gate. This
+  # posts the parameters directly, as anyone with the form's HTML could.
+  test "an Essentials hotel cannot set escalation fields by posting them" do
+    @hotel.update!(plan: :essentials, escalation_email: "before@example.com", overdue_after_minutes: 120)
+    sign_in users(:stari_admin)
+
+    patch staff_hotel_settings_path, params: {
+      hotel: { concierge_name: "Amila", escalation_email: "after@example.com", overdue_after_minutes: 5 }
+    }
+
+    @hotel.reload
+    assert_equal "before@example.com", @hotel.escalation_email
+    assert_equal 120, @hotel.overdue_after_minutes
+    # The rest of the form still saved — this is a filter, not a rejection.
+    assert_equal "Amila", @hotel.concierge_name
+  end
+
+  test "a Service hotel can still set them" do
+    @hotel.update!(plan: :service, escalation_email: "before@example.com")
+    sign_in users(:stari_admin)
+
+    patch staff_hotel_settings_path, params: { hotel: { escalation_email: "after@example.com" } }
+
+    assert_equal "after@example.com", @hotel.reload.escalation_email
+  end
 end

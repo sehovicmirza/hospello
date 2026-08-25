@@ -59,7 +59,20 @@
   <% end %>
 </section>
 
-<section class="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+<%# The requests panel is Service-and-above. On Essentials it would render four
+    zeros and a dash, which reads as "your hotel is failing" rather than "your
+    hotel does not have this" — the wrong message, and an unanswerable one.
+
+    Gated in the view rather than inside Analytics::HotelReport on purpose:
+    Platform::AnalyticsController reads the same report object to total every
+    hotel on the instance, and must keep counting requests for the hotels that
+    do have them.
+
+    The grid drops to one column when the panel is gone so the assistant card
+    does not sit at half width beside an empty gap. %>
+<% shows_requests = Current.hotel.plan_allows?(:requests) %>
+<section class="mt-8 grid grid-cols-1 gap-4 <%= "lg:grid-cols-2" if shows_requests %>">
+  <% if shows_requests %>
   <div class="rounded-lg border border-gray-200 bg-white p-4">
     <h2 class="mb-3 text-lg font-medium text-gray-900"><%= t(".requests_heading") %></h2>
     <dl class="space-y-2 text-sm text-gray-700">
@@ -88,6 +101,7 @@
       </div>
     </dl>
   </div>
+  <% end %>
 
   <div class="rounded-lg border border-gray-200 bg-white p-4">
     <h2 class="mb-3 text-lg font-medium text-gray-900"><%= t(".assistant_heading") %></h2>

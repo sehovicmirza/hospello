@@ -93,7 +93,11 @@ module StaffHelper
     # a queue of, and the badge counts what nobody has picked up yet rather
     # than everything open — a number that never reaches zero is a number
     # nobody reads.
-    if policy(ServiceRequest).index?
+    # Plan first, deliberately, and not only for tidiness: staff_new_request_count
+    # is a COUNT that runs on every single page render, and an Essentials hotel
+    # has no request queue for it to count. Short-circuiting here means it is
+    # never issued rather than issued and thrown away.
+    if Current.hotel.plan_allows?(:requests) && policy(ServiceRequest).index?
       count = staff_new_request_count
       items << { id: "requests", label: t("staff.nav.requests"), path: staff_service_requests_path,
                  badge: count, badge_sr: badge_sr_for(:requests, count) }
@@ -124,7 +128,11 @@ module StaffHelper
     if policy(Current.hotel.whatsapp_channel || WhatsappChannel.new).show?
       items << { id: "whatsapp", label: t("staff.nav.whatsapp"), path: edit_staff_whatsapp_channel_path }
     end
-    items << { id: "departments", label: t("staff.nav.departments"), path: staff_departments_path } if policy(Department).index?
+    # Departments exist only to group request categories (Department has_many
+    # :request_categories and nothing else), so they follow requests exactly.
+    if Current.hotel.plan_allows?(:requests) && policy(Department).index?
+      items << { id: "departments", label: t("staff.nav.departments"), path: staff_departments_path }
+    end
     items << { id: "staff", label: t("staff.nav.staff"), path: staff_users_path } if policy(User).index?
     items << { id: "qr-code", label: t("staff.nav.qr_code"), path: staff_qr_code_path } if QrCodePolicy.new(Current.user, Current.hotel).show?
 

@@ -26,15 +26,21 @@ module Staff
       # are platform-admin-only (see Platform::HotelsController#hotel_params)
       # and must never be settable from the hotel's own settings form — a
       # test asserts posting them here leaves them unchanged.
+      # escalation_email and overdue_after_minutes are only permitted for a
+      # hotel whose plan actually has requests. They are also hidden from the
+      # form in that case, but hiding a field is a UI decision and this is the
+      # gate — a hand-rolled POST must not be able to set them either.
       def hotel_params
-        params.require(:hotel).permit(
+        permitted = [
           :name, :timezone, :staff_locale,
           :primary_color, :secondary_color,
           :concierge_name, :welcome_message,
           :contact_phone, :contact_notes, :checkout_time,
-          :escalation_email, :overdue_after_minutes,
           :logo, :welcome_image
-        )
+        ]
+        permitted += [ :escalation_email, :overdue_after_minutes ] if Current.hotel.plan_allows?(:requests)
+
+        params.require(:hotel).permit(*permitted)
       end
   end
 end
