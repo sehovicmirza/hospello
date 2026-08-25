@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-25 (three subscription plans: task 1 of 9 landed) |
+| **Last updated** | 2026-08-25 (three subscription plans: tasks 1–4 of 9 landed) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1231 unit/integration green (7.9s), rubocop clean. **System tests not run this session** — the browser-launch flake below still fails CI. |
+| **Tests** | 1249 unit/integration green (6.5s), rubocop clean. **System tests not run this session** — the browser-launch flake below still fails CI. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans in flight — task 1 of 9 done** |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans in flight — tasks 1–4 of 9 done** |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -58,13 +58,29 @@ The full approved plan is at `~/.claude/plans/hospello-mvp-you-are-sorted-quilt.
 in order: (1) column + predicate, (2) staff gate, (3) nav/analytics/settings, (4) AI tools,
 (5) prompt, (6) quick-action chips, (7) room cap, (8) platform admin plan screen, (9) demo seed.
 
-**Done: task 1** (`f4f2c33`). `hotels.plan` enum, `Hotel#plan_allows?(feature)`, `PLAN_FEATURES`,
-`PLAN_ROOM_LIMITS`, fixtures pinned to `service`, `test/models/hotel_plan_test.rb`.
+**Done, tasks 1–4:**
 
-**Next: task 2** — a `PlanGated` concern giving `requires_plan_feature :requests`, applied to
-`Staff::ServiceRequestsController`, `RequestEventsController`, `RequestCategoriesController` and
-`DepartmentsController`, rendering a real translated "not on your plan" page rather than
-`ApplicationController#not_authorized`'s bare `render plain: "Not authorized"`.
+- **1** (`f4f2c33`) — `hotels.plan` enum, `Hotel#plan_allows?`, `PLAN_FEATURES`, `PLAN_ROOM_LIMITS`,
+  fixtures pinned to `service`, `test/models/hotel_plan_test.rb`.
+- **2** (`79d8dbe`) — `PlanGated` concern (`app/controllers/concerns/plan_gated.rb`) giving
+  `requires_plan_feature :requests`, declared on the request board, the note POST,
+  request categories and departments. Renders `staff/shared/plan_upgrade` at 403 —
+  a real translated page, not `render plain: "Not authorized"`.
+- **3** (`5519381`) — nav drops Requests and Departments; the analytics requests panel is wrapped
+  (it had no conditional at all and would have shown four zeros); the hotel-settings escalation
+  fieldset is hidden *and* dropped from the permitted params.
+- **4** (`cadee40`) — the assistant. `Ai::Tools.definitions_for(hotel)` withholds the two request
+  tools and `Ai::Tools#execute` refuses them by name before dispatch. `Ai::Concierge` asks for the
+  hotel's tools. `Guest::ServiceRequestDraftsController` gated too.
+
+**Next: task 5** — `Ai::PromptBuilder::STATIC_RULES` is one frozen global constant whose TOOLS and
+REQUESTS blocks both describe request behaviour. Fork it per plan. The cache breakpoint sits at the
+end of `hotel_block`, which is already per-hotel, so a per-plan prefix costs nothing in cache hits.
+Also reword `#request_categories`' fallback (it currently says "escalate instead", now wrong),
+`room_unknown_block`, and `set_guest_room`'s own description — all three mention requests. And
+handle the blank-`contact_phone` case: `optional_hotel_lines` only emits the number when set, so a
+hotel without one leaves the assistant told to give a number it does not have. (`Ai::Tools`'
+refusal already falls back to "the reception desk"; the prompt needs the same.)
 
 ### Four things about this work that will catch you out
 
