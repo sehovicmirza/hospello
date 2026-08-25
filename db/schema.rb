@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_12_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_161516) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -154,6 +154,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_120000) do
     t.string "escalation_email"
     t.string "name", null: false
     t.integer "overdue_after_minutes", default: 120, null: false
+    t.integer "plan", default: 1, null: false
     t.boolean "powered_by_visible", default: true, null: false
     t.string "primary_color", default: "#1F3A5F", null: false
     t.string "secondary_color", default: "#C9A227", null: false

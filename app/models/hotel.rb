@@ -14,6 +14,31 @@ class Hotel < ApplicationRecord
 
   enum :status, { active: 0, suspended: 1 }
 
+  # The three subscription plans, and the one place that says what each buys.
+  #
+  # Prefixed, so the predicates read `hotel.plan_service?`. Unprefixed, Rails
+  # would define `Hotel#service?`, which on a model that also `has_many
+  # :service_requests` reads as a question about requests rather than about
+  # money.
+  #
+  # PLAN_FEATURES is cumulative on purpose — Revenue is Service plus upselling,
+  # not a separate island — so a feature added to Service must be added to
+  # Revenue too. Keeping them as literal lists rather than deriving them from
+  # the enum's ordering means a plan can later gain a feature a "higher" plan
+  # does not have without the whole scheme collapsing.
+  enum :plan, { essentials: 0, service: 1, revenue: 2 }, prefix: true
+
+  PLAN_FEATURES = {
+    essentials: [].freeze,
+    service: %i[requests].freeze,
+    revenue: %i[requests upsell].freeze
+  }.freeze
+
+  # Room ceilings a plan is sold with. Only a default: the real limit lives in
+  # `hotels.room_limit`, which a platform admin may raise for an individual
+  # hotel without inventing a new plan. nil means no ceiling.
+  PLAN_ROOM_LIMITS = { essentials: 20, service: nil, revenue: nil }.freeze
+
   has_many :users, dependent: :destroy
 
   # Deliberately no `dependent:` here (unlike `users` above): Room,
@@ -54,6 +79,26 @@ class Hotel < ApplicationRecord
   validate :timezone_must_be_recognized
   validate :logo_must_be_a_supported_type_and_size
   validate :welcome_image_must_be_a_supported_type_and_size
+
+  # Whether this hotel's plan includes a capability. The single predicate every
+  # plan gate asks — Staff::PlanGated's before_action, staff_nav_items, the
+  # assistant's tool list and its tool dispatch all call this one method, so a
+  # screen and the controller behind it can never disagree about what the hotel
+  # bought.
+  #
+  # Deliberately separate from Pundit. Every policy in app/policies answers
+  # "which role", and two of them say so out loud
+  # (HotelConfigurationPolicy, ConversationPolicy: "This policy only ever
+  # answers 'which role', never 'which hotel'"). Role and plan are different
+  # questions with different answers — "you may not" versus "your hotel does
+  # not have this" — and collapsing them into one would lose that distinction
+  # exactly where a hotel needs to be told which it is.
+  #
+  # `fetch`, not `[]`: an unknown plan is a bug that should raise here rather
+  # than silently grant nothing.
+  def plan_allows?(feature)
+    PLAN_FEATURES.fetch(plan.to_sym).include?(feature)
+  end
 
   # The single lookup Slice 2's guest entry form and Slice 6's WhatsApp
   # set_guest_room tool call both use: normalizes the input the same way

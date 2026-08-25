@@ -1,6 +1,12 @@
+# Both fixtures name their plan explicitly even though `service` is also the
+# column default. Almost every test in this suite that touches service
+# requests, request categories or departments depends on being on Service, and
+# a dependency that is inherited from a schema default is one nobody sees when
+# they change the default. Named here, it survives that change loudly.
 stari_grad:
   name: Hotel Stari Grad
   slug: stari-grad
+  plan: service
   timezone: Europe/Sarajevo
   staff_locale: bs
   primary_color: "#1F3A5F"
@@ -12,6 +18,7 @@ stari_grad:
 vrelo:
   name: Hotel Vrelo Bosne
   slug: vrelo-bosne
+  plan: service
   timezone: Europe/Sarajevo
   staff_locale: en
   primary_color: "#0B6E4F"
