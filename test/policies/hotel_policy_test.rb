@@ -66,4 +66,27 @@ class HotelPolicyTest < ActiveSupport::TestCase
     assert_not policy.index?
     assert_not policy.update?
   end
+
+  # #plan? is the second, independent layer under
+  # Platform::BaseController#require_platform_admin. It is tested here rather
+  # than only through a request because that before_action refuses a
+  # hotel_admin first: an integration test alone would stay green even if this
+  # policy said `true`, which is precisely the kind of assertion this codebase
+  # has been bitten by.
+  test "only an active platform admin may change a hotel's plan" do
+    assert HotelPolicy.new(users(:platform), hotels(:stari_grad)).plan?
+
+    # A hotel_admin may update their own hotel's branding (#update?) but must
+    # not be able to move it onto a plan — that would be writing their own
+    # invoice.
+    assert_not HotelPolicy.new(users(:stari_admin), hotels(:stari_grad)).plan?
+    assert_not HotelPolicy.new(users(:stari_staff), hotels(:stari_grad)).plan?
+    assert_not HotelPolicy.new(nil, hotels(:stari_grad)).plan?
+  end
+
+  test "a deactivated platform admin may not change a plan" do
+    users(:platform).update!(active: false)
+
+    assert_not HotelPolicy.new(users(:platform), hotels(:stari_grad)).plan?
+  end
 end

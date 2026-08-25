@@ -17,6 +17,7 @@
         <tr>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Hotel</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+          <th class="px-4 py-3 text-left font-medium text-gray-600">Plan</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Rooms</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">Staff</th>
           <th class="px-4 py-3 text-left font-medium text-gray-600">First admin</th>
@@ -37,7 +38,16 @@
                 <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Suspended</span>
               <% end %>
             </td>
-            <td class="px-4 py-3 text-gray-700"><%= @room_counts.fetch(hotel.id, 0) %></td>
+            <td class="px-4 py-3 text-gray-700"><%= hotel.plan.capitalize %></td>
+            <%# "18 of 20" rather than "18": on this screen the number only
+                means something next to the ceiling it is heading for. %>
+            <td class="px-4 py-3 text-gray-700">
+              <% used = @room_counts.fetch(hotel.id, 0) %>
+              <% ceiling = hotel.effective_room_limit %>
+              <span class="<%= "font-medium text-amber-700" if ceiling && used >= ceiling %>">
+                <%= ceiling ? "#{used} of #{ceiling}" : used %>
+              </span>
+            </td>
             <td class="px-4 py-3 text-gray-700"><%= @staff_counts.fetch(hotel.id, 0) %></td>
             <td class="px-4 py-3">
               <% if @hotel_ids_with_admin.include?(hotel.id) %>

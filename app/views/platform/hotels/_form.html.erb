@@ -37,6 +37,26 @@
     </div>
   </div>
 
+  <%# Only when the hotel does not exist yet. A hotel has to be born with a plan
+      and there is no prior state to audit against; every later change goes
+      through #plan on the show page, which writes its own audit row. Offering
+      it here on edit as well would give plan changes two doors, one of them
+      unlogged.
+
+      Preselected to Essentials — that is the plan being sold. The column
+      default is `service` for a different reason (see the migration): it means
+      "the app as built", so the eighteen tests that create a Hotel inline
+      without naming a plan keep the product they were written against. %>
+  <% if hotel.new_record? %>
+    <div>
+      <%= form.label :plan, "Plan", class: "block text-sm font-medium text-gray-700" %>
+      <%= form.select :plan,
+            options_for_select(Hotel.plans.keys.map { |p| [ p.capitalize, p ] }, hotel.plan || "essentials"),
+            {},
+            class: field_classes %>
+    </div>
+  <% end %>
+
   <fieldset class="space-y-4 rounded-lg border border-gray-200 p-4">
     <legend class="px-1 text-sm font-medium text-gray-700">Platform switches</legend>
     <p class="text-sm text-gray-500">Set here only — never offered on the hotel's own settings form.</p>

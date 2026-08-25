@@ -25,6 +25,15 @@ class HotelPolicy < ApplicationPolicy
     platform_admin? || hotel_admin_for_own_hotel?
   end
 
+  # Which plan a hotel is on is a commercial decision about the relationship
+  # between Hospello and that hotel, so it stays platform-admin-only — unlike
+  # #update?, which a hotel_admin may use on their own hotel's branding. A
+  # hotel_admin who could move their own hotel onto Revenue would be writing
+  # their own invoice.
+  def plan?
+    platform_admin?
+  end
+
   def suspend?
     platform_admin?
   end

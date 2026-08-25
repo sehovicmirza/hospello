@@ -5,7 +5,7 @@ module Platform
   # admin's own job from the staff side (Task 3) — this controller only sets
   # identity and the platform-level switches listed in `hotel_params`.
   class HotelsController < BaseController
-    before_action :set_hotel, only: %i[show edit update suspend activate]
+    before_action :set_hotel, only: %i[show edit update suspend activate plan]
 
     def index
       authorize Hotel
@@ -35,7 +35,10 @@ module Platform
     end
 
     def create
-      @hotel = Hotel.new(hotel_params)
+      # plan is permitted here and nowhere else: a hotel has to be born with
+      # one, and every later change goes through #plan so it lands in the audit
+      # log under its own action.
+      @hotel = Hotel.new(hotel_params.merge(plan: params[:hotel][:plan].presence || :essentials))
       authorize @hotel
 
       # save, seed-the-defaults, and audit-log as one all-or-nothing unit:
@@ -94,6 +97,33 @@ module Platform
       end
     end
 
+    # Which plan a hotel is on, and how many rooms it may have — changed
+    # together, through their own action, and never through #update.
+    #
+    # This follows the precedent `status` set (see hotel_params): a commercially
+    # significant change gets its own named audit action, so "what moved this
+    # hotel onto Essentials, and when" is never something you have to infer from
+    # a generic hotel.update row. The from/to go into audit!'s metadata bag,
+    # which every existing call site leaves empty and which exists for exactly
+    # this.
+    #
+    # room_limit is edited here rather than on the shared form because it is
+    # meaningless without the plan beside it: an empty box means "whatever
+    # Essentials includes", and that sentence needs the plan on screen to parse.
+    def plan
+      was = @hotel.plan
+      limit = params[:hotel][:room_limit].presence
+
+      if @hotel.update(plan: params[:hotel][:plan], room_limit: limit)
+        audit!("hotel.plan_change", target: @hotel, hotel: @hotel, from: was, to: @hotel.plan,
+               room_limit: @hotel.room_limit)
+        redirect_to platform_hotel_path(@hotel), notice: plan_change_notice(was)
+      else
+        redirect_to platform_hotel_path(@hotel),
+          alert: "#{@hotel.name}'s plan could not be changed: #{@hotel.errors.full_messages.to_sentence}"
+      end
+    end
+
     def activate
       if @hotel.active?
         redirect_to platform_hotel_path(@hotel), notice: "#{@hotel.name} is already active."
@@ -115,6 +145,23 @@ module Platform
       # status is deliberately absent: it changes only through #suspend and
       # #activate, each writing its own named audit action, so "what changed
       # the hotel's live/suspended state" is never ambiguous in the log.
+      # Says what actually happened rather than "Saved": a plan change and a
+      # room-limit change are two different commercial facts and an operator
+      # needs to see which one they just made.
+      def plan_change_notice(was)
+        ceiling = @hotel.effective_room_limit
+        rooms = ceiling.nil? ? "no room limit" : "up to #{ceiling} rooms"
+
+        if was == @hotel.plan
+          "#{@hotel.name} stays on #{@hotel.plan.capitalize} — #{rooms}."
+        else
+          "#{@hotel.name} moved from #{was.capitalize} to #{@hotel.plan.capitalize} — #{rooms}."
+        end
+      end
+
+      # status is deliberately absent, and so is plan: each changes only through
+      # its own named action (#suspend / #activate, #plan), so "what changed this
+      # hotel's live state, or what it pays for" is never ambiguous in the log.
       def hotel_params
         params.require(:hotel).permit(
           :name, :slug, :timezone, :staff_locale,

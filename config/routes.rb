@@ -175,6 +175,11 @@ Rails.application.routes.draw do
       member do
         patch :suspend
         patch :activate
+        # Its own route rather than part of #update, for the reason `status`
+        # has one: a plan change is commercially significant and gets its own
+        # audit action so the log is never ambiguous about what moved a hotel
+        # between plans.
+        patch :plan
       end
 
       resources :hotel_admins, only: %i[new create]

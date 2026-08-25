@@ -22,6 +22,39 @@
 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
   <div class="space-y-6 lg:col-span-2">
     <section class="rounded-lg border border-gray-200 bg-white p-6">
+      <h2 class="text-sm font-medium text-gray-600">Subscription plan</h2>
+      <%# Its own form, posting to its own audited action, because a plan change
+          is a commercial fact and must never ride along inside a generic
+          hotel.update. Same reasoning as Suspend/Reactivate.
+
+          room_limit sits here rather than on the main form because it is
+          meaningless without the plan beside it: blank means "whatever this
+          plan includes", and that sentence needs the plan on screen to read. %>
+      <%= form_with model: @hotel, url: plan_platform_hotel_path(@hotel), method: :patch, class: "mt-3 space-y-3" do |form| %>
+        <div>
+          <%= form.label :plan, "Plan", class: "block text-sm font-medium text-gray-700" %>
+          <%= form.select :plan,
+                options_for_select(Hotel.plans.keys.map { |p| [ p.capitalize, p ] }, @hotel.plan),
+                {},
+                class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+        </div>
+
+        <div>
+          <%= form.label :room_limit, "Room limit", class: "block text-sm font-medium text-gray-700" %>
+          <p class="text-sm text-gray-500">
+            Leave blank for whatever the plan includes<%=
+              Hotel::PLAN_ROOM_LIMITS[@hotel.plan.to_sym] ? " (#{Hotel::PLAN_ROOM_LIMITS[@hotel.plan.to_sym]} on #{@hotel.plan.capitalize})" : " (no limit above Essentials)" %>.
+            Currently <%= @hotel.effective_room_limit || "unlimited" %>.
+          </p>
+          <%= form.number_field :room_limit, min: 0, value: @hotel.room_limit,
+                class: "mt-1 block w-full rounded-md border border-gray-400 px-3 py-2 shadow-sm focus:outline-blue-600" %>
+        </div>
+
+        <%= form.submit "Change plan", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 cursor-pointer" %>
+      <% end %>
+    </div>
+
+    <div class="rounded-lg border border-gray-200 bg-white p-4">
       <h2 class="text-sm font-medium text-gray-600">Platform switches</h2>
       <dl class="mt-3 grid grid-cols-2 gap-4 text-sm">
         <div>
