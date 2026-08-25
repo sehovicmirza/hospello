@@ -63,12 +63,18 @@ class DemoHotelBuilder
       @hotel = Hotel.create!(**@spec.fetch(:hotel))
 
       ActsAsTenant.with_tenant(@hotel) do
+        # Order matters: service requests belong to conversations, and
+        # categories have to exist before either. The two request-only steps are
+        # skipped on a plan that has none — an Essentials hotel seeded with a
+        # request board would be a demo of a product nobody can buy, and the
+        # staff screens that show them are refused for that hotel anyway (see
+        # PlanGated), so the rows would be invisible as well as wrong.
         create_staff
         create_rooms
-        create_departments_and_categories
+        create_departments_and_categories if takes_requests?
         create_knowledge_base
         create_conversations
-        create_requests
+        create_requests if takes_requests?
         create_unanswered_questions
         create_usage_history
         announce
@@ -80,6 +86,8 @@ class DemoHotelBuilder
 
   private
     attr_reader :spec, :hotel
+
+    def takes_requests? = @hotel.plan_allows?(:requests)
 
     # Passwords are the same well-known demo string for everyone. This seed is
     # for an empty or demo-only installation (see the guard in the caller) and
@@ -290,9 +298,10 @@ class DemoHotelBuilder
       @report.call("Seeded demo hotel #{@hotel.name.inspect} (/h/#{@hotel.slug}).")
       @report.call("  Sign in: #{@admin.email_address} / #{demo_password} (hotel admin)")
       @report.call("  Reception: #{@reception.map(&:email_address).join(', ')}")
+      tail = takes_requests? ? " · #{@hotel.service_requests.count} requests" : " · Essentials (no requests)"
       @report.call(
         "  #{@hotel.rooms.count} rooms · #{@hotel.kb_entries.published.count} published knowledge entries · " \
-        "#{@hotel.conversations.count} conversations · #{@hotel.service_requests.count} requests"
+        "#{@hotel.conversations.count} conversations#{tail}"
       )
     end
 end

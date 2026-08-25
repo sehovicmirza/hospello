@@ -16,6 +16,12 @@ module DemoCatalogue
       hotel: {
         name: "Hotel Vema Visoko",
         slug: "hotel-vema-visoko",
+        # The one demo hotel on Essentials, and deliberately so: the plan being
+        # sold first needs somewhere it can be shown running. Scanning this
+        # hotel's QR code gets a concierge that answers from the knowledge base
+        # and sends anyone who wants something done to reception — no request
+        # board, no departments, no ticket. The other four stay on Service.
+        plan: :essentials,
         timezone: "Europe/Sarajevo",
         staff_locale: "bs",
         primary_color: "#2E4A7D",
@@ -36,7 +42,11 @@ module DemoCatalogue
       ],
 
       # A smaller house: two floors and a handful of family rooms.
-      room_numbers: (101..112).to_a + (201..210).to_a,
+      # Eighteen rooms, against the Essentials ceiling of twenty. Vema is the
+      # small-hotel demo and this is the size the plan is actually sold at —
+      # and the two rooms of headroom mean the cap can be demonstrated live by
+      # adding three.
+      room_numbers: (101..112).to_a + (201..206).to_a,
 
       departments: {
         housekeeping: "Domaćinstvo",

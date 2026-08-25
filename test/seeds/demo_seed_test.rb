@@ -88,8 +88,46 @@ class DemoSeedTest < ActiveSupport::TestCase
       assert_operator hotel.rooms.count, :>=, 10
       assert_equal 1, hotel.users.where(role: :hotel_admin).count
       assert_operator hotel.users.where(role: :staff).count, :>=, 3
-      assert_operator hotel.departments.count, :>=, 3
-      assert_operator hotel.request_categories.count, :>=, 4
+
+      # Departments and categories exist only to route service requests, so a
+      # hotel that takes none should have neither. Asserted in both directions:
+      # a Service hotel missing its board is as broken a demo as an Essentials
+      # hotel carrying one.
+      if hotel.plan_allows?(:requests)
+        assert_operator hotel.departments.count, :>=, 3
+        assert_operator hotel.request_categories.count, :>=, 4
+      else
+        assert_equal 0, hotel.departments.count, "#{hotel.slug}: Essentials seeded a department"
+        assert_equal 0, hotel.request_categories.count, "#{hotel.slug}: Essentials seeded a category"
+      end
+    end
+  end
+
+  # The plan being sold first has to be demonstrable, so exactly one hotel runs
+  # on it. Pinned by slug, not by count: "some hotel is on Essentials" would
+  # stay green if the wrong one moved.
+  test "one hotel runs on Essentials so the plan being sold can be shown" do
+    seed!
+
+    essentials = Hotel.where(plan: :essentials).pluck(:slug)
+
+    assert_equal [ "hotel-vema-visoko" ], essentials
+    assert_equal 4, Hotel.where(plan: :service).count
+  end
+
+  # A guest of the Essentials hotel must reach a working concierge — the whole
+  # product — while the request machinery stays absent.
+  test "the Essentials hotel has everything its plan does include" do
+    seed!
+    hotel = Hotel.find_by!(slug: "hotel-vema-visoko")
+
+    with_tenant(hotel) do
+      assert_equal 0, hotel.service_requests.count, "Essentials must not seed a request board"
+      assert_operator hotel.published_kb_entries.count, :>=, 15, "Q&A is the entire product here"
+      assert_operator hotel.conversations.count, :>=, 3
+      assert_operator hotel.rooms.count, :>=, 10
+      assert_operator hotel.rooms.count, :<=, hotel.effective_room_limit,
+        "the demo hotel must fit inside the ceiling its own plan enforces"
     end
   end
 
@@ -153,6 +191,8 @@ class DemoSeedTest < ActiveSupport::TestCase
     seed!
 
     each_demo_hotel do |hotel|
+      next unless hotel.plan_allows?(:requests)
+
       assert_equal ServiceRequest.statuses.keys.sort, hotel.service_requests.pluck(:status).uniq.sort
       # Specifically one nobody has picked up: an accepted request that has
       # been sitting a while is also overdue, so asserting on `open_requests`
