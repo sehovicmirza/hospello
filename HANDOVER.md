@@ -12,12 +12,12 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-25 (three subscription plans: tasks 1–4 of 9 landed) |
+| **Last updated** | 2026-08-25 (three subscription plans: all nine tasks landed) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1249 unit/integration green (6.5s), rubocop clean. **System tests not run this session** — the browser-launch flake below still fails CI. |
+| **Tests** | 1291 unit/integration green (6.4s), rubocop clean, brakeman 0 warnings. **System tests not run this session** — the browser-launch flake below still fails CI. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans in flight — tasks 1–4 of 9 done** |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
 
 > ### The CI failure is fixed, and it was never a flake
 >
@@ -43,68 +43,88 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 ---
 
-## IN FLIGHT: three subscription plans (started 2026-08-25)
+## Three subscription plans — DONE in code, ONE production step outstanding
 
-The owner is packaging Hospello into three plans so it can be sold. **This work is partly done —
-read this before touching anything.**
+Hospello now ships three plans. Nine tasks, `f4f2c33`..`1695896`, all on `main`.
 
 | Plan | What the hotel gets |
 |---|---|
-| **Essentials** | Q&A only. A guest who *asks for something* is told to call reception; no ticket is ever created. Dashboard is analytics + inbox + knowledge base. Capped at 20 rooms. |
-| **Service** | Essentials + service requests. Exactly what was built through Slice 6. |
-| **Revenue** | Service + WhatsApp upselling offers. **Not built.** The enum value exists and nothing else. |
+| **Essentials** | Q&A only. A guest who asks for something is told to call reception; no ticket is ever created. Dashboard is analytics + inbox + knowledge base. Capped at 20 rooms. |
+| **Service** | Essentials + service requests. Exactly what was built through Slice 6, and what every existing hotel is on. |
+| **Revenue** | Service + WhatsApp upselling. **Not built** — the enum value exists and nothing else. |
 
-The full approved plan is at `~/.claude/plans/hospello-mvp-you-are-sorted-quilt.md`. Its nine tasks,
-in order: (1) column + predicate, (2) staff gate, (3) nav/analytics/settings, (4) AI tools,
-(5) prompt, (6) quick-action chips, (7) room cap, (8) platform admin plan screen, (9) demo seed.
+### THE ONE THING LEFT: put the live Vema on Essentials
 
-**Done, tasks 1–4:**
+The demo seed puts `hotel-vema-visoko` on Essentials so the plan being sold has
+somewhere it can be shown running. **Re-deploying will not do this to the live
+database** — the seed's second guard skips hotels that already exist, so a
+`SEED_DEMO=1` run leaves the production Vema on Service.
 
-- **1** (`f4f2c33`) — `hotels.plan` enum, `Hotel#plan_allows?`, `PLAN_FEATURES`, `PLAN_ROOM_LIMITS`,
-  fixtures pinned to `service`, `test/models/hotel_plan_test.rb`.
-- **2** (`79d8dbe`) — `PlanGated` concern (`app/controllers/concerns/plan_gated.rb`) giving
-  `requires_plan_feature :requests`, declared on the request board, the note POST,
-  request categories and departments. Renders `staff/shared/plan_upgrade` at 403 —
-  a real translated page, not `render plain: "Not authorized"`.
-- **3** (`5519381`) — nav drops Requests and Departments; the analytics requests panel is wrapped
-  (it had no conditional at all and would have shown four zeros); the hotel-settings escalation
-  fieldset is hidden *and* dropped from the permitted params.
-- **4** (`cadee40`) — the assistant. `Ai::Tools.definitions_for(hotel)` withholds the two request
-  tools and `Ai::Tools#execute` refuses them by name before dispatch. `Ai::Concierge` asks for the
-  hotel's tools. `Guest::ServiceRequestDraftsController` gated too.
+Do it through the platform admin screen, which usefully smoke-tests the feature:
+sign in as a platform admin → `/platform/hotels` → Hotel Vema Visoko →
+**Subscription plan** → Essentials, room limit blank → *Change plan*. Confirm
+afterwards that `/h/hotel-vema-visoko` offers knowledge-base chips rather than
+request categories, and that asking it for towels gets you the reception number.
 
-**Next: task 5** — `Ai::PromptBuilder::STATIC_RULES` is one frozen global constant whose TOOLS and
-REQUESTS blocks both describe request behaviour. Fork it per plan. The cache breakpoint sits at the
-end of `hotel_block`, which is already per-hotel, so a per-plan prefix costs nothing in cache hits.
-Also reword `#request_categories`' fallback (it currently says "escalate instead", now wrong),
-`room_unknown_block`, and `set_guest_room`'s own description — all three mention requests. And
-handle the blank-`contact_phone` case: `optional_hotel_lines` only emits the number when set, so a
-hotel without one leaves the assistant told to give a number it does not have. (`Ai::Tools`'
-refusal already falls back to "the reception desk"; the prompt needs the same.)
+Note the live Vema has 22 rooms and Essentials caps at 20. **Nothing breaks** —
+the cap only refuses *new* rooms, never touches existing ones — but the platform
+list will show "22 of 20" in amber. Either leave it (honest, and a good demo of
+the cap) or set the room limit to 22 for that hotel.
 
-### Four things about this work that will catch you out
+### How the gating works, if you are changing any of it
 
-1. **The plan column defaults to `service`, not `essentials`.** Deliberate, and explained at length
-   in the migration. Eighteen tests build a `Hotel` inline without naming a plan; defaulting to
-   essentials turns them red for reasons unrelated to what they assert. "What we sell" belongs in
-   the platform create form, not the schema.
-2. **Gating the tool list is not enough to stop the assistant creating requests.** `Ai::Tools#execute`
-   is a `case` on the tool name and will run `propose_service_request` whether or not it was offered
-   — models emit tools they were not shown. Task 4 gates *both* the definitions and the dispatch.
-   The dispatch gate is the one carrying the guarantee.
-3. **`/staff/request_categories` has no nav item.** It is reached only through a link inside
-   `departments/index.html.erb`. Hiding the Departments nav item leaves the URL fully working. This
-   is engineering rule 3 — guard the idiomatic way in, not just the obvious one.
-4. **The quick-action chips are built from request categories** (`GuestChatHelper#guest_quick_actions`).
-   On Essentials they invite exactly what the plan cannot do. Task 6 rebuilds them from the hotel's
-   published KB entries, which are guaranteed answerable.
+`Hotel#plan_allows?(:requests)` is the single predicate. Everything asks it:
+`PlanGated`'s `requires_plan_feature`, `staff_nav_items`, the AI tool list, the
+AI tool dispatch, the prompt builder, the chips, the seed. It is deliberately
+**not** a Pundit policy — every policy in `app/policies` answers "which role",
+two of them say so in their own comments, and a role refusal ("ask your
+manager") and a plan refusal ("your hotel did not buy this") need different
+answers and different pages.
 
-### Not started, and deliberately
+### Five things that will catch you out
 
-Revenue-tier upselling. It needs an offer model, targeting, marketing consent *separate* from what
-guests agree to today, and Meta-approved `marketing` templates. The live privacy notice tells every
-guest their phone number "is used only to reach you about your stay" — offers to that number
-contradict it. Own design pass required before any of it ships.
+1. **The plan column defaults to `service`, not `essentials`** — explained at
+   length in the migration. Eighteen tests build a `Hotel` inline without naming
+   a plan. "What we sell" lives in `Platform::HotelsController#new`, which
+   builds `Hotel.new(plan: :essentials)`; the schema default means "the app as
+   built". Two defaults, two different questions.
+2. **Gating the AI tool list does not stop request creation.** `Ai::Tools#execute`
+   is a `case` on the tool name and will run `propose_service_request` whether or
+   not it was offered — models emit tools they were never shown. Both gates
+   exist; `#execute`'s is the one carrying the guarantee. Proven: deleting it
+   fails 4 tests while every definitions test stays green.
+3. **`/staff/request_categories` has no nav item.** It is reached only from a
+   link inside `departments/index.html.erb`, so hiding the Departments nav entry
+   leaves the URL working. Gate controllers, not links (rule 3).
+4. **The room cap is a `Room` validation `on: :create`.** The `on: :create` is
+   load-bearing — a hotel downgraded below its room count must still be able to
+   edit the rooms it has. Nothing is ever deleted, deactivated or hidden.
+5. **Two mutations in task 8 came back green and both were my tests' fault.**
+   Permitting `plan` in `hotel_params` looked safe because the first mutation
+   edited a line that only exists in the *staff* settings controller; and "only
+   a platform admin may change a plan" stayed green with `HotelPolicy#plan?`
+   forced to `true`, because `require_platform_admin` refuses first. If a
+   mutation does not go red, suspect the test before believing the code.
+
+### Verified against the real model
+
+`test/services/ai/live_essentials_test.rb`, run by hand with `LIVE_AI=1`:
+
+> **guest:** Could I get two extra towels sent up to my room please?
+> **concierge:** Reception will be able to help with the towels — just give them
+> a quick call on +387 33 000 000. Anything else I can help with?
+
+No draft and no request existed afterwards. It still answered "what time is
+breakfast?" from the knowledge base, which is the assertion that stops this
+becoming a plan that simply refuses everything.
+
+### Revenue tier: deliberately not started
+
+It needs an offer model, targeting, marketing consent **separate** from what
+guests agree to today, Meta-approved `marketing` templates, and an unsubscribe
+path. The live privacy notice tells every guest their number "is used only to
+reach you about your stay" — offers to that number contradict it, in four
+locales. Own design pass required before any of it ships.
 
 ---
 
