@@ -401,6 +401,7 @@ bs:
         note_added: "Napomena dodana — gost je ne može vidjeti."
         note_blank: "Napomena mora sadržavati tekst."
     rooms:
+      over_room_limit: "Vaš plan pokriva do %{limit} soba. Javite se Hospellu da dodate još."
       create:
         added: "Soba %{number} dodana."
       update:
@@ -425,6 +426,10 @@ bs:
           one: "1 preskočena kao duplikat"
           few: "%{count} preskočene kao duplikati"
           other: "%{count} preskočeno kao duplikat"
+        refused_phrase:
+          one: "Još 1 nije dodata: vaš plan pokriva do %{limit} soba."
+          few: "Još %{count} nisu dodate: vaš plan pokriva do %{limit} soba."
+          other: "Još %{count} nije dodato: vaš plan pokriva do %{limit} soba."
         summary: "%{created_phrase}, %{skipped_phrase}."
       edit:
         title: "Uredi sobu %{number} — %{hotel_name}"

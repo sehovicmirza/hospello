@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_161516) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_182557) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -157,6 +157,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_161516) do
     t.integer "plan", default: 1, null: false
     t.boolean "powered_by_visible", default: true, null: false
     t.string "primary_color", default: "#1F3A5F", null: false
+    t.integer "room_limit"
     t.string "secondary_color", default: "#C9A227", null: false
     t.jsonb "settings", default: {}, null: false
     t.string "slug", null: false

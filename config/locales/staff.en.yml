@@ -400,6 +400,7 @@ en:
         note_added: "Note added — the guest cannot see it."
         note_blank: "A note needs some text."
     rooms:
+      over_room_limit: "Your plan covers up to %{limit} rooms. Get in touch with Hospello to add more."
       create:
         added: "Room %{number} added."
       update:
@@ -413,6 +414,9 @@ en:
         skipped_phrase:
           one: "1 skipped as duplicate"
           other: "%{count} skipped as duplicates"
+        refused_phrase:
+          one: "1 more was not added: your plan covers up to %{limit} rooms."
+          other: "%{count} more were not added: your plan covers up to %{limit} rooms."
         summary: "%{created_phrase}, %{skipped_phrase}."
       edit:
         title: "Edit room %{number} — %{hotel_name}"

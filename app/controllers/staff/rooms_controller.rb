@@ -45,8 +45,8 @@ module Staff
         return redirect_to staff_rooms_path, alert: e.message
       end
 
-      created, skipped = bulk_add(numbers)
-      redirect_to staff_rooms_path, notice: bulk_create_notice(created, skipped)
+      created, skipped, refused = bulk_add(numbers)
+      redirect_to staff_rooms_path, notice: bulk_create_notice(created, skipped, refused)
     end
 
     def edit
@@ -93,6 +93,11 @@ module Staff
       # Each normalized number either creates a new room or is counted as a
       # duplicate — never raises on a collision, since a bulk paste
       # overlapping existing rooms is the expected case, not an error.
+      # `save`, not `save!`. Since the plan's room ceiling became a Room
+      # validation, a bulk paste that crosses it is an ordinary refusal a
+      # receptionist should read, not a 500. The loop stops at the first
+      # refusal rather than grinding through the rest: every remaining number
+      # would fail for the same reason, and each attempt costs a COUNT.
       def bulk_add(numbers)
         created = 0
         skipped = 0
@@ -101,13 +106,14 @@ module Staff
           room = Current.hotel.rooms.find_or_initialize_by(number: number)
           if room.persisted?
             skipped += 1
-          else
-            room.save!
+          elsif room.save
             created += 1
+          else
+            break
           end
         end
 
-        [ created, skipped ]
+        [ created, skipped, numbers.size - created - skipped ]
       end
 
       # Rails' own count-based pluralization (t(key, count:)), not string
@@ -115,10 +121,13 @@ module Staff
       # correct English, and Bosnian's plural forms don't follow English's
       # rule at all. Two independently-pluralized clauses can't share one
       # count, so each is its own key and this only wires them together.
-      def bulk_create_notice(created, skipped)
-        t(".summary",
+      def bulk_create_notice(created, skipped, refused)
+        summary = t(".summary",
           created_phrase: t(".created_phrase", count: created),
           skipped_phrase: t(".skipped_phrase", count: skipped))
+        return summary if refused.zero?
+
+        "#{summary} #{t('.refused_phrase', count: refused, limit: Current.hotel.effective_room_limit)}"
       end
   end
 end

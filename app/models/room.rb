@@ -41,6 +41,12 @@ class Room < ApplicationRecord
 
   validates :number, presence: true, uniqueness: { scope: :hotel_id }
 
+  # Only on create, and only ever refusing a new row: a hotel moved to a smaller
+  # plan keeps every room it already has. Deactivating or hiding rooms someone
+  # is standing in would be a data loss dressed up as a billing rule, and the
+  # hotel would still need those numbers to answer the phone.
+  validate :hotel_room_limit_not_exceeded, on: :create
+
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:number) }
 
@@ -104,5 +110,12 @@ class Room < ApplicationRecord
   private
     def normalize_number
       self.number = self.class.normalize_number(number)
+    end
+
+    def hotel_room_limit_not_exceeded
+      return if hotel.nil?
+      return unless hotel.room_limit_reached?
+
+      errors.add(:base, I18n.t("staff.rooms.over_room_limit", limit: hotel.effective_room_limit))
     end
 end

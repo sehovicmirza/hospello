@@ -100,6 +100,34 @@ class Hotel < ApplicationRecord
     PLAN_FEATURES.fetch(plan.to_sym).include?(feature)
   end
 
+  # How many rooms this hotel may have, nil meaning no ceiling.
+  #
+  # The column is an override and is normally null, so a hotel follows whatever
+  # its plan is sold with and raising what Essentials includes is a one-line
+  # change to PLAN_ROOM_LIMITS. `room_limit` is only written when a platform
+  # admin sells one hotel a different number — the "20 rooms, then more rooms"
+  # case.
+  #
+  # Note the deliberate nil-vs-zero split: 0 is a real ceiling of zero rooms,
+  # and "no ceiling" is spelled nil. AiRun#budget_exhausted_for? reads 0 the
+  # other way round, because there 0 is a number a hotel typed into a budget
+  # field and guessing "unlimited" would hand them uncapped spend.
+  def effective_room_limit
+    return room_limit unless room_limit.nil?
+
+    PLAN_ROOM_LIMITS.fetch(plan.to_sym)
+  end
+
+  # Deliberately counts rather than caching: this is asked once per room
+  # creation, and only for a hotel that has a ceiling at all — which by
+  # definition is a hotel with few enough rooms for the count to be cheap.
+  def room_limit_reached?
+    limit = effective_room_limit
+    return false if limit.nil?
+
+    rooms.count >= limit
+  end
+
   # The single lookup Slice 2's guest entry form and Slice 6's WhatsApp
   # set_guest_room tool call both use: normalizes the input the same way
   # Room itself normalizes `number` on save (strip, upcase, collapse
