@@ -35,6 +35,12 @@ module Ai
     # receptionist scans, not in a paragraph.
     MAX_GUEST_NAME_LENGTH = 80
 
+    # The two tools that between them are the only way a ServiceRequest can come
+    # into existence: propose creates the draft, confirm turns it into a
+    # request. A hotel whose plan has no requests is offered neither, and — see
+    # #execute — is refused both even if the model asks for one anyway.
+    REQUEST_TOOLS = %w[propose_service_request confirm_service_request].freeze
+
     class << self
       # Sent to the API on every turn. Descriptions are written for the model,
       # not for us: they are the only place it learns when a tool is
@@ -176,6 +182,22 @@ module Ai
       end
 
       def names = definitions.map { |tool| tool[:name] }
+
+      # What this hotel's plan actually offers the model.
+      #
+      # Withholding the request tools is what makes the model behave — it
+      # cannot ask for a tool it was never shown, and the prompt (see
+      # PromptBuilder) tells it to send the guest to reception instead. It is
+      # NOT what makes the refusal true: models routinely emit tools they were
+      # not offered, so Tools#execute refuses these by name as well. This half
+      # shapes behaviour; that half carries the guarantee.
+      def definitions_for(hotel)
+        return definitions if hotel.plan_allows?(:requests)
+
+        definitions.reject { |tool| REQUEST_TOOLS.include?(tool[:name]) }
+      end
+
+      def names_for(hotel) = definitions_for(hotel).map { |tool| tool[:name] }
     end
 
     def initialize(conversation:)
@@ -186,6 +208,12 @@ module Ai
     # @param tool_call [Ai::Result::ToolCall]
     # @return [Hash] a tool_result content block for the next turn
     def execute(tool_call)
+      # The gate that actually holds. definitions_for withheld these tools, but
+      # a model can still emit a tool name it was not offered — from an earlier
+      # turn, from a similar hotel, or from nowhere at all — and the case below
+      # would run it. Refused by name, before dispatch.
+      return requests_not_offered(tool_call) if REQUEST_TOOLS.include?(tool_call.name) && !hotel.plan_allows?(:requests)
+
       case tool_call.name
       when "escalate_to_staff" then escalate(tool_call)
       when "log_unanswered_question" then log_gap(tool_call)
@@ -195,7 +223,7 @@ module Ai
       else
         # Models invent tool names. Raising would end the guest's reply over
         # something the model can correct in one more turn.
-        failure(tool_call, "Unknown tool #{tool_call.name.inspect}. Available tools: #{self.class.names.join(', ')}.")
+        failure(tool_call, "Unknown tool #{tool_call.name.inspect}. Available tools: #{self.class.names_for(hotel).join(', ')}.")
       end
     rescue ActiveRecord::RecordInvalid => e
       # A validation the model could not have known about. Same reasoning:
@@ -206,6 +234,26 @@ module Ai
     private
 
     attr_reader :conversation, :hotel
+
+    # Returned to the model, not to the guest, so it is written as an
+    # instruction rather than as something to repeat verbatim — the model says
+    # it in whatever language the guest is writing in.
+    #
+    # It names the number where there is one. A hotel with no contact_phone
+    # gets "the reception desk" instead: telling a guest to call and not saying
+    # what to call is worse than telling them where to go.
+    def requests_not_offered(tool_call)
+      where = hotel.contact_phone.presence
+      reach = where ? "call reception on #{where}" : "speak to the reception desk"
+
+      failure(
+        tool_call,
+        "This hotel does not take service requests through chat, and no request has been created. " \
+        "Do not try again with a different tool. Tell the guest, warmly and in their own language, " \
+        "that you cannot arrange this yourself and that they should #{reach}. You may still answer " \
+        "any question they ask about the hotel."
+      )
+    end
 
     def escalate(tool_call)
       summary = tool_call.input["summary"].to_s.strip

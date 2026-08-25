@@ -70,7 +70,7 @@ module Ai
     attr_reader :conversation, :hotel, :client, :model, :usage
 
     def ask(system_blocks, messages)
-      result = client.chat(system: system_blocks, messages: messages, tools: Tools.definitions, model: model)
+      result = client.chat(system: system_blocks, messages: messages, tools: Tools.definitions_for(hotel), model: model)
       accumulate(result.usage)
       result
     end

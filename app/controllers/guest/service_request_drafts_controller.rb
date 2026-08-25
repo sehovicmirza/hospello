@@ -13,6 +13,14 @@ module Guest
   # produce two requests.
   class ServiceRequestDraftsController < BaseController
     before_action :set_conversation
+    # Defence in depth. On a plan without requests no draft can exist — the
+    # only thing that creates one is propose_service_request, which the
+    # assistant is neither offered nor allowed to run — so this should never
+    # fire. It is here because "should never" is not a guarantee, and this
+    # controller is the second of the two callers of
+    # ServiceRequestDraft#confirm!, the one that does not go through the model
+    # at all.
+    before_action :refuse_when_plan_has_no_requests
 
     def confirm
       draft = pending_draft
@@ -41,6 +49,11 @@ module Guest
     end
 
     private
+
+      def refuse_when_plan_has_no_requests
+        head :forbidden unless Current.hotel.plan_allows?(:requests)
+      end
+
       def set_conversation
         @conversation = Conversation.live_for(Current.guest_session)
       end
