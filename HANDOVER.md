@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (two guest-chat fixes; three subscription plans complete) |
+| **Last updated** | 2026-08-26 (four guest-chat fixes; three subscription plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1294 unit/integration green (7.3s), rubocop clean, brakeman 0 warnings. System suite still shows the browser-launch flake (22 errors, **0 failures**); the guest-chat typing tests pass in isolation. |
+| **Tests** | 1298 unit/integration green (7.7s), rubocop clean, brakeman 0 warnings. System suite still shows the browser-launch flake (22 errors, **0 failures**); guest-chat and phone-invariant tests pass in isolation. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
 
@@ -40,6 +40,45 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > - **Brakeman runs at `-w2`** (medium confidence and up). Its weak band includes "support for Rails
 >   8.0.5.1 ends on 2026-10-07", which would otherwise fail every build from now on. That date is
 >   real — see "What to do next".
+
+---
+
+## Guest chat, 2026-08-26 later (`304bb4c`)
+
+**The concierge was answering anything, and the prompt said it could.** ANSWERING
+carried *"You may answer general questions that are not about this hotel … from
+your own knowledge"*, so "how can I make rice noodles" got a real recipe. Scope
+is now explicit in both directions — the hotel, the stay and the city around it
+are in; recipes, code, homework, medical/legal advice, news and general
+knowledge are out.
+
+**Watch the other failure mode if you touch this.** A concierge that cannot say
+how far the airport is has been narrowed past usefulness. `live_scope_test.rb`
+pins the in-scope side (airport distance, breakfast from the KB) for exactly
+that reason — do not delete those two tests while tightening the rule.
+
+The mutation is unambiguous and worth repeating if you change the wording:
+restore the old permissive line, run `LIVE_AI=1 bin/rails test
+test/services/ai/live_scope_test.rb -n "/refuses_a_recipe/"`, and the model
+returns a full rice-flour-and-tapioca recipe. `prompt_builder_test` carries the
+cheap half (the rule is present) so a regression fails in CI.
+
+**The typing dots needed scrolling to see.** `chat_scroll_controller` only
+follows new content within `NEAR_BOTTOM_PX` (48) of the bottom — right for a
+message arriving while a guest rereads something, wrong the moment the guest's
+*own* message is taller than 48px. The composer now scrolls unconditionally on
+its own send.
+
+**Two tests in this change initially passed against the broken code**, which is
+the recurring defect in this repo:
+
+- the dots-on-screen test first lived in `guest_chat_test`, where a fresh
+  conversation has one message and nothing to scroll. It now lives in
+  `guest_chat_mobile_test`, fills the transcript with eight messages first, and
+  fails without the fix.
+- the live scope test first reused `conversations(:stari_conversation)`, which
+  is mid-way through gathering a towel request — the model kept finishing that
+  instead of engaging with the question under test. It builds its own session.
 
 ---
 
