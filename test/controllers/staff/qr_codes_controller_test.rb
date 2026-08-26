@@ -63,13 +63,14 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "\x89PNG\r\n\x1a\n".b, response.body.byteslice(0, 8)
   end
 
-  # Review round 1, minor: asserting only that "[lang='de']" exists is
-  # hollow — it passes for an empty div just as well as for real copy. Each
-  # block is pinned to its actual headline and instruction text, so
-  # replacing the copy with a placeholder (or losing a language's
-  # instruction line while leaving its headline) fails here.
-  test "the print view contains a short headline and instruction in all four guest languages" do
+  # Review round 1, minor: asserting only that "[lang='xx']" exists is hollow —
+  # it passes for an empty div just as well as for real copy. Each block is
+  # pinned to its actual headline and instruction text, so replacing the copy
+  # with a placeholder (or losing a language's instruction line while leaving
+  # its headline) fails here.
+  test "the print view carries a headline and instruction in each guest language" do
     sign_in users(:stari_admin)
+    hotels(:stari_grad).update!(plan: :service)
 
     get print_staff_qr_code_path
 
@@ -85,15 +86,65 @@ class Staff::QrCodesControllerTest < ActionDispatch::IntegrationTest
       assert_select "p", text: "Scan the code to chat with our front desk anytime.", count: 1
     end
 
-    assert_select "[lang='de']" do
-      assert_select "p", text: "Brauchen Sie etwas? Fragen Sie einfach.", count: 1
-      assert_select "p", text: "Scannen Sie den Code, um jederzeit mit der Rezeption zu chatten.", count: 1
-    end
-
     assert_select "[lang='ar']" do
       assert_select "p", text: "هل تحتاج إلى شيء؟ فقط اسأل.", count: 1
       assert_select "p", text: "امسح الرمز للتواصل مع الاستقبال في أي وقت.", count: 1
     end
+  end
+
+  # German was dropped from the card in 2026-08: a fourth block earns its space
+  # only if the hotel actually sees those guests, and a crowded card is read by
+  # nobody. This is asserted rather than simply deleted so that re-adding a
+  # language is a deliberate decision with a test to change, not a silent creep
+  # back to four.
+  #
+  # It does not narrow the chat itself — the concierge still answers a guest who
+  # writes in German, which is what the second assertion is here to state.
+  test "the card is printed in three languages, not four" do
+    sign_in users(:stari_admin)
+
+    get print_staff_qr_code_path
+
+    assert_select "#language-lines > div", count: 3
+    assert_select "[lang='de']", count: 0
+    assert_includes GuestLocaleHelper::SUPPORTED_LOCALES, "de",
+      "dropping German from the printed card must not drop it from the chat"
+  end
+
+  # An Essentials hotel's QR code does not reach the front desk, so a card
+  # promising a chat with reception would be a promise the product does not
+  # keep — printed, and left in a room where nobody can correct it.
+  test "an Essentials hotel's card invites questions, not requests" do
+    sign_in users(:stari_admin)
+    hotels(:stari_grad).update!(plan: :essentials)
+
+    get print_staff_qr_code_path
+
+    assert_response :success
+
+    assert_select "[lang='en']" do
+      assert_select "p", text: "Have a question? Just ask.", count: 1
+      assert_select "p", text: "Scan the code to ask anything about the hotel.", count: 1
+    end
+
+    assert_select "[lang='bs']" do
+      assert_select "p", text: "Imate pitanje? Samo pitajte.", count: 1
+    end
+
+    # The words that would be the lie.
+    assert_select "#language-lines", text: /front desk/, count: 0
+    assert_select "#language-lines", text: /recepciji/, count: 0
+  end
+
+  # The number is how a guest on Essentials actually reaches a person, so it
+  # must survive on the plan that depends on it most.
+  test "the reception number is still printed on an Essentials card" do
+    sign_in users(:stari_admin)
+    hotels(:stari_grad).update!(plan: :essentials, contact_phone: "+387 33 000 000")
+
+    get print_staff_qr_code_path
+
+    assert_select "#reception-phone", text: /\+387 33 000 000/
   end
 
   test "the Arabic line renders right-to-left" do

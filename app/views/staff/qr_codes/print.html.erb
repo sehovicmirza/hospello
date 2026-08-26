@@ -28,29 +28,26 @@
 
   <%# text-start, not text-left: a logical (direction-aware) alignment
       property, so it inherits as "align to the start of reading order" —
-      left for the bs/en/de blocks below, right for the Arabic block, which
+      left for the bs/en blocks below, right for the Arabic block, which
       also carries dir="rtl". A physical text-left here would have left the
       Arabic paragraph's dir="rtl" fixing bidi *character* order while the
       whole block still hugged the left edge — correct ordering, wrong
       alignment, visibly wrong to an Arabic reader on a printed card
-      (review round 1 finding). %>
+      (review round 1 finding).
+
+      The lines themselves come from QrCardHelper, because what this card may
+      honestly promise depends on the hotel's plan: on Essentials, scanning the
+      code does not reach the front desk. %>
   <div id="language-lines" class="space-y-4 text-start text-sm text-gray-800">
-    <div lang="bs">
-      <p class="font-semibold">Trebate nešto? Samo pitajte.</p>
-      <p>Skenirajte kod i pišite recepciji u bilo koje doba.</p>
-    </div>
-    <div lang="en">
-      <p class="font-semibold">Need anything? Just ask.</p>
-      <p>Scan the code to chat with our front desk anytime.</p>
-    </div>
-    <div lang="de">
-      <p class="font-semibold">Brauchen Sie etwas? Fragen Sie einfach.</p>
-      <p>Scannen Sie den Code, um jederzeit mit der Rezeption zu chatten.</p>
-    </div>
-    <div lang="ar" dir="rtl">
-      <p class="font-semibold">هل تحتاج إلى شيء؟ فقط اسأل.</p>
-      <p>امسح الرمز للتواصل مع الاستقبال في أي وقت.</p>
-    </div>
+    <%# tag.div rather than a literal <div>: `dir` has to be absent for the
+        left-to-right blocks, not present-and-empty, and Rails drops a nil
+        attribute for us. %>
+    <% qr_card_lines(@hotel).each do |line| %>
+      <%= tag.div(lang: line.lang, dir: line.dir) do %>
+        <p class="font-semibold"><%= line.heading %></p>
+        <p><%= line.body %></p>
+      <% end %>
+    <% end %>
   </div>
 
   <% if @hotel.contact_phone.present? %>
