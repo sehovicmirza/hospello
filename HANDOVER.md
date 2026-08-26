@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-25 (three subscription plans: all nine tasks landed) |
+| **Last updated** | 2026-08-26 (two guest-chat fixes; three subscription plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1291 unit/integration green (6.4s), rubocop clean, brakeman 0 warnings. **System tests not run this session** — the browser-launch flake below still fails CI. |
+| **Tests** | 1294 unit/integration green (7.3s), rubocop clean, brakeman 0 warnings. System suite still shows the browser-launch flake (22 errors, **0 failures**); the guest-chat typing tests pass in isolation. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
 
@@ -40,6 +40,44 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > - **Brakeman runs at `-w2`** (medium confidence and up). Its weak band includes "support for Rails
 >   8.0.5.1 ends on 2026-10-07", which would otherwise fail every build from now on. That date is
 >   real — see "What to do next".
+
+---
+
+## Guest chat, 2026-08-26 (`74b390b`)
+
+Two fixes the owner reported from a phone.
+
+**The typing dots were rendering above the message they answered.** Not a CSS
+problem: the indicator is a static last child of `#chat-messages`, and both
+Turbo (the guest's own message, appended after `turbo:submit-end`) and
+`Conversation#broadcast_new_message` append to that same target — so every
+arrival slid under it. `chat_composer_controller.js` now moves the indicator to
+the end when shown and again on any non-reply arrival. **The early return in
+`#moveTypingToEnd` is load-bearing**: moving the element is itself a childList
+mutation and re-enters the observer that called it, so without the "already
+last" check the two call each other forever.
+
+Every pre-existing typing test passed against the broken ordering, because they
+only asked whether the dots were *visible*, never *where*. The new test reads
+`lastElementChild.id`.
+
+**"Make the chat full screen so the URL is not visible" is not achievable, and
+that is a browser decision, not a gap in the code.** No site can hide the
+address bar on a page the browser just navigated to — that bar is how a guest
+tells the hotel's site from a copy of it — and iPhone Safari has no Fullscreen
+API at all. What shipped instead is `<meta name="theme-color">` per hotel, so
+Safari's top bar and Chrome's address bar take the hotel's own primary colour
+and read as the top of the app rather than as browser furniture.
+
+Measured before deciding, on 390x844: the page gets 701px of 844 and already
+spends all of it (header 57, safety notice 46, transcript 469, composer 69),
+with `documentElement` scroll overflow of 0. The missing 143px is chrome. **The
+only real route to no-URL-bar is a web app manifest plus "Add to Home
+Screen"** — the layout already declares `apple-mobile-web-app-capable` and
+`mobile-web-app-capable`, which currently do nothing because there is no
+manifest and Rails' PWA scaffolding is commented out in
+`config/routes.rb:211`. That is a separate feature and was deliberately not
+built unasked.
 
 ---
 
