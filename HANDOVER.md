@@ -12,16 +12,42 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (**Askello product plan written — docs only, no code**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
+| **Last updated** | 2026-08-26 (**Askello: fork path chosen — see below; docs only, no code changed**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). **Not re-run for the Askello plan commit**: it touches only `docs/` and this file (no application code, and nothing under `test/` reads `docs/`), and that session's container had no Postgres to run against. The last measured numbers above still stand from `81caf79`. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · three subscription plans complete, one production step outstanding · **Askello: planned, not started** |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · three subscription plans complete, one production step outstanding · **Askello: fork path chosen — being built in the separate `askello` repo, NOT here** |
+
+> **Mirror discipline:** this codebase shares its AI-safety substrate with the `askello` fork
+> (`sehovicmirza/hospello` ⇄ `sehovicmirza/askello`): `Ai::Client` and the concierge loop, prompt
+> sealing and citation validation, the injection corpus, the circuit breaker, the rack_attack/CSP
+> patterns, the tenancy-tripwire patterns, and the retention shape. **A security or correctness fix
+> in any of these files must be evaluated for the sibling repo in the same session, and the
+> sibling's HANDOVER updated with either the ported fix or the reason it doesn't apply.**
 
 ---
 
-## NEW: the Askello plan (`docs/plan/askello-plan.md`) — read this before starting it
+## The Askello decision: FORKED, not a second brand in this app
+
+Two plans were written on 2026-08-26, in this order, and the owner chose the second:
+
+1. [docs/plan/askello-plan.md](docs/plan/askello-plan.md) — Askello as a second brand inside this
+   app (product enum, brand registry, host-constrained routes). **Superseded as the build path.**
+   Still the audit of record and the reference design for everything net-new (auth, guide builder,
+   AI generation, billing, analytics).
+2. [docs/plan/askello-fork-plan.md](docs/plan/askello-fork-plan.md) — **the approved path.** Askello
+   is a separate repository cloned from this one at `f49cf2c`+, with the hotel-only surface deleted
+   (measured: 126 files / 13,637 lines — service requests, departments/categories, rooms, WhatsApp,
+   the translation overlay, plan gating, demo seeds) and the vocabulary renamed
+   (`Hotel`→`Property`, `/h/`→`/g/`, `hospello_guest`→`askello_guest`, module, DB names).
+
+**What this means for anyone working in THIS repo:** do not build Askello features here. This
+repo's Askello obligations are exactly two — the mirror discipline in the box above, and staying
+untouched (the fork's whole safety argument is that no Askello change can ever be a Hospello
+incident). Everything below this section is the Hospello product as before.
+
+## The Askello plan (`docs/plan/askello-plan.md`) — kept as the audit + reference designs
 
 The owner wants a **second commercial product on this same codebase**: **Askello**, "Every answer for
 every stay." — an *AI guest guide for vacation rentals*, sold **fully self-service** to Airbnb/holiday-
@@ -81,25 +107,21 @@ is commented out).
 decision), `test/i18n/locale_files_test.rb` (new locale families register in `FAMILY_LOCALES`). The plan
 names the exact edit for each, per phase.
 
-### Where to start
+### Where to start — NOWHERE IN THIS REPO (superseded by the fork)
 
-**Phase 0 (S, 2–3 days), and it is deliberately invisible to customers:** the `AddProductToHotels`
-migration (`integer, default: 0, null: false` — instant, no backfill), `Hotel.product` enum, a `Brand`
-registry service, the `/h/:slug` product filter (`Hotel.product_hospello.find_by!`), and a refusal in
-`Platform::HotelsController#plan` so nobody can flip an Askello property onto a plan that re-arms
-request tools against zero rooms. Break-the-code tests on both boundaries. Everything else hangs off it.
+This section used to point at the monolith plan's Phase 0 (a `hotels.product` migration in this
+repo). **Do not do that** — the fork was chosen instead; work happens in the `askello` repo per
+[docs/plan/askello-fork-plan.md](docs/plan/askello-fork-plan.md). The findings and traps above
+remain true and transfer to the fork (they are facts about this codebase, which the fork clones).
 
-**Before Phase 2+, get the owner to answer the open questions in §10** — particularly the Free plan's
-AI allowance (recommended: none at MVP, locked teaser), one Askello host vs. marketing/app split, and
-whether Hospello staff also get password reset (recommended: no, keep the reset host-constrained).
+**Two product flags that survive the path change**, for whoever runs the fork build:
 
-**One thing the plan flags honestly rather than solving:** a published guide holds Wi-Fi passwords and
-door codes on a URL anyone with the link can open. MVP ships *unlisted*, not *private* — unguessable
-slug suffix, `X-Robots-Tag: noindex`, and host-facing copy that says so. A per-property PIN is the named
-post-MVP fast-follow. If the owner is not comfortable with unlisted-not-private, that changes Phase 3.
-
-Estimated total: **31–45 engineer-days** across six phases. Rollback at any point is unsetting
-`ASKELLO_HOST`, which leaves every Askello route unmatched and Hospello untouched.
+- The Free plan's AI allowance (recommended: none at MVP, locked teaser) and the other §10 open
+  questions in the monolith plan still need the owner's answers before the fork's F3+.
+- A published guide holds Wi-Fi passwords and door codes on a URL anyone with the link can open.
+  MVP ships *unlisted*, not *private* — unguessable slug suffix, `X-Robots-Tag: noindex`, honest
+  host-facing copy. A per-property PIN is the named post-MVP fast-follow. If the owner is not
+  comfortable with unlisted-not-private, that changes the fork's F4.
 
 > ### The CI failure is fixed, and it was never a flake
 >

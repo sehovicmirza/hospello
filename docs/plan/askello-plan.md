@@ -1,8 +1,16 @@
 # Askello — a second product on the Hospello platform: implementation plan
 
-> **Status: PLAN ONLY — nothing in this document is implemented.** Written 2026-08-26 against
-> commit `81caf79` by a planning session that deliberately wrote no code. No migration has been
-> run, no model or route exists, and `git grep -i askello` finds only this file and `HANDOVER.md`.
+> **Status: SUPERSEDED as the build path — the owner chose the fork instead.** See
+> [askello-fork-plan.md](askello-fork-plan.md): Askello is being built in a separate repository
+> cloned from this one, not as a second brand inside this app. **This document remains the audit of
+> record** (§1–3: what exists, what's reusable, the gaps) **and the reference design for the
+> net-new subsystems** (§4–5: auth/signup, guide builder, AI generation, public guide, billing,
+> analytics — the fork plan's phases F2–F6 point back here for their detail). The monolith-specific
+> machinery in it — the `product` enum, `Brand` registry, host constraints, product gates, pin
+> tests — is void under the fork and must not be built.
+>
+> Original status when written (2026-08-26, against `81caf79`): plan only, nothing implemented —
+> no migration run, no model or route created.
 >
 > **Before implementing:** this plan is a *proposal*, not an approved contract like
 > [implementation-plan.md](implementation-plan.md). Section 10 lists nine open questions, each with
