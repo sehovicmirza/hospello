@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (guest-chat scroll root cause + QR card copy; three plans complete) |
+| **Last updated** | 2026-08-26 (guest-chat scroll fixed at the root; QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1301 unit/integration green (6.4s), rubocop clean. All 9 phone invariants green. System suite still shows the browser-launch flake (0 failures). |
+| **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
 
@@ -74,6 +74,15 @@ What survives alongside the root fix is one line in `submitEnd`: pressing send
 always follows, because that is a different case from a message arriving (the
 guest is asking to rejoin), and it covers a send on a conversation reception has
 taken over, where no dots appear at all. All three pieces are mutation-proven.
+
+`1888466` adds the other direction: a reply **taller than the transcript** now
+lands on its first line rather than its last, so the guest reads downwards
+instead of arriving at the end of something they have not started. **This case
+is narrower than it looks and its first test proved nothing** —
+`Message::MAX_BODY_LENGTH` (1000) caps a reply at roughly 454px, against a
+~470px transcript at 390x844, so it fits and the test passed with the fix
+removed. It only overflows on a smaller phone (iPhone SE: 292px of transcript)
+or once the keyboard is open, which is why that test runs at 375x667.
 
 **The QR card** (`c9a020f`) now says what the plan does — Essentials cards
 invite questions, not "chat with our front desk", which that plan cannot
