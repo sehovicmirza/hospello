@@ -12,10 +12,10 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (four guest-chat fixes; three subscription plans complete) |
+| **Last updated** | 2026-08-26 (guest-chat scroll root cause + QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1298 unit/integration green (7.7s), rubocop clean, brakeman 0 warnings. System suite still shows the browser-launch flake (22 errors, **0 failures**); guest-chat and phone-invariant tests pass in isolation. |
+| **Tests** | 1301 unit/integration green (6.4s), rubocop clean. All 9 phone invariants green. System suite still shows the browser-launch flake (0 failures). |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
 
@@ -40,6 +40,48 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > - **Brakeman runs at `-w2`** (medium confidence and up). Its weak band includes "support for Rails
 >   8.0.5.1 ends on 2026-10-07", which would otherwise fail every build from now on. That date is
 >   real — see "What to do next".
+
+---
+
+## The transcript scroll bug, and two wrong fixes (`6cd3ea6`, `c9a020f`)
+
+**Read this before touching `chat_scroll_controller.js`.** A reply arriving for
+a waiting guest was landing half-hidden behind the composer.
+
+The cause: `#isNearBottom()` was asked from inside a MutationObserver callback,
+which runs *after* the DOM changed — so it measured the distance to the bottom
+with the new message already in place. The transcript is further from the bottom
+by exactly the height of what just landed, so **any message taller than
+`NEAR_BOTTOM_PX` (48) looked identical to a guest who had scrolled away**, and
+the follow was declined. It now subtracts the added height, reconstructing where
+the guest was, synchronously and from the mutation itself.
+
+**Two fixes were tried and discarded. Do not retry either:**
+
+1. *Scroll on any non-reply append* (shipped in `304bb4c`, reverted). "Not a
+   reply" is not "the guest's own message" — a live broadcast and the resilience
+   resync also arrive without a non-guest sender role, so a guest rereading an
+   earlier message was dragged to the bottom whenever anything arrived.
+2. *Record the position from the `scroll` event.* That event is asynchronous, so
+   a guest who scrolled up and received a message in the same tick was still
+   yanked.
+
+Both were caught by the pre-existing "a guest who scrolled up to reread is not
+yanked back down" test. **That test is the guard on this whole area — do not
+weaken it.**
+
+What survives alongside the root fix is one line in `submitEnd`: pressing send
+always follows, because that is a different case from a message arriving (the
+guest is asking to rejoin), and it covers a send on a conversation reception has
+taken over, where no dots appear at all. All three pieces are mutation-proven.
+
+**The QR card** (`c9a020f`) now says what the plan does — Essentials cards
+invite questions, not "chat with our front desk", which that plan cannot
+deliver. German was dropped, so the card is bs/en/ar; its absence is asserted so
+re-adding a language is deliberate. Copy lives in `QrCardHelper` and is
+deliberately not I18n: the card has no reader yet, so it speaks all its
+languages at once — through `config/locales` it would print in whatever language
+the receptionist happened to be using. German is still supported in the chat.
 
 ---
 
