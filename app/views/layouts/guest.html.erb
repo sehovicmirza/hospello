@@ -24,6 +24,12 @@
         field the guest is typing into is behind the keyboard — the thing that
         makes a phone chat feel broken even when everything else is right. %>
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+    <%# Paints Safari's top bar and Chrome's address bar in the hotel's own
+        colour. See BrandingHelper#hotel_theme_color for why this is as close
+        to full screen as a QR-scanned page can get. %>
+    <% if Current.hotel %>
+      <meta name="theme-color" content="<%= hotel_theme_color(Current.hotel) %>">
+    <% end %>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <%= csrf_meta_tags %>

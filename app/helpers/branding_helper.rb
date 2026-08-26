@@ -43,6 +43,19 @@ module BrandingHelper
     properties.map { |property, value| "#{property}:#{value};" }.join.html_safe
   end
 
+  # The colour the browser paints its own chrome with — Safari's top bar and
+  # Chrome's address bar both read this.
+  #
+  # It is the closest thing there is to the "full screen" a QR-scanned page
+  # cannot have: no browser will hide its address bar for a page it just
+  # navigated to (that bar is how a guest can tell they are on the hotel's site
+  # and not a copy of it), but it will colour it. Tinted with the hotel's own
+  # primary, the bar stops reading as browser furniture sitting on top of the
+  # chat and starts reading as the top of the hotel's app.
+  def hotel_theme_color(hotel)
+    normalized_hex(hotel.primary_color, default: DEFAULT_PRIMARY_COLOR)
+  end
+
   private
     # Hotel::COLOR_FORMAT is anchored (\A...\z), so anything other than
     # exactly "#" + six hex digits — nil, "", "blue", or a well-formed prefix

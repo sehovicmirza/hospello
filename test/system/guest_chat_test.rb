@@ -123,6 +123,28 @@ class GuestChatTest < ApplicationSystemTestCase
     assert_selector "#typing-indicator", visible: true
   end
 
+  # Where the dots sit, not just whether they exist.
+  #
+  # Turbo appends the guest's own message to #chat-messages *after*
+  # turbo:submit-end fires, and Conversation#broadcast_new_message appends
+  # every later message to the same target. The indicator is rendered as the
+  # last child once, so without deliberate work each arriving message slides
+  # underneath it and the dots end up above the newest message — promising a
+  # reply in the wrong place.
+  test "the typing dots stay below the newest message" do
+    visit_chat_as_guest(locale: "en")
+
+    fill_in "message_body", with: "When does the spa close?"
+    find("#composer-send").click
+
+    assert_selector "#typing-indicator", visible: true
+    assert_selector "#chat-messages", text: "When does the spa close?"
+
+    assert_equal "typing-indicator", page.evaluate_script(
+      "document.querySelector('#chat-messages').lastElementChild.id"
+    ), "the dots must be the last thing in the transcript, below the guest's own message"
+  end
+
   # The honesty condition, and the reason this is not simply "show dots after
   # every send". Ai::GenerateReplyJob returns in silence when reception has
   # taken the conversation over — no reply, no notice, nothing — so a guest

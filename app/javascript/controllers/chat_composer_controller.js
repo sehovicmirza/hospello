@@ -58,7 +58,17 @@ export default class extends Controller {
         )
       )
 
-      if (reply) this.#hideTyping()
+      if (reply) {
+        this.#hideTyping()
+        return
+      }
+
+      // Not a reply, so it is the guest's own message, which Turbo appends to
+      // the end of the transcript after turbo:submit-end — i.e. *below* the
+      // indicator we just showed. Conversation#broadcast_new_message appends
+      // to the same target, so anything arriving does the same. Put the dots
+      // back at the bottom, where the answer they promise will actually land.
+      if (this.#typingVisible()) this.#moveTypingToEnd()
     })
     this.transcriptObserver.observe(this.#transcript, { childList: true })
   }
@@ -136,12 +146,33 @@ export default class extends Controller {
   #showTypingIfReplyExpected() {
     if (!this.expectReplyValue || !this.hasTypingIndicatorTarget) return
 
+    this.#moveTypingToEnd()
     this.typingIndicatorTarget.classList.remove("hidden")
     this.typingIndicatorTarget.classList.add("flex")
     this.#scrollTranscriptToBottom()
 
     clearTimeout(this.typingTimeout)
     this.typingTimeout = setTimeout(() => this.#hideTyping(), this.constructor.TYPING_TIMEOUT_MS)
+  }
+
+  #typingVisible() {
+    return this.hasTypingIndicatorTarget && !this.typingIndicatorTarget.classList.contains("hidden")
+  }
+
+  // The indicator has to be the last thing in the transcript, and it cannot
+  // simply be rendered there once: every message that arrives — the guest's
+  // own via Turbo, a reply or a staff message via broadcast_append_to — is
+  // appended after it, pushing the dots above the newest message.
+  //
+  // The early return is not an optimisation. Moving the element is itself a
+  // childList mutation, so it re-enters the observer above; without this the
+  // two would call each other forever.
+  #moveTypingToEnd() {
+    const transcript = this.#transcript
+    if (!transcript || !this.hasTypingIndicatorTarget) return
+    if (transcript.lastElementChild === this.typingIndicatorTarget) return
+
+    transcript.appendChild(this.typingIndicatorTarget)
   }
 
   #hideTyping() {
