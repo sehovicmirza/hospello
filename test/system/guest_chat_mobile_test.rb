@@ -67,6 +67,33 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       "the guest had to scroll to find the dots that tell them a reply is coming"
   end
 
+  # The reply itself has to land on screen, not just the dots.
+  #
+  # Reported from a real phone: the guest sits watching the typing indicator,
+  # the answer arrives, and half of it is behind the composer. The cause is
+  # subtle — chat_scroll_controller asked "is the transcript near the bottom?"
+  # from inside a MutationObserver callback, which runs *after* the DOM
+  # changed, so it measured the distance with the new message already in place.
+  # A reply taller than NEAR_BOTTOM_PX therefore looked exactly like a guest who
+  # had scrolled away to reread something, and the scroll was declined.
+  #
+  # The reply below is deliberately long, because a short one hides the bug.
+  test "a long reply lands on screen for a guest who was waiting at the bottom" do
+    visit_chat_on_phone
+
+    6.times { |i| send_message("Poruka #{i + 1} — pitanje o doručku i spa centru.") }
+
+    long_reply = "Doručak se služi od 07:00 do 10:30 u restoranu na prvom spratu. " \
+                 "Nudimo topli i hladni bife, domaće proizvode, svježe pecivo i lokalni med. " \
+                 "Za goste koji ranije putuju možemo pripremiti paket za ponijeti, " \
+                 "samo javite recepciji dan ranije. Spa centar radi od 10:00 do 22:00."
+    post_reply(long_reply)
+
+    assert_selector "#chat-messages", text: long_reply.truncate(30, omission: "")
+    assert last_message_fully_visible?,
+      "the guest had to scroll to read a reply they were sitting and waiting for"
+  end
+
   # The other half of "the transcript is the scroller": a guest who scrolled up
   # to reread something must stay there when a new message arrives. This is the
   # behaviour chat_scroll_controller.js's NEAR_BOTTOM_PX exists for, and it was
@@ -93,6 +120,27 @@ class GuestChatMobileTest < ApplicationSystemTestCase
 
     assert_equal 0, transcript_scroll_top,
       "a new message dragged the guest back to the bottom while they were reading"
+  end
+
+  # Sending is not the same as receiving, and the rule flips.
+  #
+  # A guest who has scrolled up to reread something must not be dragged down by
+  # a message *arriving* — that is the test above. But if they then type and
+  # press send, they have asked to rejoin the conversation, and leaving their
+  # own message off screen is the "where did it go" that made this chat feel
+  # broken. chat_scroll_controller cannot tell these apart: it sees two appends.
+  test "a guest who scrolled up and then sends is taken back to their own message" do
+    visit_chat_on_phone
+
+    8.times { |i| send_message("Poruka #{i + 1} — pitanje o doručku, spa centru i transferu.") }
+
+    page.execute_script("document.getElementById('chat-messages').scrollTop = 0")
+    assert_equal 0, transcript_scroll_top
+
+    send_message("Još jedno pitanje, molim vas.")
+
+    assert last_message_fully_visible?,
+      "the guest pressed send and could not see the message they had just sent"
   end
 
   # iOS Safari zooms the whole page in when a focused field is under 16px and
@@ -184,6 +232,31 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       fill_in "message_body", with: body
       find("#composer-send").click
       assert_selector "#chat-messages", text: body.truncate(20, omission: "")
+    end
+
+    # Delivered the way a real reply is — through the model, so it goes out over
+    # the same broadcast the assistant's answers use — then nudged, because a
+    # headless tab does not always process the cable promptly.
+    def post_reply(body)
+      hotel = phone_hotel
+      staff = hotel.users.find_by(role: :staff) || hotel.users.first
+      ActsAsTenant.with_tenant(hotel) do
+        Conversation.live_for(hotel.guest_sessions.order(:id).last).post_staff_message!(user: staff, body: body)
+      end
+      page.execute_script('document.dispatchEvent(new Event("visibilitychange"))')
+    end
+
+    def last_message_fully_visible?
+      page.evaluate_script(<<~JS)
+        (() => {
+          const list = document.getElementById('chat-messages')
+          const msgs = list.querySelectorAll('[data-message-id]')
+          const last = msgs[msgs.length - 1]
+          if (!last) return false
+          const l = list.getBoundingClientRect(), m = last.getBoundingClientRect()
+          return m.bottom <= l.bottom + 1
+        })()
+      JS
     end
 
     def typing_dots_on_screen?

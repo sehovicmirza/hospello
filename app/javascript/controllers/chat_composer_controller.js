@@ -69,19 +69,8 @@ export default class extends Controller {
       // to the same target, so anything arriving does the same. Put the dots
       // back at the bottom, where the answer they promise will actually land.
       //
-      // Then scroll, unconditionally, and deliberately not through
-      // chat_scroll_controller. That controller declines to scroll unless the
-      // transcript is already within NEAR_BOTTOM_PX (48) of the bottom, which
-      // is right for a message arriving while the guest is rereading something
-      // — but it also means a guest whose own message is taller than 48px is
-      // left above the fold with the dots below it, having to scroll to see
-      // the thing that tells them an answer is coming. This branch only runs
-      // because the guest just pressed send, so following them down is what
-      // they asked for.
-      if (this.#typingVisible()) {
-        this.#moveTypingToEnd()
-        this.#scrollTranscriptToBottom()
-      }
+      if (this.#typingVisible()) this.#moveTypingToEnd()
+
     })
     this.transcriptObserver.observe(this.#transcript, { childList: true })
   }
@@ -125,6 +114,16 @@ export default class extends Controller {
       this.#regenerateClientMessageId()
       this.#resize()
       this.#showTypingIfReplyExpected()
+      // Always, dots or not, and deliberately overriding
+      // chat_scroll_controller's "was the guest near the bottom" rule.
+      //
+      // That rule is right for a message *arriving* — a guest rereading
+      // something earlier must not be dragged away from it — and wrong for one
+      // the guest just sent: pressing send is asking to rejoin the
+      // conversation, and leaving their own message off screen is the "where
+      // did it go" this chat was reported for. It also covers the case where no
+      // dots appear at all, because reception has taken the conversation over.
+      this.#scrollTranscriptToBottom()
     }
 
     // Keeping focus keeps the keyboard up, which is what a guest sending a
@@ -162,7 +161,6 @@ export default class extends Controller {
     this.#moveTypingToEnd()
     this.typingIndicatorTarget.classList.remove("hidden")
     this.typingIndicatorTarget.classList.add("flex")
-    this.#scrollTranscriptToBottom()
 
     clearTimeout(this.typingTimeout)
     this.typingTimeout = setTimeout(() => this.#hideTyping(), this.constructor.TYPING_TIMEOUT_MS)
