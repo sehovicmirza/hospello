@@ -12,12 +12,94 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (guest-chat scroll fixed at the root; QR card copy; three plans complete) |
+| **Last updated** | 2026-08-26 (**Askello product plan written — docs only, no code**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). |
+| **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). **Not re-run for the Askello plan commit**: it touches only `docs/` and this file (no application code, and nothing under `test/` reads `docs/`), and that session's container had no Postgres to run against. The last measured numbers above still stand from `81caf79`. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
-| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · **three subscription plans complete, one production step outstanding** |
+| **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · three subscription plans complete, one production step outstanding · **Askello: planned, not started** |
+
+---
+
+## NEW: the Askello plan (`docs/plan/askello-plan.md`) — read this before starting it
+
+The owner wants a **second commercial product on this same codebase**: **Askello**, "Every answer for
+every stay." — an *AI guest guide for vacation rentals*, sold **fully self-service** to Airbnb/holiday-
+rental hosts with 1–10 properties. One repo, one Rails app, one Render service, one database; separate
+brands, domains, onboarding, dashboards, plans and public surfaces.
+
+**Nothing is implemented.** A planning session inspected the repository in depth (three parallel audit
+passes + an adversarial design review) and wrote [docs/plan/askello-plan.md](docs/plan/askello-plan.md).
+No migration exists, no model, no route. `git grep -i askello` returns this file and that one.
+
+### The finding that shapes the whole plan
+
+**Askello's AI is the Essentials plan.** `Ai::PromptBuilder.static_rules_for` already branches
+`SERVICE_RULES` vs `ESSENTIALS_RULES` on `plan_allows?(:requests)`, and `Ai::Tools` already withholds
+the request tools at **both** gates. An Essentials hotel is exactly "grounded Q&A, no service requests,
+tell them to contact a human" — which is Askello's entire AI product, already built, already tested
+(`essentials_plan_test.rb`), already verified against the real model (`live_essentials_test.rb`).
+Askello properties are therefore `Hotel` rows with a new `product: askello` enum and `plan: essentials`
+and **zero rooms** — no rename of anything, no backfill.
+
+Second finding worth the same weight: **the WhatsApp path is the precedent for anonymous guests.**
+`GuestSession.for_whatsapp` already creates roomless, formless sessions with consent stamped from the
+guest's own first message. A guide visitor is the same shape.
+
+### What is genuinely missing, and is therefore most of the work
+
+Confirmed by exhaustive grep, not assumption: **no signup, no password reset, no mailer of any kind**
+(only the `ApplicationMailer` stub; no SMTP configured; nothing in `app/` ever calls `deliver_*`);
+**no billing** (zero Stripe/payment/trial code — the `plan` enum is a capability profile, not money);
+**no marketing pages** (`/` is the bare sign-in form); **no analytics or UTM anything** (server-side
+`Analytics::HotelReport` only); **nothing routes on host** (`APP_HOST` is one scalar; `config.hosts`
+is commented out).
+
+### Five traps the plan calls out that will cost a session if rediscovered the hard way
+
+1. **`allow_browser versions: :modern` cannot be skipped by name** — it registers an *anonymous*
+   `before_action`, so `skip_before_action` has nothing to target. Askello's public controllers
+   (marketing, guide) must inherit `ActionController::Base` directly — the
+   `Webhooks::WhatsappController` precedent — or every old phone gets the unbranded English 406 on a
+   conversion funnel and on the page holding the guest's Wi-Fi code.
+2. **`ApplicationCable::Connection#find_verified_guest_session` hardcodes `cookies.signed[:hospello_guest]`.**
+   A guide surface issuing its own cookie gets *silently* no live updates until that method tries both.
+3. **`degraded.reception_will_reply`** is posted by `Ai::GenerateReplyJob#degrade!` with no model in
+   the loop. "Reception will reply" is nonsense for a rental — it needs a per-product sibling key in
+   **all four** `degraded.*.yml` files at once, or `locale_files_test` fails on key-set equality.
+4. **The Free plan must never reach the degrade path.** Budget-0 blocks AI correctly, but budget-blocked
+   *posts a notice and escalates* — a bad free-tier experience. Gate on entitlements **before**
+   `post_guest_message!` enqueues anything; keep budget 0 as defence in depth.
+5. **Generation tokens share the daily budget.** `AiRun.tokens_used_today` sums all kinds, so a host
+   regenerating a guide twice could budget-block their own guests that day. Open question #2 in the
+   plan; decide before Phase 2 ships.
+
+### Tripwires that will fire (this is them working, not breakage)
+
+`test/tenancy/tenant_declaration_test.rb` (any new model with `hotel_id`), `without_tenant_grep_test.rb`
+(escape hatches), `test/services/retention/policy_test.rb` (any new `hotel_id` table needs a retention
+decision), `test/i18n/locale_files_test.rb` (new locale families register in `FAMILY_LOCALES`). The plan
+names the exact edit for each, per phase.
+
+### Where to start
+
+**Phase 0 (S, 2–3 days), and it is deliberately invisible to customers:** the `AddProductToHotels`
+migration (`integer, default: 0, null: false` — instant, no backfill), `Hotel.product` enum, a `Brand`
+registry service, the `/h/:slug` product filter (`Hotel.product_hospello.find_by!`), and a refusal in
+`Platform::HotelsController#plan` so nobody can flip an Askello property onto a plan that re-arms
+request tools against zero rooms. Break-the-code tests on both boundaries. Everything else hangs off it.
+
+**Before Phase 2+, get the owner to answer the open questions in §10** — particularly the Free plan's
+AI allowance (recommended: none at MVP, locked teaser), one Askello host vs. marketing/app split, and
+whether Hospello staff also get password reset (recommended: no, keep the reset host-constrained).
+
+**One thing the plan flags honestly rather than solving:** a published guide holds Wi-Fi passwords and
+door codes on a URL anyone with the link can open. MVP ships *unlisted*, not *private* — unguessable
+slug suffix, `X-Robots-Tag: noindex`, and host-facing copy that says so. A per-property PIN is the named
+post-MVP fast-follow. If the owner is not comfortable with unlisted-not-private, that changes Phase 3.
+
+Estimated total: **31–45 engineer-days** across six phases. Rollback at any point is unsetting
+`ASKELLO_HOST`, which leaves every Askello route unmatched and Hospello untouched.
 
 > ### The CI failure is fixed, and it was never a flake
 >
