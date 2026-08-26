@@ -68,7 +68,20 @@ export default class extends Controller {
       // indicator we just showed. Conversation#broadcast_new_message appends
       // to the same target, so anything arriving does the same. Put the dots
       // back at the bottom, where the answer they promise will actually land.
-      if (this.#typingVisible()) this.#moveTypingToEnd()
+      //
+      // Then scroll, unconditionally, and deliberately not through
+      // chat_scroll_controller. That controller declines to scroll unless the
+      // transcript is already within NEAR_BOTTOM_PX (48) of the bottom, which
+      // is right for a message arriving while the guest is rereading something
+      // — but it also means a guest whose own message is taller than 48px is
+      // left above the fold with the dots below it, having to scroll to see
+      // the thing that tells them an answer is coming. This branch only runs
+      // because the guest just pressed send, so following them down is what
+      // they asked for.
+      if (this.#typingVisible()) {
+        this.#moveTypingToEnd()
+        this.#scrollTranscriptToBottom()
+      }
     })
     this.transcriptObserver.observe(this.#transcript, { childList: true })
   }

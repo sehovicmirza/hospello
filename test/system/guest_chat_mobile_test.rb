@@ -44,6 +44,29 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       "the transcript is not the scroller, so its content is overflowing somewhere else"
   end
 
+  # The dots have to be *on screen*, which is a different question from being
+  # last in the DOM.
+  #
+  # chat_scroll_controller only follows new content when the transcript is
+  # already within NEAR_BOTTOM_PX (48) of the bottom. That is right for a
+  # message arriving while a guest rereads something earlier, and wrong the
+  # moment the guest's own message is taller than 48px: the append leaves the
+  # transcript further than the threshold from the bottom, the auto-scroll
+  # declines, and the one element that says an answer is coming sits below the
+  # fold. The transcript has to be full first or there is nothing to scroll and
+  # the test proves nothing.
+  test "the typing dots are on screen after sending, without scrolling" do
+    visit_chat_on_phone
+
+    8.times { |i| send_message("Poruka #{i + 1} — pitanje o doručku, spa centru i transferu.") }
+    send_message("Dobar dan, ovdje smo s porodicom cijelu sedmicu i zanima nas šta ima " \
+                 "u blizini, posebno nešto što odgovara djeci koja se brzo dosade u muzejima.")
+
+    assert_selector "#typing-indicator", visible: true
+    assert typing_dots_on_screen?,
+      "the guest had to scroll to find the dots that tell them a reply is coming"
+  end
+
   # The other half of "the transcript is the scroller": a guest who scrolled up
   # to reread something must stay there when a new message arrives. This is the
   # behaviour chat_scroll_controller.js's NEAR_BOTTOM_PX exists for, and it was
@@ -161,6 +184,17 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       fill_in "message_body", with: body
       find("#composer-send").click
       assert_selector "#chat-messages", text: body.truncate(20, omission: "")
+    end
+
+    def typing_dots_on_screen?
+      page.evaluate_script(<<~JS)
+        (() => {
+          const list = document.getElementById('chat-messages')
+          const dots = document.getElementById('typing-indicator')
+          const l = list.getBoundingClientRect(), d = dots.getBoundingClientRect()
+          return d.top >= l.top - 1 && d.bottom <= l.bottom + 1
+        })()
+      JS
     end
 
     def transcript_scroll_top

@@ -68,6 +68,12 @@ module Ai
       assert_includes text, "hotel_knowledge"
       assert_match(/never.*(invent|guess)/, text)
       assert_match(/pending until/, text)
+      # The scope boundary. This is the cheap half — that the rule is present at
+      # all — and it exists so a regression fails in CI rather than waiting for
+      # someone to notice the concierge handing out recipes. Whether the model
+      # actually honours it is live_scope_test's job, and cannot be checked here.
+      assert_match(/not a general assistant/, text)
+      assert_match(/out of scope/, text)
       assert_match(/emergency/, text)
       assert_match(/language of the guest/, text)
     end
