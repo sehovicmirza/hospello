@@ -45,14 +45,40 @@ export default class extends Controller {
   #handleNewMessages(mutations) {
     const el = this.messagesTarget
     const gap = parseFloat(getComputedStyle(el).rowGap) || 0
-    const grew = mutations
+    const added = mutations
       .flatMap((mutation) => Array.from(mutation.addedNodes))
       .filter((node) => node.nodeType === Node.ELEMENT_NODE)
-      .reduce((total, node) => total + node.offsetHeight + gap, 0)
+    const grew = added.reduce((total, node) => total + node.offsetHeight + gap, 0)
 
     const distanceNow = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceNow - grew > this.constructor.NEAR_BOTTOM_PX) return
 
-    if (distanceNow - grew <= this.constructor.NEAR_BOTTOM_PX) this.#scrollToBottom()
+    this.#reveal(added)
+  }
+
+  // Where to land once we have decided to follow.
+  //
+  // The bottom, normally. But a concierge writes paragraphs — an answer about
+  // breakfast, the spa and the airport transfer can easily be taller than the
+  // transcript is — and for one of those, the bottom is the *end* of a message
+  // the guest has not started reading. They are left looking at the last line
+  // of something whose first line is above the fold, which is the same "I have
+  // to scroll" as the bug this method exists to fix, just in the other
+  // direction.
+  //
+  // So when the arriving message is taller than the visible area, land on its
+  // first line instead and let the guest read downwards. Anything that fits
+  // still goes to the bottom, which is what a chat should do.
+  #reveal(added) {
+    const el = this.messagesTarget
+    const tallest = added.reduce((a, b) => (a && a.offsetHeight >= b.offsetHeight ? a : b), null)
+
+    if (tallest && tallest.offsetHeight > el.clientHeight) {
+      el.scrollTop = tallest.offsetTop - el.offsetTop
+      return
+    }
+
+    this.#scrollToBottom()
   }
 
   #isNearBottom() {

@@ -122,6 +122,34 @@ class GuestChatMobileTest < ApplicationSystemTestCase
       "a new message dragged the guest back to the bottom while they were reading"
   end
 
+  # A reply taller than the screen has no scroll position that shows all of it,
+  # so the question is which end to show — and the bottom is the wrong one. The
+  # guest lands on the last line of something they have not started reading,
+  # with the first line above the fold: the same "I have to scroll" as a reply
+  # cut off at the bottom, just in the other direction. This is the shape of the
+  # recipe answer in the bug report that prompted the fix.
+  test "a reply taller than the screen shows its first line, not its last" do
+    visit_chat_on_phone
+    # An iPhone SE, not the 390x844 the rest of this file uses. At that size a
+    # maximum-length message (Message::MAX_BODY_LENGTH, 1000) is about 454px
+    # against a ~470px transcript, so it fits and there is nothing to test. On
+    # the smaller screen — and on any phone once the keyboard is open — it does
+    # not, which is when this matters.
+    page.driver.browser.manage.window.resize_to(375, 667)
+
+    4.times { |i| send_message("Poruka #{i + 1} — kratko pitanje.") }
+
+    # Just under Message::MAX_BODY_LENGTH (1000). At phone width that is roughly
+    # 580px of bubble against a ~470px transcript, so it genuinely cannot fit —
+    # which is the only way this test means anything.
+    tall = (1..40).map { |i| "Stavka #{i}: opis usluge hotela." }.join(" ").first(980)
+    post_reply(tall)
+
+    assert_selector "#chat-messages", text: "Stavka 1"
+    assert last_message_starts_on_screen?,
+      "the guest landed on the end of a long answer and had to scroll up to read its start"
+  end
+
   # Sending is not the same as receiving, and the rule flips.
   #
   # A guest who has scrolled up to reread something must not be dragged down by
@@ -244,6 +272,20 @@ class GuestChatMobileTest < ApplicationSystemTestCase
         Conversation.live_for(hotel.guest_sessions.order(:id).last).post_staff_message!(user: staff, body: body)
       end
       page.execute_script('document.dispatchEvent(new Event("visibilitychange"))')
+    end
+
+    # The top edge of the newest message, within the visible transcript.
+    def last_message_starts_on_screen?
+      page.evaluate_script(<<~JS)
+        (() => {
+          const list = document.getElementById('chat-messages')
+          const msgs = list.querySelectorAll('[data-message-id]')
+          const last = msgs[msgs.length - 1]
+          if (!last) return false
+          const l = list.getBoundingClientRect(), m = last.getBoundingClientRect()
+          return m.top >= l.top - 1 && m.top < l.bottom
+        })()
+      JS
     end
 
     def last_message_fully_visible?
