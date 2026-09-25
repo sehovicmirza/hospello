@@ -12,7 +12,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 
 | | |
 |---|---|
-| **Last updated** | 2026-08-26 (**Askello: fork path chosen — see below; docs only, no code changed**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
+| **Last updated** | 2026-09-25 (**mirror port from askello: the login throttle counts a format suffix, see "Mirror-discipline ports" below**); 2026-08-26 (**Askello: fork path chosen — see below; docs only, no code changed**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
 | **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). **Not re-run for the Askello plan commit**: it touches only `docs/` and this file (no application code, and nothing under `test/` reads `docs/`), and that session's container had no Postgres to run against. The last measured numbers above still stand from `81caf79`. |
@@ -27,6 +27,22 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 > sibling's HANDOVER updated with either the ported fix or the reason it doesn't apply.**
 
 ---
+
+## Mirror-discipline ports from askello
+
+- **2026-09-25: the login throttle counts `/session.json` as `/session`** (ported from askello's D-040
+  review; askello HANDOVER v12 §52). `resource :session` keeps Rails' optional `(.:format)`, so
+  `POST /session.json` reached `SessionsController#create` while `logins/ip` compared
+  `req.path == "/session"` exactly: a brute-force script got past the 10-a-minute limit by adding a
+  suffix. `Rack::Attack.routed_path` strips the format before comparing (Rack::Attack already folds
+  trailing and doubled slashes itself). Test: `rack_attack_test.rb` "a format suffix on the login path
+  is counted as the login path", red before the fix. `/up` and the WhatsApp webhook match are left
+  exact on purpose: one is a safelist, the other a signature-verified route.
+- **Recorded, not applicable (askello HANDOVER v12 §15, 2026-09-22):** askello's translator rules now
+  name Bosnian, Croatian and Serbian as distinct standards, because "if already in the target
+  language, return unchanged" read as true to a model for bs and hr. Hospello carries the same rule
+  (`translator.rb`) but serves `bs en de ar` only, so the ambiguity cannot arise here today. Port it
+  if Croatian or Serbian is ever added. (That session had no push access here; this is its note.)
 
 ## The Askello decision: FORKED, not a second brand in this app
 

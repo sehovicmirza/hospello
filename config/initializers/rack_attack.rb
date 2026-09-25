@@ -64,7 +64,7 @@ class Rack::Attack
   # and platform admin reaches before a session exists — bounding attempts
   # here backstops bcrypt's own cost factor against a brute-force script.
   throttle("logins/ip", limit: 10, period: 1.minute) do |req|
-    req.ip if req.post? && req.path == "/session"
+    req.ip if req.post? && routed_path(req) == "/session"
   end
 
   # Load balancers and uptime monitors (Render's health check, this app's
@@ -93,6 +93,16 @@ class Rack::Attack
   # block is defined directly inside `class Rack::Attack ... end`), which is
   # exactly why an unqualified call below has to be something *this class*
   # responds to.
+  # **A rule that compares a path exactly must compare the path the router
+  # will route** (ported from askello, its D-040 review, 2026-09-25). Routes
+  # keep Rails' optional `(.:format)`, so POST /session.json reaches the same
+  # action as /session, and an exact match on the bare path let it past the
+  # login limit. Rack::Attack already folds a trailing or doubled slash (it
+  # normalizes PATH_INFO before any rule runs); a format it does not.
+  FORMAT_SUFFIX = %r{\.[^/.]+\z}
+
+  def self.routed_path(req) = req.path.to_s.sub(FORMAT_SUFFIX, "")
+
   def self.verified_whatsapp_signature?(req)
     # Rack, not Rails, at this layer: Rack::Attack's middleware runs ahead
     # of ActionDispatch::Request's own raw_post caching (see

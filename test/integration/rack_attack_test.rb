@@ -62,6 +62,21 @@ class RackAttackTest < ActionDispatch::IntegrationTest
     assert_equal 429, response.status
   end
 
+  # Ported from askello (its D-040 review, 2026-09-25). `resource :session`
+  # keeps Rails' optional `(.:format)`, so POST /session.json reaches
+  # SessionsController#create exactly as /session does, and an exact match
+  # on "/session" let a brute-force script past the limit by adding a suffix.
+  # Rack::Attack folds a trailing or doubled slash itself; a format it does not.
+  test "a format suffix on the login path is counted as the login path" do
+    10.times do
+      post session_path, params: { email_address: "nobody@example.com", password: "wrong" }
+      assert_not_equal 429, response.status
+    end
+
+    post "/session.json", params: { email_address: "nobody@example.com", password: "wrong" }
+    assert_equal 429, response.status, "/session.json got past the login limit"
+  end
+
   test "never throttles /up" do
     25.times { get "/up" }
 
