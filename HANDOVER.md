@@ -15,7 +15,7 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
 | **Last updated** | 2026-09-25 (**mirror port from askello: the login throttle counts a format suffix, see "Mirror-discipline ports" below**); 2026-08-26 (**Askello: fork path chosen — see below; docs only, no code changed**; before that: guest-chat scroll fixed at the root; QR card copy; three plans complete) |
 | **Branch** | `main` |
 | **Deployed** | Render (Frankfurt, free tier) — `/up` returns 200 |
-| **Tests** | 1301 unit/integration green (7.0s), rubocop clean. All 10 phone invariants green. System suite still shows the browser-launch flake (0 failures). **Not re-run for the Askello plan commit**: it touches only `docs/` and this file (no application code, and nothing under `test/` reads `docs/`), and that session's container had no Postgres to run against. The last measured numbers above still stand from `81caf79`. |
+| **Tests** | 1302 unit/integration green at the 2026-09-25 mirror port (24.0s, 4 parallel workers), rubocop clean on the changed files. The system suite was not run for that port (it touches only the Rack::Attack initializer, its integration test and this file); its last state is the browser-launch flake with 0 failures. |
 | **CI** | Green through `ffdd760`. Rails is now **8.1.3.1** (bumped ahead of 8.0's 2026-10-07 end of support) and brakeman reports **0 warnings**, where the Rails-EOL advisory used to be its only finding. |
 | **Progress** | **Slices 1–6 complete** · Slice 7 Tasks 1–4 of 5 done · three subscription plans complete, one production step outstanding · **Askello: fork path chosen — being built in the separate `askello` repo, NOT here** |
 
@@ -36,8 +36,9 @@ Read [CLAUDE.md](CLAUDE.md) first if you haven't.
   `req.path == "/session"` exactly: a brute-force script got past the 10-a-minute limit by adding a
   suffix. `Rack::Attack.routed_path` strips the format before comparing (Rack::Attack already folds
   trailing and doubled slashes itself). Test: `rack_attack_test.rb` "a format suffix on the login path
-  is counted as the login path", red before the fix. `/up` and the WhatsApp webhook match are left
-  exact on purpose: one is a safelist, the other a signature-verified route.
+  is counted as the login path", red before the fix. `/up` and the WhatsApp webhook stay exact on
+  purpose: both are safelists, so a suffixed path only loses the exemption and never gets past a limit.
+  (SessionsController's own `rate_limit` was a backstop throughout; it ignores the path.)
 - **Recorded, not applicable (askello HANDOVER v12 §15, 2026-09-22):** askello's translator rules now
   name Bosnian, Croatian and Serbian as distinct standards, because "if already in the target
   language, return unchanged" read as true to a model for bs and hr. Hospello carries the same rule
